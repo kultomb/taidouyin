@@ -99,9 +99,9 @@ def mix_audio_and_video(
     
     # Burn subtitles nếu cần
     if burn_subtitles and srt_path and os.path.exists(srt_path):
-        cmd.remove("copy")
-        idx_cv = cmd.index("-c:v")
-        cmd[idx_cv + 1] = "libx264"
+        # Thay "copy" bằng "libx264" (cần re-encode để burn subtitle)
+        idx_copy = cmd.index("copy")
+        cmd[idx_copy] = "libx264"
         escaped_srt_path = srt_path.replace("\\", "/").replace(":", "\\:")
         cmd.extend(["-vf", f"subtitles='{escaped_srt_path}'"])
     
