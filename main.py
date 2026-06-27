@@ -29,6 +29,10 @@ os.makedirs("output", exist_ok=True)
 JOBS_TTL_SECONDS = 7200  # 2 giờ
 jobs = {}
 
+# Rate limiter đơn giản
+_last_request_time = 0.0
+MIN_REQUEST_INTERVAL = 2.0  # Tối thiểu 2s giữa các request
+
 def _cleanup_expired_jobs():
     """Xóa job quá hạn TTL để tránh memory leak."""
     now = time.time()
@@ -204,6 +208,16 @@ def get_cookies_endpoint():
 
 @app.post("/api/translate")
 def start_translation(request: TranslateRequest):
+    global _last_request_time
+    
+    # Rate limit
+    now = time.time()
+    elapsed = now - _last_request_time
+    if elapsed < MIN_REQUEST_INTERVAL:
+        wait = round(MIN_REQUEST_INTERVAL - elapsed, 1)
+        raise HTTPException(status_code=429, detail=f"Vui lòng đợi {wait}s trước khi gửi request tiếp theo.")
+    _last_request_time = now
+    
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "job_id": job_id,

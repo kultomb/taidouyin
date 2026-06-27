@@ -162,10 +162,78 @@ class GoogleTTSProvider:
 # Main TTS generator
 # ============================================================
 
+# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5 để tránh rate limit)
+TTS_CONCURRENCY = {"edge": 10, "google": 5}
+
+async def _synthesize_edge_async(text: str, speaker: str, output_path: str):
+    """edge-tts async wrapper."""
+    voice = get_edge_voice(speaker)
+    await edge_tts.Communicate(text, voice).save(output_path)
+
+def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str):
+    """Google TTS sync wrapper (dùng trong thread pool)."""
+    tts.synthesize(text, speaker, output_path)
+
+async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str) -> tuple:
+    """
+    Tạo TTS song song cho tất cả segment.
+    Returns: (updated_subtitles, failure_count)
+    """
+    import concurrent.futures
+    
+    concurrency = TTS_CONCURRENCY.get(provider, 5)
+    semaphore = asyncio.Semaphore(concurrency)
+    updated = []
+    failures = 0
+    lock = asyncio.Lock()
+    
+    if provider == "google":
+        tts = GoogleTTSProvider()
+    else:
+        tts = None  # edge-tts doesn't need persistent client
+    
+    async def process_one(idx: int, sub: dict):
+        nonlocal failures
+        text = sub.get("translation", "")
+        speaker = sub.get("speaker", "default")
+        text = text.replace("[", "").replace("]", "").strip()
+        if not text:
+            return
+        
+        file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
+        
+        async with semaphore:
+            try:
+                loop = asyncio.get_event_loop()
+                if provider == "google":
+                    await loop.run_in_executor(
+                        None, _synthesize_google_sync, tts, text, speaker, file_path
+                    )
+                else:
+                    await _synthesize_edge_async(text, speaker, file_path)
+                
+                actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
+                
+                async with lock:
+                    sub_copy = dict(sub)
+                    sub_copy["audio_path"] = os.path.abspath(file_path)
+                    sub_copy["tts_duration"] = actual_duration
+                    updated.append(sub_copy)
+            except Exception as e:
+                logger.error(f"[{provider}] Failed segment {idx}: {e}")
+                async with lock:
+                    failures += 1
+    
+    tasks = [process_one(i, sub) for i, sub in enumerate(subtitles)]
+    await asyncio.gather(*tasks)
+    
+    return updated, failures
+
+
 def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
                                 provider: str = "edge") -> list:
     """
-    Tạo file MP3 cho mỗi subtitle segment.
+    Tạo file MP3 song song cho tất cả subtitle segment.
 
     Args:
         subtitles: list các segment có 'translation', 'speaker', 'start', 'end'
@@ -173,56 +241,32 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
         provider: 'edge' (mặc định, miễn phí) hoặc 'google' (cao cấp)
 
     Returns:
-        list segment với thêm key 'audio_path'
+        list segment với thêm key 'audio_path', 'tts_duration'
     """
-    # Chọn provider
-    if provider == "google":
-        tts = GoogleTTSProvider()
-    else:
-        tts = EdgeTTSProvider()
-
-    logger.info(f"Generating TTS for {len(subtitles)} segments using [{tts.name}] provider...")
+    provider_label = "Google Cloud TTS" if provider == "google" else "edge-tts"
+    concurrency = TTS_CONCURRENCY.get(provider, 5)
+    logger.info(f"Generating TTS for {len(subtitles)} segments [{provider_label}] ({concurrency} concurrent)...")
     os.makedirs(output_dir, exist_ok=True)
-
-    updated_subtitles = []
-    google_failures = 0
-
-    for idx, sub in enumerate(subtitles):
-        text = sub.get("translation", "")
-        speaker = sub.get("speaker", "default")
-
-        text = text.replace("[", "").replace("]", "").strip()
-        if not text:
-            continue
-
-        file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
-
-        try:
-            tts.synthesize(text, speaker, file_path)
-
-            # Đo duration thật của TTS (không ép atempo, giữ giọng tự nhiên)
-            actual_duration = get_audio_duration(file_path)
-
-            sub_copy = dict(sub)
-            sub_copy["audio_path"] = os.path.abspath(file_path)
-            sub_copy["tts_duration"] = actual_duration  # duration thật của TTS
-            updated_subtitles.append(sub_copy)
-        except Exception as e:
-            logger.error(f"[{tts.name}] Failed segment {idx}: {e}")
-            if provider == "google":
-                google_failures += 1
-
+    
+    # Chạy async event loop
+    loop = asyncio.new_event_loop()
+    try:
+        updated_subtitles, google_failures = loop.run_until_complete(
+            _generate_tts_concurrent(subtitles, output_dir, provider)
+        )
+    finally:
+        loop.close()
+    
+    logger.info(f"TTS done: {len(updated_subtitles)}/{len(subtitles)} segments, {google_failures} failed")
+    
     # Nếu Google TTS thất bại toàn bộ → tự động fallback edge-tts
     if provider == "google" and google_failures > 0 and len(updated_subtitles) == 0:
         logger.error(
             f"Google Cloud TTS failed all {google_failures} segments! "
-            f"Check: Cloud Text-to-Speech API enabled? Service account has permission? "
             f"Falling back to edge-tts..."
         )
         return generate_tts_for_subtitles(subtitles, output_dir, provider="edge")
     elif provider == "google" and google_failures > 0:
-        logger.warning(
-            f"Google Cloud TTS: {google_failures}/{len(subtitles)} segments failed."
-        )
-
+        logger.warning(f"Google Cloud TTS: {google_failures}/{len(subtitles)} segments failed.")
+    
     return updated_subtitles
