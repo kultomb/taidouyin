@@ -174,30 +174,24 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
     # Bước 2: Tạo concat list với silence động (không cross-fade để tránh bug lặp segment)
     concat_parts = []
     silence_files = []
+    accumulated_duration = 0.0
 
     for i, seg in enumerate(actual_timeline):
         audio_path = seg["audio_path"]
         if not os.path.exists(audio_path):
             continue
 
-        # Thêm silence cho segment đầu tiên nếu start > 0
-        if i == 0:
-            if seg["actual_start"] > 0.03:
-                silence_file = os.path.join(tempfile.gettempdir(), "_silence_start.mp3")
-                _generate_silence(silence_file, seg["actual_start"])
-                concat_parts.append(silence_file)
-                silence_files.append(silence_file)
-        # Thêm silence nếu khoảng cách với segment trước > 0
-        else:
-            prev_end = actual_timeline[i - 1]["actual_end"]
-            gap = seg["actual_start"] - prev_end
-            if gap > 0.03:
-                silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{i}.mp3")
-                _generate_silence(silence_file, gap)
-                concat_parts.append(silence_file)
-                silence_files.append(silence_file)
+        # Tính khoảng lặng dựa trên thời lượng tích lũy thực tế
+        gap = seg["actual_start"] - accumulated_duration
+        if gap > 0.03:
+            silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{i}.mp3")
+            _generate_silence(silence_file, gap)
+            concat_parts.append(silence_file)
+            silence_files.append(silence_file)
+            accumulated_duration += gap
 
         concat_parts.append(audio_path)
+        accumulated_duration += seg["tts_duration"]
 
     if not concat_parts:
         _generate_silence(output_path, 1.0)
