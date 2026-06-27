@@ -151,9 +151,9 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
     # Bước 1: Tính timeline thực tế
     actual_timeline = _compute_actual_timeline(tts_segments)
 
-    # Bước 2: Tạo concat list với silence động + cross-fade
+    # Bước 2: Tạo concat list với silence động (không cross-fade để tránh bug lặp segment)
     concat_parts = []
-    silence_files = []  # Để dọn dẹp sau
+    silence_files = []
 
     for i, seg in enumerate(actual_timeline):
         audio_path = seg["audio_path"]
@@ -164,44 +164,11 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
         if i > 0:
             prev_end = actual_timeline[i - 1]["actual_end"]
             gap = seg["actual_start"] - prev_end
-            if gap > 0.03:  # > 30ms
+            if gap > 0.03:
                 silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{i}.mp3")
                 _generate_silence(silence_file, gap)
                 concat_parts.append(silence_file)
                 silence_files.append(silence_file)
-
-        # Cross-fade: thêm 50ms fade-out ở cuối segment trước + fade-in ở đầu segment này
-        if i > 0:
-            prev_audio = actual_timeline[i - 1]["audio_path"]
-            prev_dur = actual_timeline[i - 1]["tts_duration"]
-            cur_dur = seg["tts_duration"]
-            crossfade_ms = min(50, int(prev_dur * 1000 * 0.5), int(cur_dur * 1000 * 0.5))
-
-            if crossfade_ms > 10:
-                # Tạo bản cross-faded của segment trước
-                prev_xfade = os.path.join(tempfile.gettempdir(), f"_xfade_prev_{i}.mp3")
-                cmd = [
-                    "ffmpeg", "-y", "-i", prev_audio,
-                    "-af", f"afade=t=out:st={max(0, prev_dur - crossfade_ms / 1000):.3f}:d={crossfade_ms / 1000:.3f}",
-                    "-c:a", "libmp3lame", "-q:a", "2", prev_xfade
-                ]
-                subprocess.run(cmd, capture_output=True, timeout=30)
-                silence_files.append(prev_xfade)
-                # Ghi đè phần cuối của concat list
-                if concat_parts:
-                    concat_parts[-1] = prev_xfade
-
-                # Tạo bản cross-faded của segment hiện tại
-                cur_xfade = os.path.join(tempfile.gettempdir(), f"_xfade_cur_{i}.mp3")
-                cmd = [
-                    "ffmpeg", "-y", "-i", audio_path,
-                    "-af", f"afade=t=in:st=0:d={crossfade_ms / 1000:.3f}",
-                    "-c:a", "libmp3lame", "-q:a", "2", cur_xfade
-                ]
-                subprocess.run(cmd, capture_output=True, timeout=30)
-                silence_files.append(cur_xfade)
-                concat_parts.append(cur_xfade)
-                continue
 
         concat_parts.append(audio_path)
 
@@ -257,17 +224,10 @@ def _compute_actual_timeline(segments: list) -> list:
     
     timeline = []
     current_time = 0.0
-    cumulative_drift = 0.0  # Tích lũy độ lệch so với gốc
-    last_translation = None
+    cumulative_drift = 0.0
 
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
-        
-        # Dedup: bỏ qua câu trùng liên tiếp
-        if translation and translation == last_translation:
-            logger.debug(f"Skip duplicate segment {i}: '{translation[:30]}...'")
-            continue
-        last_translation = translation
         
         tts_dur = sub.get("tts_duration", 0)
         original_start = sub.get("start", 0)
