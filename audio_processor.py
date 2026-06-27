@@ -247,45 +247,87 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
 
 def _compute_actual_timeline(segments: list) -> list:
     """
-    Tính timeline thực tế dựa trên duration TTS tự nhiên.
-    Giữ nhịp gốc bằng cách thêm silence khi TTS ngắn hơn slot gốc,
-    và cho phép TTS dài hơn slot gốc (chỉ thêm silence tối thiểu).
+    Tính timeline thực tế với adaptive atempo + dedup.
+    
+    1. Bỏ qua segment trùng lặp (cùng translation liên tiếp)
+    2. atempo rất nhẹ khi drift tích lũy vượt ngưỡng
+    3. Cắt silence đầu/cuối file TTS
     """
+    import tempfile
+    
     timeline = []
     current_time = 0.0
+    cumulative_drift = 0.0  # Tích lũy độ lệch so với gốc
+    last_translation = None
 
     for i, sub in enumerate(segments):
+        translation = (sub.get("translation", "") or "").strip()
+        
+        # Dedup: bỏ qua câu trùng liên tiếp
+        if translation and translation == last_translation:
+            logger.debug(f"Skip duplicate segment {i}: '{translation[:30]}...'")
+            continue
+        last_translation = translation
+        
         tts_dur = sub.get("tts_duration", 0)
         original_start = sub.get("start", 0)
         original_end = sub.get("end", 0)
         original_dur = original_end - original_start
 
         if tts_dur <= 0:
-            tts_dur = original_dur  # fallback
+            tts_dur = original_dur
 
-        # Align: đặt segment tại vị trí gốc, nhưng cho phép trễ nếu segment trước dài hơn
-        target_start = max(current_time, original_start)
+        # Tính drift hiện tại
+        expected_position = original_start
+        drift = current_time - expected_position
+        cumulative_drift = drift
 
-        # Nếu TTS ngắn hơn slot gốc → thêm silence padding vào giữa (giữ nhịp)
-        # Nếu TTS dài hơn → chấp nhận, segment sau sẽ bị đẩy
-        actual_start = target_start
+        # Adaptive atempo: chỉ can thiệp khi drift vượt ngưỡng
+        audio_path = sub.get("audio_path", "")
+        speed_factor = 1.0
+        
+        if cumulative_drift > 8.0 and tts_dur > 0.3:
+            speed_factor = min(1.15, 1.0 + cumulative_drift / tts_dur / 3)
+            logger.info(f"Drift +{cumulative_drift:.1f}s, atempo={speed_factor:.3f} on seg {i}")
+        elif cumulative_drift > 4.0 and tts_dur > 0.5:
+            speed_factor = min(1.08, 1.0 + cumulative_drift / tts_dur / 5)
+            logger.debug(f"Gentle atempo={speed_factor:.3f} on seg {i} (drift +{cumulative_drift:.1f}s)")
+        
+        # Áp dụng atempo nếu cần
+        if speed_factor != 1.0 and audio_path and os.path.exists(audio_path):
+            adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
+            adjusted_dur = tts_dur / speed_factor  # duration sau atempo
+            try:
+                cmd = [
+                    "ffmpeg", "-y", "-i", audio_path,
+                    "-filter:a", f"atempo={speed_factor:.4f}",
+                    "-c:a", "libmp3lame", "-q:a", "2",
+                    adjusted_path
+                ]
+                subprocess.run(cmd, capture_output=True, check=True, timeout=30)
+                audio_path = adjusted_path
+                tts_dur = adjusted_dur
+            except Exception as e:
+                logger.warning(f"Adaptive atempo failed: {e}, using original")
+
+        actual_start = current_time
         actual_end = actual_start + tts_dur
 
-        # Thêm khoảng nghỉ tối thiểu 100ms giữa các segment (trừ segment đầu)
-        if i > 0 and actual_start < timeline[-1]["actual_end"] + 0.1:
-            actual_start = timeline[-1]["actual_end"] + 0.1
+        # Khoảng nghỉ tối thiểu 80ms giữa các segment
+        if i > 0 and timeline:
+            actual_start = max(actual_start, timeline[-1]["actual_end"] + 0.08)
             actual_end = actual_start + tts_dur
 
         timeline.append({
-            "audio_path": sub.get("audio_path", ""),
-            "tts_duration": tts_dur,
+            "audio_path": audio_path,
+            "tts_duration": round(tts_dur, 3),
             "actual_start": round(actual_start, 3),
             "actual_end": round(actual_end, 3),
             "original_start": original_start,
             "original_end": original_end,
             "speaker": sub.get("speaker", ""),
             "text": sub.get("text", ""),
-            "translation": sub.get("translation", ""),
+            "translation": translation,
         })
 
         current_time = actual_end
