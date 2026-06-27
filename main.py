@@ -160,7 +160,8 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         job["srt"] = srt_path
         job["srt_original"] = srt_original_path
         
-        # Ghi file phụ đề gốc tiếng Trung khớp hành động video
+        # Ghi cả 2 file phụ đề tiếng Việt và tiếng Trung khớp 100% hành động video gốc
+        generate_srt(subtitles, srt_path, use_original=False)
         generate_srt(subtitles, srt_original_path, use_original=True)
         
         # Step 8: Xuất video cuối
@@ -178,15 +179,6 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             burn_subtitles=burn_subtitles,
             srt_path=srt_path
         )
-        
-        # Cập nhật SRT với timeline thực tế (đồng bộ 100% cho cả 2 phụ đề)
-        if actual_timeline:
-            log("Cập nhật cả 2 phụ đề Việt & Trung khớp 100% timeline thực tế sau khi lồng tiếng...")
-            generate_srt_from_timeline(actual_timeline, srt_path)
-            generate_srt_from_timeline(actual_timeline, srt_original_path, use_original=True)
-            log("Cả 2 bản phụ đề Việt & Trung đã đồng bộ thời gian 100%!")
-            job["srt"] = srt_path
-            job["srt_original"] = srt_original_path
         
         # Dọn dẹp file trung gian
         log("Dọn dẹp file trung gian...")
