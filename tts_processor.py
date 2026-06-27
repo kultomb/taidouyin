@@ -185,6 +185,8 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     os.makedirs(output_dir, exist_ok=True)
 
     updated_subtitles = []
+    google_failures = 0
+
     for idx, sub in enumerate(subtitles):
         text = sub.get("translation", "")
         speaker = sub.get("speaker", "default")
@@ -207,6 +209,21 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
             sub_copy["audio_path"] = os.path.abspath(final_path)
             updated_subtitles.append(sub_copy)
         except Exception as e:
-            logger.error(f"Error generating TTS for segment {idx}: {e}")
+            logger.error(f"[{tts.name}] Failed segment {idx}: {e}")
+            if provider == "google":
+                google_failures += 1
+
+    # Nếu Google TTS thất bại toàn bộ → tự động fallback edge-tts
+    if provider == "google" and google_failures > 0 and len(updated_subtitles) == 0:
+        logger.error(
+            f"Google Cloud TTS failed all {google_failures} segments! "
+            f"Check: Cloud Text-to-Speech API enabled? Service account has permission? "
+            f"Falling back to edge-tts..."
+        )
+        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge")
+    elif provider == "google" and google_failures > 0:
+        logger.warning(
+            f"Google Cloud TTS: {google_failures}/{len(subtitles)} segments failed."
+        )
 
     return updated_subtitles
