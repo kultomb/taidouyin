@@ -96,17 +96,15 @@ def extract_aweme_id(url):
 
 def get_xbogus_signer():
     try:
-        sys.path.append(os.path.abspath("VIDU"))
         from utils.xbogus import XBogus
         return XBogus
     except Exception as e:
-        logger.warning(f"Could not import XBogus from VIDU: {e}")
+        logger.warning(f"Could not import XBogus: {e}")
         return None
 
 def get_abogus_signer():
     """Trả về (ABogus class, BrowserFingerprintGenerator class) hoặc (None, None)."""
     try:
-        sys.path.append(os.path.abspath("VIDU"))
         from utils.abogus import ABogus, BrowserFingerprintGenerator
         return ABogus, BrowserFingerprintGenerator
     except Exception as e:
@@ -116,8 +114,7 @@ def get_abogus_signer():
 def get_ms_token_manager():
     """Trả về MsTokenManager instance để sinh msToken thật."""
     try:
-        sys.path.append(os.path.abspath("VIDU"))
-        from auth.ms_token_manager import MsTokenManager
+        from utils.ms_token_manager import MsTokenManager
         ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
         return MsTokenManager(user_agent=ua)
     except Exception as e:

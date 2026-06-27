@@ -10,10 +10,9 @@ from threading import Lock
 from typing import Any, Dict, Optional
 
 import yaml
+import logging
 
-from utils.logger import setup_logger
-
-logger = setup_logger("MsTokenManager")
+logger = logging.getLogger("MsTokenManager")
 
 
 class MsTokenManager:
