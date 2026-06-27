@@ -175,11 +175,12 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             srt_path=srt_path
         )
         
-        # Cập nhật SRT với timeline thực tế (chỉ cho bản Tiếng Việt lồng tiếng)
+        # Cập nhật SRT với timeline thực tế (đồng bộ 100% cho cả 2 phụ đề)
         if actual_timeline:
-            log("Cập nhật SRT tiếng Việt với timestamp thực tế sau khi lồng tiếng...")
+            log("Cập nhật cả 2 phụ đề Việt & Trung khớp 100% timeline thực tế sau khi lồng tiếng...")
             generate_srt_from_timeline(actual_timeline, srt_path)
-            log("Đã cập nhật phụ đề Tiếng Việt đồng bộ với giọng lồng tiếng!")
+            generate_srt_from_timeline(actual_timeline, srt_original_path, use_original=True)
+            log("Cả 2 bản phụ đề Việt & Trung đã đồng bộ thời gian 100%!")
             job["srt"] = srt_path
             job["srt_original"] = srt_original_path
         

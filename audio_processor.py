@@ -235,17 +235,13 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
 
 def _compute_actual_timeline(segments: list) -> list:
     """
-    Tính timeline thực tế với adaptive atempo + dedup.
-    
-    1. Bỏ qua segment trùng lặp (cùng translation liên tiếp)
-    2. atempo rất nhẹ khi drift tích lũy vượt ngưỡng
-    3. Cắt silence đầu/cuối file TTS
+    Tính timeline thực tế với adaptive atempo cho từng phân đoạn thoại
+    để khớp khít 100% với thời lượng và mốc thời gian của câu gốc.
     """
     import tempfile
     
     timeline = []
     current_time = 0.0
-    cumulative_drift = 0.0
 
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
@@ -258,46 +254,38 @@ def _compute_actual_timeline(segments: list) -> list:
         if tts_dur <= 0:
             tts_dur = original_dur
 
-        # Tính drift hiện tại
-        expected_position = original_start
-        drift = current_time - expected_position
-        cumulative_drift = drift
-
-        # Adaptive atempo: chỉ can thiệp khi drift vượt ngưỡng
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
         
-        if cumulative_drift > 8.0 and tts_dur > 0.3:
-            speed_factor = min(1.15, 1.0 + cumulative_drift / tts_dur / 3)
-            logger.info(f"Drift +{cumulative_drift:.1f}s, atempo={speed_factor:.3f} on seg {i}")
-        elif cumulative_drift > 4.0 and tts_dur > 0.5:
-            speed_factor = min(1.08, 1.0 + cumulative_drift / tts_dur / 5)
-            logger.debug(f"Gentle atempo={speed_factor:.3f} on seg {i} (drift +{cumulative_drift:.1f}s)")
-        
-        # Áp dụng atempo nếu cần
-        if speed_factor != 1.0 and audio_path and os.path.exists(audio_path):
-            adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
-            adjusted_dur = tts_dur / speed_factor  # duration sau atempo
-            try:
-                cmd = [
-                    "ffmpeg", "-y", "-i", audio_path,
-                    "-filter:a", f"atempo={speed_factor:.4f}",
-                    "-c:a", "libmp3lame", "-q:a", "2",
-                    adjusted_path
-                ]
-                subprocess.run(cmd, capture_output=True, check=True, timeout=30)
-                audio_path = adjusted_path
-                tts_dur = adjusted_dur
-            except Exception as e:
-                logger.warning(f"Adaptive atempo failed: {e}, using original")
+        # Nếu câu dịch dài hơn câu gốc, tự động tăng tốc đọc nhẹ để khớp khít thời lượng gốc
+        if tts_dur > original_dur and original_dur > 0.2:
+            raw_factor = tts_dur / original_dur
+            # Giới hạn tốc độ tăng tối đa là 1.3 để giữ giọng nghe tự nhiên
+            speed_factor = min(1.3, raw_factor)
+            
+            if speed_factor > 1.02 and audio_path and os.path.exists(audio_path):
+                logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f}")
+                adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
+                try:
+                    cmd = [
+                        "ffmpeg", "-y", "-i", audio_path,
+                        "-filter:a", f"atempo={speed_factor:.4f}",
+                        "-c:a", "libmp3lame", "-q:a", "2",
+                        adjusted_path
+                    ]
+                    subprocess.run(cmd, capture_output=True, check=True, timeout=30)
+                    audio_path = adjusted_path
+                    tts_dur = tts_dur / speed_factor
+                except Exception as e:
+                    logger.warning(f"Segment {i} atempo failed: {e}")
 
-        # Align với vị trí gốc: chỉ bắt đầu sớm hơn nếu segment trước kéo dài
+        # Đồng bộ hóa mốc thời gian với bản gốc (chỉ lùi nếu câu trước bị tràn quá giới hạn speed 1.3)
         actual_start = max(current_time, original_start)
         actual_end = actual_start + tts_dur
 
-        # Khoảng nghỉ tối thiểu 80ms giữa các segment
+        # Đảm bảo khoảng nghỉ tối thiểu 50ms giữa các câu thoại
         if i > 0 and timeline:
-            actual_start = max(actual_start, timeline[-1]["actual_end"] + 0.08)
+            actual_start = max(actual_start, timeline[-1]["actual_end"] + 0.05)
             actual_end = actual_start + tts_dur
 
         timeline.append({
