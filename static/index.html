@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DouyinTranslate. - SaaS Dịch Thuật Video Douyin Chuyên Nghiệp</title>
+    <!-- Google Fonts Inter & JetBrains Mono for Console -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    
+    <header class="app-header">
+        <div class="logo">
+            <span>Douyin</span><span class="accent-text">Translate</span><span class="dot">.</span>
+        </div>
+        <nav class="app-nav">
+            <button id="btnGetCookie" class="btn-cookie">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="cookie-icon" style="width: 16px; height: 16px;">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Đăng nhập Douyin</span>
+            </button>
+            <span class="nav-status">API: <span class="api-ok">Vertex AI Active</span></span>
+        </nav>
+    </header>
+
+    <main class="app-container">
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1 class="hero-title">Dịch thuật & Lồng tiếng Video Douyin</h1>
+            <p class="hero-subtitle">Công cụ SaaS hiệu năng cao, tự động tải video gốc chất lượng tốt nhất, nhận diện giọng nói bằng Vertex AI Gemini 2.5 Flash và lồng tiếng Việt chân thực.</p>
+        </section>
+
+        <!-- Input and Settings Form -->
+        <section class="card form-card">
+            <form id="translateForm">
+                <div class="input-group">
+                    <label for="videoUrl" class="input-label">Đường dẫn chia sẻ video Douyin</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        </svg>
+                        <input type="text" id="videoUrl" placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
+                    </div>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <label class="setting-label">Âm lượng nhạc nền gốc (Ducking)</label>
+                        <div class="slider-wrapper">
+                            <input type="range" id="bgVolume" min="0" max="1" step="0.05" value="0.20">
+                            <span id="volumeValue">20%</span>
+                        </div>
+                    </div>
+                    <div class="setting-item checkbox-item">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="burnSubtitles">
+                            <span class="checkmark-box"></span>
+                            <span class="checkbox-label">Gắn cứng phụ đề (Hardcode Subtitles) vào video</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn-primary">
+                    <span>Bắt đầu tiến trình xử lý</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="arrow-icon">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </form>
+        </section>
+
+        <!-- Processing Status Panel -->
+        <section id="processingCard" class="card status-card hidden">
+            <div class="status-header">
+                <h2 class="status-title">Trạng thái xử lý</h2>
+                <div class="running-indicator">
+                    <span class="pulse-dot"></span>
+                    <span id="currentSubStep">Đang chuẩn bị khởi tạo tiến trình...</span>
+                </div>
+            </div>
+
+            <!-- Steps Progress Bar -->
+            <div class="steps-progress-container">
+                <div class="progress-line-bg">
+                    <div id="progressLineFill" class="progress-line-fill" style="width: 0%;"></div>
+                </div>
+                <div class="steps-row">
+                    <div class="step-node" data-step="1">
+                        <div class="step-circle">1</div>
+                        <span class="step-name">Tải Video</span>
+                    </div>
+                    <div class="step-node" data-step="2">
+                        <div class="step-circle">2</div>
+                        <span class="step-name">Tách Âm</span>
+                    </div>
+                    <div class="step-node" data-step="3">
+                        <div class="step-circle">3</div>
+                        <span class="step-name">ASR</span>
+                    </div>
+                    <div class="step-node" data-step="4">
+                        <div class="step-circle">4</div>
+                        <span class="step-name">Dịch thuật</span>
+                    </div>
+                    <div class="step-node" data-step="5">
+                        <div class="step-circle">5</div>
+                        <span class="step-name">Nhận diện giọng</span>
+                    </div>
+                    <div class="step-node" data-step="6">
+                        <div class="step-circle">6</div>
+                        <span class="step-name">TTS AI</span>
+                    </div>
+                    <div class="step-node" data-step="7">
+                        <div class="step-circle">7</div>
+                        <span class="step-name">Lồng nhạc</span>
+                    </div>
+                    <div class="step-node" data-step="8">
+                        <div class="step-circle">8</div>
+                        <span class="step-name">Xuất bản</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Terminal Output -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title">System Console Output</span>
+                </div>
+                <div id="terminalBody" class="terminal-body">
+                    <div class="log-line text-muted">[00:00:00] WAITING - Chờ gửi yêu cầu xử lý từ phía người dùng...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final Results & Downloads -->
+        <section id="resultsCard" class="card results-card hidden">
+            <h2 class="card-title">Kết quả dịch thuật</h2>
+            <div class="results-grid">
+                <div class="video-preview-wrapper">
+                    <h3>Video gốc</h3>
+                    <video id="originalVideoPlayer" controls class="video-player"></video>
+                </div>
+                <div class="video-preview-wrapper">
+                    <h3>Video Việt hóa</h3>
+                    <video id="translatedVideoPlayer" controls class="video-player"></video>
+                </div>
+            </div>
+            
+            <div class="downloads-section">
+                <h3>Tải xuống tài nguyên</h3>
+                <div class="download-buttons-group">
+                    <a id="downloadVideoBtn" href="#" class="btn-download" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Tải Video việt hóa (MP4)</span>
+                    </a>
+                    <a id="downloadSrtBtn" href="#" class="btn-download secondary" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>Tải phụ đề (SRT)</span>
+                    </a>
+                    <a id="downloadAudioBtn" href="#" class="btn-download secondary" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                        <span>Tải nhạc nền & thoại (MP3)</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
