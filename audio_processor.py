@@ -180,8 +180,15 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
         if not os.path.exists(audio_path):
             continue
 
+        # Thêm silence cho segment đầu tiên nếu start > 0
+        if i == 0:
+            if seg["actual_start"] > 0.03:
+                silence_file = os.path.join(tempfile.gettempdir(), "_silence_start.mp3")
+                _generate_silence(silence_file, seg["actual_start"])
+                concat_parts.append(silence_file)
+                silence_files.append(silence_file)
         # Thêm silence nếu khoảng cách với segment trước > 0
-        if i > 0:
+        else:
             prev_end = actual_timeline[i - 1]["actual_end"]
             gap = seg["actual_start"] - prev_end
             if gap > 0.03:
