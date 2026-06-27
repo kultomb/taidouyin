@@ -35,6 +35,8 @@ class TranslateRequest(BaseModel):
 
 def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
     job = jobs[job_id]
+    job_folder = f"output/{time.strftime('%Y%m%d_%H%M%S')}"
+    os.makedirs(job_folder, exist_ok=True)
     
     def log(msg: str):
         timestamp = time.strftime("%H:%M:%S")
@@ -47,22 +49,28 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
         job["step"] = 1
         job["sub_step"] = "STEP 1.0: Đang tải video chất lượng cao nhất từ Douyin..."
         log(f"Khởi động mô-đun tải video Douyin: {url}")
-        video_path = download_douyin_video(url, f"workspace/{job_id}/original")
+        video_path = download_douyin_video(url, job_folder)
+        # Rename to original.mp4 for consistency
+        if video_path and os.path.exists(video_path):
+            original_path = os.path.join(job_folder, "original.mp4")
+            if video_path != original_path:
+                os.rename(video_path, original_path)
+            video_path = original_path
         job["original_video"] = video_path
         log(f"Tải video gốc thành công: {video_path}")
         
-        # Step 2: Tách Âm
+        # Step 2: Tách Âm thanh
         job["step"] = 2
         job["sub_step"] = "STEP 2.0: Đang tách luồng âm thanh từ video..."
         log("Trích xuất âm thanh gốc bằng ffmpeg...")
-        original_audio_path = os.path.join(f"workspace/{job_id}/audio", "original.mp3")
+        original_audio_path = os.path.join(job_folder, "audio.mp3")
         extract_audio(video_path, original_audio_path)
         job["audio"] = original_audio_path
         log(f"Trích xuất âm thanh thành công: {original_audio_path}")
         
         job["sub_step"] = "STEP 2.5: Đang tách vocal giọng nói (Demucs)..."
         log("Phân tích tần số âm thanh và cô lập giọng nói...")
-        time.sleep(1.5)  # Giả lập thời gian tách âm
+        time.sleep(1.5)
         
         # Step 3: ASR
         job["step"] = 3
@@ -94,24 +102,25 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
         job["step"] = 6
         job["sub_step"] = "STEP 6.0: Đang lồng tiếng Việt bằng trí tuệ nhân tạo (TTS)..."
         log("Tổng hợp giọng nói tiếng Việt bằng thư viện edge-tts với giọng nói tự nhiên...")
-        tts_output_dir = f"workspace/{job_id}/tts"
-        subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_output_dir)
+        tts_dir = os.path.join(job_folder, "tts")
+        os.makedirs(tts_dir, exist_ok=True)
+        subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir)
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
-        # Step 7: Lồng nhạc
+        # Step 7: Tạo SRT
         job["step"] = 7
-        job["sub_step"] = "STEP 7.0: Đang trộn âm thanh và làm giảm nhạc nền (Ducking)..."
+        job["sub_step"] = "STEP 7.0: Đang tạo phụ đề và trộn âm thanh..."
         log("Tạo tệp phụ đề SRT...")
-        srt_path = os.path.join(f"workspace/{job_id}/export", "subtitles.srt")
+        srt_path = os.path.join(job_folder, "subtitles.srt")
         generate_srt(subtitles_with_tts, srt_path)
         job["srt"] = srt_path
         
-        # Step 8: Xuất bản
+        # Step 8: Xuất video cuối
         job["step"] = 8
-        job["sub_step"] = "STEP 8.0: Đang nén video và ghép âm thanh việt hóa..."
+        job["sub_step"] = "STEP 8.0: Đang xuất video việt hóa..."
         log("Ghép giọng đọc AI, giảm âm lượng nhạc nền gốc và xuất video thành phẩm...")
         
-        output_video_path = os.path.join(f"workspace/{job_id}/export", "translated_video.mp4")
+        output_video_path = os.path.join(job_folder, "translated_video.mp4")
         mix_audio_and_video(
             video_path=video_path,
             original_audio_path=original_audio_path,
@@ -122,10 +131,23 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
             srt_path=srt_path
         )
         
+        # Dọn dẹp file trung gian
+        log("Dọn dẹp file trung gian...")
+        import shutil
+        tts_dir_path = os.path.join(job_folder, "tts")
+        if os.path.exists(tts_dir_path):
+            shutil.rmtree(tts_dir_path)
+        audio_file = os.path.join(job_folder, "audio.mp3")
+        if os.path.exists(audio_file):
+            os.remove(audio_file)
+        
         job["translated_video"] = output_video_path
         job["status"] = "completed"
-        job["sub_step"] = "Hoàn thành xuất sắc! Sẵn sàng tải xuống."
-        log("Mọi bước xử lý đã thành công. Video dịch thuật đã sẵn sàng.")
+        job["sub_step"] = "Hoàn thành! Video đã sẵn sàng trong thư mục output."
+        log(f"Hoàn thành! Video lưu tại: {job_folder}/")
+        log(f"  - translated_video.mp4 (video đã dịch)")
+        log(f"  - original.mp4 (video gốc)")
+        log(f"  - subtitles.srt (phụ đề)")
         
     except Exception as e:
         logger.error(f"Pipeline failure: {str(e)}", exc_info=True)
