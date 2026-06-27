@@ -67,10 +67,18 @@
                     </div>
                     <div class="setting-item">
                         <label class="setting-label">Công cụ lồng tiếng (TTS)</label>
-                        <select id="ttsProvider" class="select-input">
-                            <option value="edge">edge-tts (Miễn phí, Microsoft Neural)</option>
-                            <option value="google">Google Cloud TTS (Cao cấp, Neural2)</option>
-                        </select>
+                        <div class="tts-toggle-group">
+                            <button type="button" class="tts-toggle-btn active" data-tts="edge">
+                                <span class="tts-icon">🎤</span>
+                                <span class="tts-name">Edge TTS</span>
+                                <span class="tts-badge">Miễn phí</span>
+                            </button>
+                            <button type="button" class="tts-toggle-btn" data-tts="google">
+                                <span class="tts-icon">☁️</span>
+                                <span class="tts-name">Google TTS</span>
+                                <span class="tts-badge">Neural2</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="setting-item checkbox-item">
                         <label class="checkbox-container">

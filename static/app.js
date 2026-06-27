@@ -6,6 +6,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
     const ttsProviderSelect = document.getElementById('ttsProvider');
+    const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn');
+    let selectedTtsProvider = 'edge';
+
+    // TTS Toggle Buttons
+    ttsToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            ttsToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTtsProvider = btn.dataset.tts;
+        });
+    });
+
     const btnGetCookie = document.getElementById('btnGetCookie');
 
     const processingCard = document.getElementById('processingCard');
@@ -69,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bgVolume = parseFloat(volumeSlider.value);
         const burnSubtitles = burnSubtitlesCheckbox.checked;
-        const ttsProvider = ttsProviderSelect.value;
+        const ttsProvider = selectedTtsProvider;
 
         // Reset UI States
         submitBtn.disabled = true;

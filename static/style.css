@@ -325,33 +325,67 @@ body {
     min-width: 40px;
 }
 
-/* Select input */
-.select-input {
-    width: 100%;
-    padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 0.875rem;
+/* TTS Toggle Buttons */
+.tts-toggle-group {
+    display: flex;
+    gap: 10px;
+}
+
+.tts-toggle-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 12px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
     font-family: inherit;
+    font-size: 0.8rem;
     cursor: pointer;
     transition: var(--transition);
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
+    backdrop-filter: blur(8px);
 }
 
-.select-input:hover,
-.select-input:focus {
+.tts-toggle-btn:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+}
+
+.tts-toggle-btn.active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(99, 102, 241, 0.08));
     border-color: var(--accent);
-    outline: none;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    transform: translateY(-1px);
 }
 
-.select-input option {
-    background: #1a1a2e;
-    color: var(--text-primary);
+.tts-toggle-btn.active .tts-badge {
+    background: var(--accent);
+    color: #fff;
+}
+
+.tts-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.tts-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.tts-badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    transition: var(--transition);
 }
 
 /* Checkbox item styling */
