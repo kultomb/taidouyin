@@ -101,8 +101,9 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             
         # Step 6: TTS AI
         job["step"] = 6
-        job["sub_step"] = "STEP 6.0: Đang lồng tiếng Việt bằng trí tuệ nhân tạo (TTS)..."
-        log("Tổng hợp giọng nói tiếng Việt bằng thư viện edge-tts với giọng nói tự nhiên...")
+        provider_label = "Google Cloud TTS (Neural2)" if tts_provider == "google" else "edge-tts (Microsoft Neural)"
+        job["sub_step"] = f"STEP 6.0: Đang lồng tiếng Việt bằng {provider_label}..."
+        log(f"Tổng hợp giọng nói tiếng Việt bằng {provider_label}...")
         tts_dir = os.path.join(job_folder, "tts")
         os.makedirs(tts_dir, exist_ok=True)
         subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider)
