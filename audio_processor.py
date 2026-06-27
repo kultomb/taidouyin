@@ -235,13 +235,13 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
 
 def _compute_actual_timeline(segments: list) -> list:
     """
-    Tính timeline thực tế với adaptive atempo cho từng phân đoạn thoại
-    để khớp khít 100% với thời lượng và mốc thời gian của câu gốc.
+    Tính timeline thực tế khớp khít 100% với thời lượng và mốc thời gian của câu gốc.
+    Bắt buộc actual_start = original_start, tự động tăng tốc giọng đọc Việt
+    để vừa khít thời lượng câu thoại gốc.
     """
     import tempfile
     
     timeline = []
-    current_time = 0.0
 
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
@@ -257,13 +257,11 @@ def _compute_actual_timeline(segments: list) -> list:
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
         
-        # Nếu câu dịch dài hơn câu gốc, tự động tăng tốc đọc nhẹ để khớp khít thời lượng gốc
-        if tts_dur > original_dur and original_dur > 0.2:
-            raw_factor = tts_dur / original_dur
-            # Giới hạn tốc độ tăng tối đa là 1.3 để giữ giọng nghe tự nhiên
-            speed_factor = min(1.3, raw_factor)
+        # Bắt buộc tăng tốc độ đọc để giọng Việt vừa khít thời lượng câu thoại gốc
+        if tts_dur > original_dur and original_dur > 0.1:
+            speed_factor = tts_dur / original_dur
             
-            if speed_factor > 1.02 and audio_path and os.path.exists(audio_path):
+            if speed_factor > 1.01 and audio_path and os.path.exists(audio_path):
                 logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f}")
                 adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
                 try:
@@ -279,14 +277,9 @@ def _compute_actual_timeline(segments: list) -> list:
                 except Exception as e:
                     logger.warning(f"Segment {i} atempo failed: {e}")
 
-        # Đồng bộ hóa mốc thời gian với bản gốc (chỉ lùi nếu câu trước bị tràn quá giới hạn speed 1.3)
-        actual_start = max(current_time, original_start)
+        # Bắt buộc mốc thời gian trùng khít hoàn toàn với câu thoại gốc
+        actual_start = original_start
         actual_end = actual_start + tts_dur
-
-        # Đảm bảo khoảng nghỉ tối thiểu 50ms giữa các câu thoại
-        if i > 0 and timeline:
-            actual_start = max(actual_start, timeline[-1]["actual_end"] + 0.05)
-            actual_end = actual_start + tts_dur
 
         timeline.append({
             "audio_path": audio_path,
@@ -299,8 +292,6 @@ def _compute_actual_timeline(segments: list) -> list:
             "text": sub.get("text", ""),
             "translation": translation,
         })
-
-        current_time = actual_end
 
     return timeline
 
