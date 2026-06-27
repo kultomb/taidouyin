@@ -5,13 +5,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitBtn');
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
+    const ttsProviderSelect = document.getElementById('ttsProvider');
     const btnGetCookie = document.getElementById('btnGetCookie');
-    
+
     const processingCard = document.getElementById('processingCard');
     const currentSubStep = document.getElementById('currentSubStep');
     const progressLineFill = document.getElementById('progressLineFill');
     const terminalBody = document.getElementById('terminalBody');
-    
+
     const resultsCard = document.getElementById('resultsCard');
     const originalVideoPlayer = document.getElementById('originalVideoPlayer');
     const translatedVideoPlayer = document.getElementById('translatedVideoPlayer');
@@ -37,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         processingCard.classList.remove('hidden');
         appendLogLine('Đang gửi yêu cầu mở trình duyệt đăng nhập Douyin...', 'info');
-        
+
         try {
             const response = await fetch('/api/get-cookies', {
                 method: 'POST'
@@ -62,25 +63,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Form Submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const url = videoUrlInput.value.trim();
         if (!url) return;
 
         const bgVolume = parseFloat(volumeSlider.value);
         const burnSubtitles = burnSubtitlesCheckbox.checked;
+        const ttsProvider = ttsProviderSelect.value;
 
         // Reset UI States
         submitBtn.disabled = true;
         submitBtn.querySelector('span').textContent = 'Đang xử lý...';
         processingCard.classList.remove('hidden');
         resultsCard.classList.add('hidden');
-        
+
         // Reset steps nodes
         document.querySelectorAll('.step-node').forEach(node => {
             node.classList.remove('active', 'completed');
         });
         progressLineFill.style.width = '0%';
-        
+
         // Reset Terminal Logs
         terminalBody.innerHTML = '';
         appendLogLine('Sản phẩm khởi động. Đang gửi yêu cầu dịch thuật tới máy chủ...', 'info');
@@ -90,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles })
+                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider })
             });
 
             if (!response.ok) {
@@ -99,9 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             const jobId = data.job_id;
-            
+
             appendLogLine(`Đã tạo tiến trình xử lý với mã: ${jobId}`, 'success');
-            
+
             // Start polling status
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(() => pollJobStatus(jobId), 1200);
@@ -122,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            
+
             // 1. Update Logs in Terminal
             const logs = data.logs || [];
             if (logs.length > displayedLogCount) {
@@ -150,17 +152,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'completed') {
                 clearInterval(pollInterval);
                 appendLogLine('--- TIẾN TRÌNH HOÀN THÀNH XUẤT SẮC ---', 'success');
-                
+
                 // Show final step 8 as completed
                 updateStepProgressUI(8, true);
 
                 // Show Results Card
                 resultsCard.classList.remove('hidden');
-                
+
                 // Set video players sources
                 originalVideoPlayer.src = data.result.original_video_url;
                 translatedVideoPlayer.src = data.result.translated_video_url;
-                
+
                 // Set download buttons links
                 downloadVideoBtn.href = data.result.translated_video_url;
                 downloadSrtBtn.href = data.result.srt_url;
@@ -178,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval);
                 appendLogLine(`Lỗi hệ thống: ${data.error || 'Tiến trình kết thúc không mong muốn.'}`, 'error');
-                
+
                 // Reset submit button
                 submitBtn.disabled = false;
                 submitBtn.querySelector('span').textContent = 'Bắt đầu tiến trình xử lý';
@@ -209,9 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const stepNodes = document.querySelectorAll('.step-node');
         stepNodes.forEach(node => {
             const nodeStep = parseInt(node.getAttribute('data-step'));
-            
+
             node.classList.remove('active', 'completed');
-            
+
             if (isFinished) {
                 node.classList.add('completed');
             } else {
@@ -230,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = `log-line ${type}`;
         div.textContent = message;
         terminalBody.appendChild(div);
-        
+
         // Scroll terminal to the bottom
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }

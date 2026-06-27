@@ -6,14 +6,19 @@
     --text-primary: #f3f4f6;
     --text-secondary: #9ca3af;
     --text-muted: #6b7280;
-    
-    --accent: #6366f1;       /* Indigo */
+
+    --accent: #6366f1;
+    /* Indigo */
     --accent-hover: #4f46e5;
-    --success: #10b981;      /* Emerald Green */
-    --info: #06b6d4;         /* Cyan */
-    --error: #ef4444;        /* Soft Red */
-    --warning: #f59e0b;      /* Amber */
-    
+    --success: #10b981;
+    /* Emerald Green */
+    --info: #06b6d4;
+    /* Cyan */
+    --error: #ef4444;
+    /* Soft Red */
+    --warning: #f59e0b;
+    /* Amber */
+
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
     --radius-lg: 16px;
@@ -45,7 +50,7 @@ body {
     transform: translateX(-50%);
     width: 80vw;
     height: 80vh;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(0,0,0,0) 100%);
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
     z-index: -1;
     pointer-events: none;
     filter: blur(80px);
@@ -320,6 +325,35 @@ body {
     min-width: 40px;
 }
 
+/* Select input */
+.select-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+.select-input:hover,
+.select-input:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.select-input option {
+    background: #1a1a2e;
+    color: var(--text-primary);
+}
+
 /* Checkbox item styling */
 .checkbox-item {
     display: flex;
@@ -356,12 +390,12 @@ body {
     transition: var(--transition);
 }
 
-.checkbox-container:hover input ~ .checkmark-box {
+.checkbox-container:hover input~.checkmark-box {
     border-color: var(--accent);
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-.checkbox-container input:checked ~ .checkmark-box {
+.checkbox-container input:checked~.checkmark-box {
     background-color: var(--accent);
     border-color: var(--accent);
     box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
@@ -373,7 +407,7 @@ body {
     display: none;
 }
 
-.checkbox-container input:checked ~ .checkmark-box:after {
+.checkbox-container input:checked~.checkmark-box:after {
     display: block;
 }
 
@@ -475,10 +509,12 @@ body {
         transform: scale(0.9);
         box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
     }
+
     70% {
         transform: scale(1.1);
         box-shadow: 0 0 0 8px rgba(6, 182, 212, 0);
     }
+
     100% {
         transform: scale(0.9);
         box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
@@ -576,7 +612,8 @@ body {
 }
 
 .step-node.completed .step-circle {
-    font-size: 0; /* hides the number, shows check */
+    font-size: 0;
+    /* hides the number, shows check */
 }
 
 .step-node.completed .step-name {
@@ -608,9 +645,17 @@ body {
     border-radius: 50%;
 }
 
-.terminal-dot.red { background-color: #ff5f56; }
-.terminal-dot.yellow { background-color: #ffbd2e; }
-.terminal-dot.green { background-color: #27c93f; }
+.terminal-dot.red {
+    background-color: #ff5f56;
+}
+
+.terminal-dot.yellow {
+    background-color: #ffbd2e;
+}
+
+.terminal-dot.green {
+    background-color: #27c93f;
+}
 
 .terminal-title {
     font-family: var(--font-mono);
@@ -645,7 +690,8 @@ body {
 }
 
 .log-line {
-    color: #a78bfa; /* light purple */
+    color: #a78bfa;
+    /* light purple */
     white-space: pre-wrap;
 }
 

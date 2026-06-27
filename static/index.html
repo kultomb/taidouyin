@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,19 +8,23 @@
     <!-- Google Fonts Inter & JetBrains Mono for Console -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="glow-bg"></div>
-    
+
     <header class="app-header">
         <div class="logo">
             <span>Douyin</span><span class="accent-text">Translate</span><span class="dot">.</span>
         </div>
         <nav class="app-nav">
             <button id="btnGetCookie" class="btn-cookie">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="cookie-icon" style="width: 16px; height: 16px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="cookie-icon"
+                    style="width: 16px; height: 16px;">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
@@ -33,7 +38,8 @@
         <!-- Hero Section -->
         <section class="hero-section">
             <h1 class="hero-title">Dịch thuật & Lồng tiếng Video Douyin</h1>
-            <p class="hero-subtitle">Công cụ SaaS hiệu năng cao, tự động tải video gốc chất lượng tốt nhất, nhận diện giọng nói bằng Vertex AI Gemini 2.5 Flash và lồng tiếng Việt chân thực.</p>
+            <p class="hero-subtitle">Công cụ SaaS hiệu năng cao, tự động tải video gốc chất lượng tốt nhất, nhận diện
+                giọng nói bằng Vertex AI Gemini 2.5 Flash và lồng tiếng Việt chân thực.</p>
         </section>
 
         <!-- Input and Settings Form -->
@@ -46,7 +52,8 @@
                             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                         </svg>
-                        <input type="text" id="videoUrl" placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
+                        <input type="text" id="videoUrl"
+                            placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
                     </div>
                 </div>
 
@@ -57,6 +64,13 @@
                             <input type="range" id="bgVolume" min="0" max="1" step="0.05" value="0.20">
                             <span id="volumeValue">20%</span>
                         </div>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Công cụ lồng tiếng (TTS)</label>
+                        <select id="ttsProvider" class="select-input">
+                            <option value="edge">edge-tts (Miễn phí, Microsoft Neural)</option>
+                            <option value="google">Google Cloud TTS (Cao cấp, Neural2)</option>
+                        </select>
                     </div>
                     <div class="setting-item checkbox-item">
                         <label class="checkbox-container">
@@ -137,7 +151,8 @@
                     <span class="terminal-title">System Console Output</span>
                 </div>
                 <div id="terminalBody" class="terminal-body">
-                    <div class="log-line text-muted">[00:00:00] WAITING - Chờ gửi yêu cầu xử lý từ phía người dùng...</div>
+                    <div class="log-line text-muted">[00:00:00] WAITING - Chờ gửi yêu cầu xử lý từ phía người dùng...
+                    </div>
                 </div>
             </div>
         </section>
@@ -155,7 +170,7 @@
                     <video id="translatedVideoPlayer" controls class="video-player"></video>
                 </div>
             </div>
-            
+
             <div class="downloads-section">
                 <h3>Tải xuống tài nguyên</h3>
                 <div class="download-buttons-group">
@@ -196,4 +211,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

@@ -32,8 +32,9 @@ class TranslateRequest(BaseModel):
     url: str
     bg_volume: float = 0.20
     burn_subtitles: bool = False
+    tts_provider: str = "edge"  # "edge" hoặc "google"
 
-def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
+def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, tts_provider: str = "edge"):
     job = jobs[job_id]
     job_folder = f"output/{time.strftime('%Y%m%d_%H%M%S')}"
     os.makedirs(job_folder, exist_ok=True)
@@ -104,7 +105,7 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool):
         log("Tổng hợp giọng nói tiếng Việt bằng thư viện edge-tts với giọng nói tự nhiên...")
         tts_dir = os.path.join(job_folder, "tts")
         os.makedirs(tts_dir, exist_ok=True)
-        subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir)
+        subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider)
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
         # Step 7: Tạo SRT
@@ -203,7 +204,7 @@ def start_translation(request: TranslateRequest):
     # Start thread
     thread = threading.Thread(
         target=run_pipeline,
-        args=(job_id, request.url, request.bg_volume, request.burn_subtitles),
+        args=(job_id, request.url, request.bg_volume, request.burn_subtitles, request.tts_provider),
         daemon=True
     )
     thread.start()
