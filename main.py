@@ -44,7 +44,7 @@ def _cleanup_expired_jobs():
 
 class TranslateRequest(BaseModel):
     url: str
-    bg_volume: float = 0.20
+    bg_volume: float = 0.30
     burn_subtitles: bool = False
     tts_provider: str = "edge"  # "edge" hoặc "google"
 

@@ -83,7 +83,7 @@ def mix_audio_and_video(
     original_audio_path: str,
     tts_segments: list,
     output_video_path: str,
-    bg_volume: float = 0.15,
+    bg_volume: float = 0.30,
     burn_subtitles: bool = False,
     srt_path: str = None
 ) -> str:
@@ -105,16 +105,20 @@ def mix_audio_and_video(
     actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path)
     
     # ============================================================
-    # Pass 2: Mix video + bg audio + mixed TTS → final video
+    # Pass 2: Mix video + bg audio (ducked) + TTS → final video
     # ============================================================
     cmd = ["ffmpeg", "-y"]
-    cmd.extend(["-i", video_path])         # Input 0: video
-    cmd.extend(["-i", original_audio_path]) # Input 1: bg audio
-    cmd.extend(["-i", tts_mixed_path])      # Input 2: mixed TTS
+    cmd.extend(["-i", video_path])           # Input 0: video
+    cmd.extend(["-i", original_audio_path])   # Input 1: bg audio gốc
+    cmd.extend(["-i", tts_mixed_path])        # Input 2: TTS voiceover
     
+    # Audio ducking: tự động giảm nhạc nền khi có giọng đọc TTS
+    # sidechaincompress: khi [2:a] (TTS) có âm thanh → nén [1:a] (bg)
     filter_complex = (
-        f"[1:a]volume={bg_volume}[bg];"
-        f"[bg][2:a]amix=inputs=2:duration=first[final_audio]"
+        f"[1:a]volume={bg_volume}[bg_low];"
+        f"[bg_low][2:a]sidechaincompress="
+        f"threshold=0.01:ratio=8:attack=20:release=200:knee=1[bg_ducked];"
+        f"[bg_ducked][2:a]amix=inputs=2:duration=first:weights=1 1[final_audio]"
     )
     
     cmd.extend(["-filter_complex", filter_complex])
