@@ -99,6 +99,22 @@ def adjust_tts_speed(input_path: str, output_path: str, target_duration: float) 
         return input_path
 
 
+def trim_silence(input_path: str, output_path: str) -> bool:
+    """Cắt khoảng lặng ở đầu và cuối file MP3 bằng FFmpeg silenceremove."""
+    cmd = [
+        "ffmpeg", "-y", "-i", input_path,
+        "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=1:stop_threshold=-50dB:stop_duration=0.1",
+        "-c:a", "libmp3lame", "-q:a", "2",
+        output_path
+    ]
+    try:
+        subprocess.run(cmd, capture_output=True, check=True, timeout=15)
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to trim silence for {input_path}: {e}")
+        return False
+
+
 # ============================================================
 # TTS Providers
 # ============================================================
@@ -211,6 +227,14 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     )
                 else:
                     await _synthesize_edge_async(text, speaker, file_path)
+                
+                # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
+                trimmed_file_path = file_path + ".trimmed.mp3"
+                success = await loop.run_in_executor(
+                    None, trim_silence, file_path, trimmed_file_path
+                )
+                if success and os.path.exists(trimmed_file_path):
+                    os.replace(trimmed_file_path, file_path)
                 
                 actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                 

@@ -122,6 +122,10 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         job["sub_step"] = "STEP 3.5: Đang chạy ASR và định vị mốc thời gian..."
         subtitles_data = transcribe_and_translate_audio(client, asr_input_path)
         subtitles = subtitles_data.get("subtitles", [])
+        
+        # Sắp xếp các phân đoạn hội thoại theo thứ tự thời gian tăng dần
+        subtitles.sort(key=lambda x: x.get("start", 0.0))
+        
         log(f"Hoàn thành nhận dạng giọng nói. Tìm thấy {len(subtitles)} phân đoạn hội thoại.")
         
         # Step 4: Dịch thuật
