@@ -270,7 +270,8 @@ def _compute_actual_timeline(segments: list) -> list:
             except Exception as e:
                 logger.warning(f"Adaptive atempo failed: {e}, using original")
 
-        actual_start = current_time
+        # Align với vị trí gốc: chỉ bắt đầu sớm hơn nếu segment trước kéo dài
+        actual_start = max(current_time, original_start)
         actual_end = actual_start + tts_dur
 
         # Khoảng nghỉ tối thiểu 80ms giữa các segment
