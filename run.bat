@@ -4,6 +4,20 @@ echo ==============================================================
 echo       KHOI DONG DOUYIN VIDEO TRANSLATOR SAAS
 echo ==============================================================
 echo.
+
+:: ============================================================
+:: Environment Variables - Chinh sua neu can
+:: ============================================================
+:: Vertex AI Service Account JSON key
+set GOOGLE_APPLICATION_CREDENTIALS=C:/Users/CMD/Downloads/123.json
+
+:: Google Cloud Project ID (doc tu JSON neu de trong)
+set GOOGLE_CLOUD_PROJECT=full-video-499000
+
+:: Google Cloud Region
+set GOOGLE_CLOUD_LOCATION=us-central1
+:: ============================================================
+
 echo [1/2] Dang mo trinh duyet web tai http://localhost:8001...
 :: Wait 1 second before starting browser to sync with backend startup
 timeout /t 2 /nobreak > nul
