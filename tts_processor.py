@@ -205,6 +205,13 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
             adjusted_path = os.path.join(output_dir, f"tts_{idx:04d}_adjusted.mp3")
             final_path = adjust_tts_speed(file_path, adjusted_path, segment_duration)
 
+            # Dọn file gốc nếu đã tạo adjusted (tránh lãng phí ổ cứng)
+            if final_path != file_path:
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass  # Không quan trọng nếu xóa thất bại
+
             sub_copy = dict(sub)
             sub_copy["audio_path"] = os.path.abspath(final_path)
             updated_subtitles.append(sub_copy)
