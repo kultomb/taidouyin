@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 # Import our custom modules
 from downloader import download_douyin_video, load_cookies_txt
-from audio_processor import extract_audio, generate_srt, mix_audio_and_video
+from audio_processor import extract_audio, generate_srt, generate_srt_from_timeline, mix_audio_and_video
 from translator import get_vertex_client, transcribe_and_translate_audio
 from tts_processor import generate_tts_for_subtitles
 
@@ -109,10 +109,10 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider)
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
-        # Step 7: Tạo SRT
+        # Step 7: Tạo SRT với timeline thực tế
         job["step"] = 7
         job["sub_step"] = "STEP 7.0: Đang tạo phụ đề và trộn âm thanh..."
-        log("Tạo tệp phụ đề SRT...")
+        log("Tạo tệp phụ đề SRT với timeline thực tế...")
         srt_path = os.path.join(job_folder, "subtitles.srt")
         generate_srt(subtitles_with_tts, srt_path)
         job["srt"] = srt_path
@@ -123,7 +123,7 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         log("Ghép giọng đọc AI, giảm âm lượng nhạc nền gốc và xuất video thành phẩm...")
         
         output_video_path = os.path.join(job_folder, "translated_video.mp4")
-        mix_audio_and_video(
+        actual_timeline = mix_audio_and_video(
             video_path=video_path,
             original_audio_path=original_audio_path,
             tts_segments=subtitles_with_tts,
@@ -132,6 +132,12 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             burn_subtitles=burn_subtitles,
             srt_path=srt_path
         )
+        
+        # Cập nhật SRT với timeline thực tế (khớp chính xác với audio)
+        if actual_timeline:
+            log("Cập nhật SRT với timestamp thực tế từ TTS...")
+            generate_srt_from_timeline(actual_timeline, srt_path)
+            job["srt"] = srt_path
         
         # Dọn dẹp file trung gian
         log("Dọn dẹp file trung gian...")

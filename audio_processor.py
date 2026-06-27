@@ -38,7 +38,7 @@ def format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 def generate_srt(subtitles: list, output_srt_path: str):
-    """Generates an SRT subtitle file from subtitle segment list."""
+    """Generates an SRT subtitle file from subtitle segment list (uses Gemini timestamps)."""
     logger.info(f"Writing subtitles to SRT: {output_srt_path}")
     os.makedirs(os.path.dirname(output_srt_path), exist_ok=True)
     
@@ -46,8 +46,21 @@ def generate_srt(subtitles: list, output_srt_path: str):
         for idx, sub in enumerate(subtitles):
             start_str = format_timestamp(sub["start"])
             end_str = format_timestamp(sub["end"])
-            # Use translation (Vietnamese)
             text = sub.get("translation", "").strip()
+            f.write(f"{idx+1}\n")
+            f.write(f"{start_str} --> {end_str}\n")
+            f.write(f"{text}\n\n")
+
+def generate_srt_from_timeline(timeline: list, output_srt_path: str):
+    """Generates SRT from actual timeline (khớp chính xác với audio TTS)."""
+    logger.info(f"Writing SRT from actual timeline: {output_srt_path}")
+    os.makedirs(os.path.dirname(output_srt_path), exist_ok=True)
+    
+    with open(output_srt_path, "w", encoding="utf-8") as f:
+        for idx, seg in enumerate(timeline):
+            start_str = format_timestamp(seg["actual_start"])
+            end_str = format_timestamp(seg["actual_end"])
+            text = seg.get("translation", "").strip()
             f.write(f"{idx+1}\n")
             f.write(f"{start_str} --> {end_str}\n")
             f.write(f"{text}\n\n")
@@ -76,7 +89,7 @@ def mix_audio_and_video(
     # Pass 1: Mix tất cả TTS segments thành 1 file duy nhất
     # ============================================================
     tts_mixed_path = os.path.join(out_dir, "_tts_mixed.mp3")
-    _premix_tts_segments(tts_segments, tts_mixed_path, original_audio_path)
+    actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path)
     
     # ============================================================
     # Pass 2: Mix video + bg audio + mixed TTS → final video
@@ -114,65 +127,94 @@ def mix_audio_and_video(
         # Dọn file tạm
         if os.path.exists(tts_mixed_path):
             os.remove(tts_mixed_path)
-        return os.path.abspath(output_video_path)
+        return actual_timeline  # Trả về timeline thực tế cho SRT
     except subprocess.CalledProcessError as e:
         logger.error(f"ffmpeg error during mixing: {e.stderr}")
         raise e
 
 
-def _premix_tts_segments(tts_segments: list, output_path: str, bg_audio_path: str):
-    """Trộn tất cả TTS segments thành 1 file, mỗi segment được delay đúng start time."""
-    logger.info(f"Pre-mixing {len(tts_segments)} TTS segments into single file...")
+def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
+    """
+    Trộn tất cả TTS segments thành 1 file với timeline động.
     
-    # Dùng concat filter với adelay thay vì nhiều input riêng lẻ
-    # Cách làm: tạo silence đệm cho từng segment, rồi concat
-    # Hoặc: dùng amix với adelay - nhưng vẫn phải đưa từng file vào
+    Thay vì ép TTS vào slot gốc (gây robot voice), ta:
+    1. Giữ TTS tốc độ tự nhiên
+    2. Thêm silence giữa các segment để align với nhịp gốc
+    3. Cross-fade 50ms giữa các segment
     
-    # Giải pháp: tạo 1 file silence dài bằng video, rồi amix từng TTS vào
-    # Nhưng vẫn phải xử lý nhiều input...
-    
-    # Giải pháp tốt nhất: ghép tuần tự bằng concat protocol
-    # Tạo file list cho concat
+    Returns:
+        list actual_timeline: [{start, end, audio_path}, ...] với timestamp thực tế
+    """
+    logger.info(f"Pre-mixing {len(tts_segments)} TTS segments with dynamic timeline...")
     import tempfile
-    
-    # Đo tổng duration của bg audio để biết độ dài tối đa
-    total_duration = _get_audio_duration_ffprobe(bg_audio_path)
-    if total_duration <= 0:
-        total_duration = 9999  # fallback
-    
-    # Tạo concat file list với silence đệm giữa các segment
-    concat_lines = []
-    prev_end = 0.0
-    
-    for idx, sub in enumerate(tts_segments):
-        start = sub["start"]
-        audio_path = sub["audio_path"]
-        
+
+    # Bước 1: Tính timeline thực tế
+    actual_timeline = _compute_actual_timeline(tts_segments)
+
+    # Bước 2: Tạo concat list với silence động + cross-fade
+    concat_parts = []
+    silence_files = []  # Để dọn dẹp sau
+
+    for i, seg in enumerate(actual_timeline):
+        audio_path = seg["audio_path"]
         if not os.path.exists(audio_path):
             continue
-        
-        # Nếu có khoảng trống trước segment này, thêm silence
-        gap = start - prev_end
-        if gap > 0.05:  # > 50ms mới thêm silence
-            silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{idx}.mp3")
-            _generate_silence(silence_file, gap)
-            concat_lines.append(f"file '{silence_file.replace(chr(92), '/')}'")
-        
-        concat_lines.append(f"file '{audio_path.replace(chr(92), '/')}'")
-        prev_end = sub["end"]
-    
-    if not concat_lines:
-        # Không có segment nào → copy bg audio
-        import shutil
-        shutil.copy2(bg_audio_path, output_path)
-        return
-    
-    # Ghi file list
+
+        # Thêm silence nếu khoảng cách với segment trước > 0
+        if i > 0:
+            prev_end = actual_timeline[i - 1]["actual_end"]
+            gap = seg["actual_start"] - prev_end
+            if gap > 0.03:  # > 30ms
+                silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{i}.mp3")
+                _generate_silence(silence_file, gap)
+                concat_parts.append(silence_file)
+                silence_files.append(silence_file)
+
+        # Cross-fade: thêm 50ms fade-out ở cuối segment trước + fade-in ở đầu segment này
+        if i > 0:
+            prev_audio = actual_timeline[i - 1]["audio_path"]
+            prev_dur = actual_timeline[i - 1]["tts_duration"]
+            cur_dur = seg["tts_duration"]
+            crossfade_ms = min(50, int(prev_dur * 1000 * 0.5), int(cur_dur * 1000 * 0.5))
+
+            if crossfade_ms > 10:
+                # Tạo bản cross-faded của segment trước
+                prev_xfade = os.path.join(tempfile.gettempdir(), f"_xfade_prev_{i}.mp3")
+                cmd = [
+                    "ffmpeg", "-y", "-i", prev_audio,
+                    "-af", f"afade=t=out:st={max(0, prev_dur - crossfade_ms / 1000):.3f}:d={crossfade_ms / 1000:.3f}",
+                    "-c:a", "libmp3lame", "-q:a", "2", prev_xfade
+                ]
+                subprocess.run(cmd, capture_output=True, timeout=30)
+                silence_files.append(prev_xfade)
+                # Ghi đè phần cuối của concat list
+                if concat_parts:
+                    concat_parts[-1] = prev_xfade
+
+                # Tạo bản cross-faded của segment hiện tại
+                cur_xfade = os.path.join(tempfile.gettempdir(), f"_xfade_cur_{i}.mp3")
+                cmd = [
+                    "ffmpeg", "-y", "-i", audio_path,
+                    "-af", f"afade=t=in:st=0:d={crossfade_ms / 1000:.3f}",
+                    "-c:a", "libmp3lame", "-q:a", "2", cur_xfade
+                ]
+                subprocess.run(cmd, capture_output=True, timeout=30)
+                silence_files.append(cur_xfade)
+                concat_parts.append(cur_xfade)
+                continue
+
+        concat_parts.append(audio_path)
+
+    if not concat_parts:
+        _generate_silence(output_path, 1.0)
+        return actual_timeline
+
+    # Ghi file list cho concat
     list_file = os.path.join(tempfile.gettempdir(), "_tts_concat_list.txt")
     with open(list_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(concat_lines))
-    
-    # Dùng concat demuxer
+        for p in concat_parts:
+            f.write(f"file '{p.replace(chr(92), '/')}'\n")
+
     cmd = [
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0",
@@ -180,20 +222,75 @@ def _premix_tts_segments(tts_segments: list, output_path: str, bg_audio_path: st
         "-c:a", "libmp3lame", "-q:a", "2",
         output_path
     ]
-    
-    logger.info(f"Concat {len(concat_lines)//2} TTS segments + silences...")
+
+    logger.info(f"Concat {len(actual_timeline)} TTS segments with dynamic timing...")
     try:
         subprocess.run(cmd, capture_output=True, check=True, timeout=120)
-        logger.info("TTS pre-mix completed.")
+        logger.info("TTS pre-mix completed with natural timing.")
     except subprocess.CalledProcessError as e:
         logger.error(f"TTS pre-mix failed: {e.stderr.decode() if e.stderr else e}")
-        # Fallback: dùng bg audio
-        import shutil
-        shutil.copy2(bg_audio_path, output_path)
+        _generate_silence(output_path, 1.0)
     finally:
         # Dọn file tạm
-        if os.path.exists(list_file):
+        for f in silence_files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        try:
             os.remove(list_file)
+        except OSError:
+            pass
+
+    return actual_timeline
+
+
+def _compute_actual_timeline(segments: list) -> list:
+    """
+    Tính timeline thực tế dựa trên duration TTS tự nhiên.
+    Giữ nhịp gốc bằng cách thêm silence khi TTS ngắn hơn slot gốc,
+    và cho phép TTS dài hơn slot gốc (chỉ thêm silence tối thiểu).
+    """
+    timeline = []
+    current_time = 0.0
+
+    for i, sub in enumerate(segments):
+        tts_dur = sub.get("tts_duration", 0)
+        original_start = sub.get("start", 0)
+        original_end = sub.get("end", 0)
+        original_dur = original_end - original_start
+
+        if tts_dur <= 0:
+            tts_dur = original_dur  # fallback
+
+        # Align: đặt segment tại vị trí gốc, nhưng cho phép trễ nếu segment trước dài hơn
+        target_start = max(current_time, original_start)
+
+        # Nếu TTS ngắn hơn slot gốc → thêm silence padding vào giữa (giữ nhịp)
+        # Nếu TTS dài hơn → chấp nhận, segment sau sẽ bị đẩy
+        actual_start = target_start
+        actual_end = actual_start + tts_dur
+
+        # Thêm khoảng nghỉ tối thiểu 100ms giữa các segment (trừ segment đầu)
+        if i > 0 and actual_start < timeline[-1]["actual_end"] + 0.1:
+            actual_start = timeline[-1]["actual_end"] + 0.1
+            actual_end = actual_start + tts_dur
+
+        timeline.append({
+            "audio_path": sub.get("audio_path", ""),
+            "tts_duration": tts_dur,
+            "actual_start": round(actual_start, 3),
+            "actual_end": round(actual_end, 3),
+            "original_start": original_start,
+            "original_end": original_end,
+            "speaker": sub.get("speaker", ""),
+            "text": sub.get("text", ""),
+            "translation": sub.get("translation", ""),
+        })
+
+        current_time = actual_end
+
+    return timeline
 
 
 def _get_audio_duration_ffprobe(file_path: str) -> float:

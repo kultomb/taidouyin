@@ -200,20 +200,12 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
         try:
             tts.synthesize(text, speaker, file_path)
 
-            # Điều chỉnh tốc độ để khớp duration segment gốc
-            segment_duration = sub["end"] - sub["start"]
-            adjusted_path = os.path.join(output_dir, f"tts_{idx:04d}_adjusted.mp3")
-            final_path = adjust_tts_speed(file_path, adjusted_path, segment_duration)
-
-            # Dọn file gốc nếu đã tạo adjusted (tránh lãng phí ổ cứng)
-            if final_path != file_path:
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    pass  # Không quan trọng nếu xóa thất bại
+            # Đo duration thật của TTS (không ép atempo, giữ giọng tự nhiên)
+            actual_duration = get_audio_duration(file_path)
 
             sub_copy = dict(sub)
-            sub_copy["audio_path"] = os.path.abspath(final_path)
+            sub_copy["audio_path"] = os.path.abspath(file_path)
+            sub_copy["tts_duration"] = actual_duration  # duration thật của TTS
             updated_subtitles.append(sub_copy)
         except Exception as e:
             logger.error(f"[{tts.name}] Failed segment {idx}: {e}")
