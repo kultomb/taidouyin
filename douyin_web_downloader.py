@@ -364,7 +364,7 @@ def download_via_webengine(video_url: str, output_dir: str) -> Optional[str]:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     test_url = sys.argv[1] if len(sys.argv) > 1 else "https://www.douyin.com/video/7642382445270109449"
-    test_dir = sys.argv[2] if len(sys.argv) > 2 else "workspace/test_webengine"
+    test_dir = sys.argv[2] if len(sys.argv) > 2 else "output/test_webengine"
 
     print(f"Testing WebEngine download for: {test_url}")
     try:

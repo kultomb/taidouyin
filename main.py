@@ -23,7 +23,7 @@ app = FastAPI(title="Douyin Video Translator SaaS")
 # Serve UI static files
 # Ensure static directory exists
 os.makedirs("static", exist_ok=True)
-os.makedirs("workspace", exist_ok=True)
+os.makedirs("output", exist_ok=True)
 
 # Memory store for jobs
 jobs = {}
@@ -275,5 +275,5 @@ if __name__ == "__main__":
         port=8001,
         reload=True,
         reload_dirs=[".", "utils"],
-        reload_excludes=["output/*", "workspace/*", "*.mp4", "*.mp3", "*.srt"],
+        reload_excludes=["output/*", "*.mp4", "*.mp3", "*.srt"],
     )

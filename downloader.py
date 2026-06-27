@@ -377,7 +377,7 @@ def _process_download_info(ydl, info: dict, output_dir: str) -> str:
                 
     return os.path.abspath(filename)
 
-def download_douyin_video(url: str, output_dir: str = "workspace/downloads") -> str:
+def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str:
     """
     Downloads a Douyin video in the highest resolution.
     First tries API direct download, then yt-dlp, finally Qt WebEngine.
@@ -413,10 +413,8 @@ def download_douyin_video(url: str, output_dir: str = "workspace/downloads") -> 
     # Option 1: Check for manual cookies.txt in project root
     cookie_file = "cookies.txt"
     if os.path.exists(cookie_file):
-        # Copy to temp file so yt-dlp doesn't overwrite/clean our persistent cookies
-        import shutil
-        os.makedirs("workspace", exist_ok=True)
-        temp_cookie_file = os.path.abspath("workspace/temp_cookies.txt")
+        import tempfile, shutil
+        temp_cookie_file = os.path.join(tempfile.gettempdir(), "taidouyin_cookies.txt")
         shutil.copy2(cookie_file, temp_cookie_file)
         ydl_opts['cookiefile'] = temp_cookie_file
         logger.info(f"Cookies override detected: using temp copy {temp_cookie_file}")

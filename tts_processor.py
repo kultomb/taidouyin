@@ -32,7 +32,7 @@ async def generate_segment_tts_async(text: str, voice: str, output_path: str):
     communicate = edge_tts.Communicate(text, voice)
     await communicate.save(output_path)
 
-def generate_tts_for_subtitles(subtitles: list, output_dir: str = "workspace/tts") -> list:
+def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts") -> list:
     """
     Generates a WAV/MP3 file for each subtitle segment using edge-tts.
     Returns the list of subtitles with a new 'audio_path' key pointing to each file.
