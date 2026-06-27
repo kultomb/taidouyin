@@ -123,13 +123,16 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider)
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
-        # Step 7: Tạo SRT (khởi tạo tạm, sẽ ghi đè bằng timeline thực tế sau khi mix)
+        # Step 7: Tạo SRT
         job["step"] = 7
         job["sub_step"] = "STEP 7.0: Đang tạo phụ đề..."
         srt_path = os.path.join(job_folder, "subtitles.srt")
         srt_original_path = os.path.join(job_folder, "subtitles_original.srt")
         job["srt"] = srt_path
         job["srt_original"] = srt_original_path
+        
+        # Ghi file phụ đề gốc tiếng Trung khớp hành động video
+        generate_srt(subtitles, srt_original_path, use_original=True)
         
         # Step 8: Xuất video cuối
         job["step"] = 8
@@ -147,12 +150,11 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             srt_path=srt_path
         )
         
-        # Cập nhật SRT với timeline thực tế (cả 2 bản khớp 100% thời gian)
+        # Cập nhật SRT với timeline thực tế (chỉ cho bản Tiếng Việt lồng tiếng)
         if actual_timeline:
-            log("Cập nhật SRT với timestamp thực tế...")
+            log("Cập nhật SRT tiếng Việt với timestamp thực tế sau khi lồng tiếng...")
             generate_srt_from_timeline(actual_timeline, srt_path)
-            generate_srt_from_timeline(actual_timeline, srt_original_path, use_original=True)
-            log("Cả 2 bản SRT đã đồng bộ thời gian 100%!")
+            log("Đã cập nhật phụ đề Tiếng Việt đồng bộ với giọng lồng tiếng!")
             job["srt"] = srt_path
             job["srt_original"] = srt_original_path
         
