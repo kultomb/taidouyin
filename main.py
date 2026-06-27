@@ -25,8 +25,18 @@ app = FastAPI(title="Douyin Video Translator SaaS")
 os.makedirs("static", exist_ok=True)
 os.makedirs("output", exist_ok=True)
 
-# Memory store for jobs
+# Memory store for jobs (with TTL: tự động xóa sau 2 giờ)
+JOBS_TTL_SECONDS = 7200  # 2 giờ
 jobs = {}
+
+def _cleanup_expired_jobs():
+    """Xóa job quá hạn TTL để tránh memory leak."""
+    now = time.time()
+    expired = [jid for jid, j in jobs.items() if now - j.get("_created", now) > JOBS_TTL_SECONDS]
+    for jid in expired:
+        del jobs[jid]
+    if expired:
+        logger.info(f"Cleaned up {len(expired)} expired jobs")
 
 class TranslateRequest(BaseModel):
     url: str
@@ -205,8 +215,12 @@ def start_translation(request: TranslateRequest):
         "translated_video": None,
         "srt": None,
         "audio": None,
-        "error": None
+        "error": None,
+        "_created": time.time(),
     }
+    
+    # Dọn job cũ trước khi tạo mới
+    _cleanup_expired_jobs()
     
     # Start thread
     thread = threading.Thread(
@@ -264,7 +278,9 @@ def download_file(job_id: str, file_type: str):
         path = job["srt"]
         media_type = "text/plain"
     elif file_type == "original_audio.mp3":
-        path = job["audio"]
+        path = job.get("audio")
+        if not path or not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="File audio đã được dọn dẹp sau khi xử lý.")
         media_type = "audio/mpeg"
         
     if not path or not os.path.exists(path):

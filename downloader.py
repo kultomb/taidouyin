@@ -4,13 +4,22 @@ import sys
 import time
 import random
 import string
-import yt_dlp
 import logging
 import requests
 from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse, parse_qs, urlencode
 
 logger = logging.getLogger("douyin_translator")
+
+# Lazy import: yt-dlp chỉ import khi cần (không crash nếu thiếu)
+_yt_dlp = None
+
+def _get_yt_dlp():
+    global _yt_dlp
+    if _yt_dlp is None:
+        import yt_dlp
+        _yt_dlp = yt_dlp
+    return _yt_dlp
 
 def extract_url(text: str) -> str:
     """Extracts the first HTTP/HTTPS URL from a string."""
@@ -425,7 +434,7 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str
             logger.info("Attempting Chrome cookies database...")
             chrome_opts = dict(ydl_opts)
             chrome_opts['cookiesfrombrowser'] = ('chrome',)
-            with yt_dlp.YoutubeDL(chrome_opts) as ydl:
+            with _get_yt_dlp().YoutubeDL(chrome_opts) as ydl:
                 info = ydl.extract_info(clean_url, download=True)
                 return _process_download_info(ydl, info, output_dir)
         except Exception as chrome_err:
@@ -433,7 +442,7 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str
             try:
                 edge_opts = dict(ydl_opts)
                 edge_opts['cookiesfrombrowser'] = ('edge',)
-                with yt_dlp.YoutubeDL(edge_opts) as ydl:
+                with _get_yt_dlp().YoutubeDL(edge_opts) as ydl:
                     info = ydl.extract_info(clean_url, download=True)
                     return _process_download_info(ydl, info, output_dir)
             except Exception as edge_err:

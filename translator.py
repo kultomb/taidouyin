@@ -8,9 +8,13 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_excepti
 
 logger = logging.getLogger("douyin_translator")
 
-JSON_PATH = "C:/Users/CMD/Downloads/123.json"
-PROJECT_ID = "full-video-499000"
-LOCATION = "us-central1"
+# Credentials từ environment variables (không hardcode)
+# GOOGLE_APPLICATION_CREDENTIALS: path tới JSON key
+# GOOGLE_CLOUD_PROJECT: project ID (tùy chọn, đọc từ JSON nếu không có)
+# GOOGLE_CLOUD_LOCATION: region (mặc định us-central1)
+JSON_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "full-video-499000")
+LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 class TranslateError(Exception):
     pass
