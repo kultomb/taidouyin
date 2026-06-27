@@ -58,8 +58,14 @@ def generate_srt(subtitles: list, output_srt_path: str, use_original: bool = Fal
             f.write(f"{start_str} --> {end_str}\n")
             f.write(f"{text}\n\n")
 
-def generate_srt_from_timeline(timeline: list, output_srt_path: str):
-    """Generates SRT from actual timeline (khớp chính xác với audio TTS)."""
+def generate_srt_from_timeline(timeline: list, output_srt_path: str, use_original: bool = False):
+    """Generates SRT from actual timeline (khớp chính xác với audio TTS).
+    
+    Args:
+        timeline: list từ _compute_actual_timeline
+        output_srt_path: đường dẫn output
+        use_original: True = tiếng gốc (text), False = tiếng Việt (translation)
+    """
     logger.info(f"Writing SRT from actual timeline: {output_srt_path}")
     os.makedirs(os.path.dirname(output_srt_path), exist_ok=True)
     
@@ -67,7 +73,7 @@ def generate_srt_from_timeline(timeline: list, output_srt_path: str):
         for idx, seg in enumerate(timeline):
             start_str = format_timestamp(seg["actual_start"])
             end_str = format_timestamp(seg["actual_end"])
-            text = seg.get("translation", "").strip()
+            text = seg.get("text" if use_original else "translation", "").strip()
             f.write(f"{idx+1}\n")
             f.write(f"{start_str} --> {end_str}\n")
             f.write(f"{text}\n\n")

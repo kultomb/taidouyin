@@ -123,18 +123,11 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider)
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
-        # Step 7: Tạo SRT
+        # Step 7: Tạo SRT (khởi tạo tạm, sẽ ghi đè bằng timeline thực tế sau khi mix)
         job["step"] = 7
         job["sub_step"] = "STEP 7.0: Đang tạo phụ đề..."
-        
-        # SRT tiếng gốc (Trung) - để tham khảo
-        srt_original_path = os.path.join(job_folder, "subtitles_original.srt")
-        generate_srt(subtitles_with_tts, srt_original_path, use_original=True)
-        log("Đã tạo subtitles_original.srt (tiếng Trung gốc)")
-        
-        # SRT tiếng Việt (sẽ cập nhật sau khi mix)
         srt_path = os.path.join(job_folder, "subtitles.srt")
-        generate_srt(subtitles_with_tts, srt_path)
+        srt_original_path = os.path.join(job_folder, "subtitles_original.srt")
         job["srt"] = srt_path
         job["srt_original"] = srt_original_path
         
@@ -154,11 +147,14 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             srt_path=srt_path
         )
         
-        # Cập nhật SRT với timeline thực tế (khớp chính xác với audio)
+        # Cập nhật SRT với timeline thực tế (cả 2 bản khớp 100% thời gian)
         if actual_timeline:
-            log("Cập nhật SRT với timestamp thực tế từ TTS...")
+            log("Cập nhật SRT với timestamp thực tế...")
             generate_srt_from_timeline(actual_timeline, srt_path)
+            generate_srt_from_timeline(actual_timeline, srt_original_path, use_original=True)
+            log("Cả 2 bản SRT đã đồng bộ thời gian 100%!")
             job["srt"] = srt_path
+            job["srt_original"] = srt_original_path
         
         # Dọn dẹp file trung gian
         log("Dọn dẹp file trung gian...")
@@ -176,8 +172,8 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         log(f"Hoàn thành! Video lưu tại: {job_folder}/")
         log(f"  - translated_video.mp4 (video đã dịch)")
         log(f"  - original.mp4 (video gốc)")
-        log(f"  - subtitles.srt (phụ đề tiếng Việt)")
-        log(f"  - subtitles_original.srt (phụ đề tiếng Trung gốc)")
+        log(f"  - subtitles.srt (phụ đề tiếng Việt, cùng thời gian)")
+        log(f"  - subtitles_original.srt (phụ đề tiếng Trung, cùng thời gian)")
         
     except Exception as e:
         logger.error(f"Pipeline failure: {str(e)}", exc_info=True)
