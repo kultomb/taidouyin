@@ -55,19 +55,19 @@ def get_vertex_client(json_path: str = JSON_PATH) -> genai.Client:
 )
 def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dict:
     """
-    Sends the audio file to Gemini 2.5 Flash, transcribing and translating it directly into Vietnamese.
+    Sends the audio or video file to Gemini 2.5 Flash, transcribing and translating it directly into Vietnamese.
     Returns a dictionary matching the subtitle schema.
     """
-    logger.info(f"Sending audio file to Gemini for ASR and Translation: {audio_path}")
+    logger.info(f"Sending file to Gemini for ASR and Translation: {audio_path}")
     
     if not os.path.exists(audio_path):
-        raise StopTask(f"Audio file not found: {audio_path}")
+        raise StopTask(f"File not found: {audio_path}")
         
-    # Read audio bytes
+    # Read file bytes
     try:
-        audio_bytes = Path(audio_path).read_bytes()
+        file_bytes = Path(audio_path).read_bytes()
     except Exception as e:
-        raise StopTask(f"Failed to read audio file: {e}")
+        raise StopTask(f"Failed to read file: {e}")
         
     # Detect mime type based on extension
     ext = Path(audio_path).suffix.lower()
@@ -77,15 +77,26 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
         mime_type = "audio/wav"
     elif ext in (".ogg", ".oga"):
         mime_type = "audio/ogg"
+    elif ext == ".mp4":
+        mime_type = "video/mp4"
     else:
         mime_type = "audio/mpeg"
         
-    prompt = (
-        "You are an expert audio transcriber, translator, and subtitler. "
-        "Listen to the audio input and transcribe the speech exactly, then translate it into Vietnamese. "
-        "Divide the text into short segments (sentences/clauses) and determine the start and end timestamps in seconds "
-        "for each segment. Also identify the speaker for each segment (e.g. Speaker A, Speaker B)."
-    )
+    if mime_type.startswith("video/"):
+        prompt = (
+            "You are an expert video transcriber, translator, and subtitler. "
+            "Analyze the video and audio input, transcribe the speech exactly, then translate it into Vietnamese. "
+            "Divide the text into short segments (sentences/clauses) and determine the start and end timestamps in seconds "
+            "for each segment based on both speech and visual actions (lip movements, screen events). "
+            "Also identify the speaker for each segment (e.g. Speaker A, Speaker B)."
+        )
+    else:
+        prompt = (
+            "You are an expert audio transcriber, translator, and subtitler. "
+            "Listen to the audio input and transcribe the speech exactly, then translate it into Vietnamese. "
+            "Divide the text into short segments (sentences/clauses) and determine the start and end timestamps in seconds "
+            "for each segment. Also identify the speaker for each segment (e.g. Speaker A, Speaker B)."
+        )
     
     schema = {
         "type": "OBJECT",
@@ -114,7 +125,7 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
             model="gemini-2.5-flash",
             contents=[
                 types.Part.from_text(text=prompt),
-                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

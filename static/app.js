@@ -6,8 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
     const ttsProviderSelect = document.getElementById('ttsProvider');
-    const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn');
+    const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn[data-tts]');
+    const asrToggleBtns = document.querySelectorAll('.asr-toggle-btn');
     let selectedTtsProvider = 'edge';
+    let selectedAsrMode = 'audio';
 
     // TTS Toggle Buttons
     ttsToggleBtns.forEach(btn => {
@@ -15,6 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ttsToggleBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedTtsProvider = btn.dataset.tts;
+        });
+    });
+
+    // ASR Toggle Buttons
+    asrToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            asrToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedAsrMode = btn.dataset.asr;
         });
     });
 
@@ -82,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const bgVolume = parseFloat(volumeSlider.value);
         const burnSubtitles = burnSubtitlesCheckbox.checked;
         const ttsProvider = selectedTtsProvider;
+        const asrMode = selectedAsrMode;
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -104,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider })
+                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider, asr_mode: asrMode })
             });
 
             if (!response.ok) {

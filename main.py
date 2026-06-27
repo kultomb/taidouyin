@@ -47,8 +47,9 @@ class TranslateRequest(BaseModel):
     bg_volume: float = 0.30  # Ducking: bg audio volume when TTS is silent
     burn_subtitles: bool = False
     tts_provider: str = "edge"  # "edge" hoặc "google"
+    asr_mode: str = "audio"  # "audio" hoặc "video"
 
-def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, tts_provider: str = "edge"):
+def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, tts_provider: str = "edge", asr_mode: str = "audio"):
     job = jobs[job_id]
     job_folder = f"output/{time.strftime('%Y%m%d_%H%M%S')}"
     os.makedirs(job_folder, exist_ok=True)
@@ -92,10 +93,34 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
         log("Khởi tạo kết nối Vertex AI Client...")
         client = get_vertex_client()
-        log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
+        
+        import subprocess
+        if asr_mode == "video":
+            job["sub_step"] = "STEP 3.2: Đang tối ưu hóa và nén video gửi tới Gemini..."
+            log("Nén video chất lượng cực thấp (320x240, mono audio) để giảm dung lượng tải lên...")
+            compressed_video_path = os.path.join(job_folder, "compressed_video.mp4")
+            
+            compress_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-vf", "scale=320:-2,fps=10",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "32",
+                "-c:a", "aac", "-b:a", "32k", "-ac", "1",
+                compressed_video_path
+            ]
+            try:
+                subprocess.run(compress_cmd, capture_output=True, check=True, timeout=60)
+                log(f"Nén video thành công: {compressed_video_path} (Kích thước: {os.path.getsize(compressed_video_path) / 1024 / 1024:.2f} MB)")
+                asr_input_path = compressed_video_path
+            except Exception as e:
+                log(f"Lỗi nén video: {e}. Tự động fallback sang nhận diện chỉ âm thanh.")
+                asr_input_path = original_audio_path
+        else:
+            asr_input_path = original_audio_path
+            log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
         
         job["sub_step"] = "STEP 3.5: Đang chạy ASR và định vị mốc thời gian..."
-        subtitles_data = transcribe_and_translate_audio(client, original_audio_path)
+        subtitles_data = transcribe_and_translate_audio(client, asr_input_path)
         subtitles = subtitles_data.get("subtitles", [])
         log(f"Hoàn thành nhận dạng giọng nói. Tìm thấy {len(subtitles)} phân đoạn hội thoại.")
         
@@ -246,7 +271,7 @@ def start_translation(request: TranslateRequest):
     # Start thread
     thread = threading.Thread(
         target=run_pipeline,
-        args=(job_id, request.url, request.bg_volume, request.burn_subtitles, request.tts_provider),
+        args=(job_id, request.url, request.bg_volume, request.burn_subtitles, request.tts_provider, request.asr_mode),
         daemon=True
     )
     thread.start()
