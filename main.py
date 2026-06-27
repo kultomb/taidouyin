@@ -126,17 +126,17 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         # Step 7: Tạo SRT
         job["step"] = 7
         job["sub_step"] = "STEP 7.0: Đang tạo phụ đề..."
-        log("Tạo tệp phụ đề SRT (Gemini gốc)...")
         
-        # SRT gốc từ Gemini (để tham khảo)
-        srt_gemini_path = os.path.join(job_folder, "subtitles_gemini.srt")
-        generate_srt(subtitles_with_tts, srt_gemini_path)
+        # SRT tiếng gốc (Trung) - để tham khảo
+        srt_original_path = os.path.join(job_folder, "subtitles_original.srt")
+        generate_srt(subtitles_with_tts, srt_original_path, use_original=True)
+        log("Đã tạo subtitles_original.srt (tiếng Trung gốc)")
         
-        # SRT chính (sẽ cập nhật sau khi mix)
+        # SRT tiếng Việt (sẽ cập nhật sau khi mix)
         srt_path = os.path.join(job_folder, "subtitles.srt")
         generate_srt(subtitles_with_tts, srt_path)
         job["srt"] = srt_path
-        job["srt_gemini"] = srt_gemini_path
+        job["srt_original"] = srt_original_path
         
         # Step 8: Xuất video cuối
         job["step"] = 8
@@ -176,8 +176,8 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         log(f"Hoàn thành! Video lưu tại: {job_folder}/")
         log(f"  - translated_video.mp4 (video đã dịch)")
         log(f"  - original.mp4 (video gốc)")
-        log(f"  - subtitles.srt (phụ đề khớp giọng đọc)")
-        log(f"  - subtitles_gemini.srt (phụ đề gốc từ AI)")
+        log(f"  - subtitles.srt (phụ đề tiếng Việt)")
+        log(f"  - subtitles_original.srt (phụ đề tiếng Trung gốc)")
         
     except Exception as e:
         logger.error(f"Pipeline failure: {str(e)}", exc_info=True)
@@ -236,7 +236,7 @@ def start_translation(request: TranslateRequest):
         "original_video": None,
         "translated_video": None,
         "srt": None,
-        "srt_gemini": None,
+        "srt_original": None,
         "audio": None,
         "error": None,
         "_created": time.time(),
@@ -269,7 +269,7 @@ def get_status(job_id: str):
             "original_video_url": f"/api/download/{job_id}/original_video.mp4" if job["original_video"] else None,
             "translated_video_url": f"/api/download/{job_id}/translated_video.mp4" if job["translated_video"] else None,
             "srt_url": f"/api/download/{job_id}/subtitles.srt" if job["srt"] else None,
-            "srt_gemini_url": f"/api/download/{job_id}/subtitles_gemini.srt" if job.get("srt_gemini") else None,
+            "srt_original_url": f"/api/download/{job_id}/subtitles_original.srt" if job.get("srt_original") else None,
         }
         
     return {
@@ -300,10 +300,10 @@ def download_file(job_id: str, file_type: str):
     elif file_type == "subtitles.srt":
         path = job["srt"]
         media_type = "text/plain"
-    elif file_type == "subtitles_gemini.srt":
-        path = job.get("srt_gemini")
+    elif file_type == "subtitles_original.srt":
+        path = job.get("srt_original")
         if not path or not os.path.exists(path):
-            raise HTTPException(status_code=404, detail="File SRT Gemini không tồn tại.")
+            raise HTTPException(status_code=404, detail="File SRT gốc không tồn tại.")
         media_type = "text/plain"
     elif file_type == "original_audio.mp3":
         path = job.get("audio")

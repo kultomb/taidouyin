@@ -37,16 +37,23 @@ def format_timestamp(seconds: float) -> str:
     millis = int((seconds % 1) * 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
-def generate_srt(subtitles: list, output_srt_path: str):
-    """Generates an SRT subtitle file from subtitle segment list (uses Gemini timestamps)."""
-    logger.info(f"Writing subtitles to SRT: {output_srt_path}")
+def generate_srt(subtitles: list, output_srt_path: str, use_original: bool = False):
+    """Generates an SRT subtitle file from subtitle segment list (uses Gemini timestamps).
+    
+    Args:
+        subtitles: list các segment
+        output_srt_path: đường dẫn output
+        use_original: True = tiếng gốc (text), False = tiếng Việt (translation)
+    """
+    lang = "original" if use_original else "translated"
+    logger.info(f"Writing {lang} subtitles to SRT: {output_srt_path}")
     os.makedirs(os.path.dirname(output_srt_path), exist_ok=True)
     
     with open(output_srt_path, "w", encoding="utf-8") as f:
         for idx, sub in enumerate(subtitles):
             start_str = format_timestamp(sub["start"])
             end_str = format_timestamp(sub["end"])
-            text = sub.get("translation", "").strip()
+            text = sub.get("text" if use_original else "translation", "").strip()
             f.write(f"{idx+1}\n")
             f.write(f"{start_str} --> {end_str}\n")
             f.write(f"{text}\n\n")
