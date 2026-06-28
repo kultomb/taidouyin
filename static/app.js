@@ -254,7 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                throw new Error('Lỗi phản hồi từ máy chủ.');
+                const errData = await response.json().catch(() => null);
+                const errMsg = (errData && errData.detail) ? errData.detail : 'Lỗi phản hồi từ máy chủ.';
+                throw new Error(errMsg);
             }
 
             const data = await response.json();
