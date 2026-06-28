@@ -14,12 +14,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTranslateProvider = 'gemini';
     let selectedProcessMode = 'ocr';
 
+    const voices = {
+        edge: [
+            { value: "", label: "Tự động phân vai (Đa giọng Nam/Nữ)" },
+            { value: "vi-VN-HoaiMyNeural", label: "Nữ miền Nam (Hoài My)" },
+            { value: "vi-VN-NamMinhNeural", label: "Nam miền Nam (Nam Minh)" }
+        ],
+        google: [
+            { value: "", label: "Tự động phân vai (Đa giọng Nam/Nữ)" },
+            { value: "vi-VN-Neural2-A", label: "Nữ miền Nam (Neural2-A)" },
+            { value: "vi-VN-Neural2-D", label: "Nam miền Nam (Neural2-D)" }
+        ]
+    };
+
+    const voiceSelect = document.getElementById('voiceSelect');
+
+    function updateVoiceOptions(provider) {
+        if (!voiceSelect) return;
+        voiceSelect.innerHTML = '';
+        const list = voices[provider] || [];
+        list.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.value;
+            opt.textContent = v.label;
+            voiceSelect.appendChild(opt);
+        });
+    }
+
+    // Initialize voice dropdown
+    updateVoiceOptions('edge');
+
     // TTS Toggle Buttons
     ttsToggleBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             ttsToggleBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedTtsProvider = btn.dataset.tts;
+            updateVoiceOptions(selectedTtsProvider);
         });
     });
 
@@ -123,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const asrMode = selectedAsrMode;
         const translateProvider = selectedTranslateProvider;
         const processMode = selectedProcessMode;
+        const voiceName = voiceSelect ? voiceSelect.value : "";
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -152,7 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     tts_provider: ttsProvider,
                     asr_mode: asrMode,
                     translate_provider: translateProvider,
-                    process_mode: processMode
+                    process_mode: processMode,
+                    voice_name: voiceName ? voiceName : null
                 })
             });
 
