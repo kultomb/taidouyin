@@ -100,10 +100,13 @@ def adjust_tts_speed(input_path: str, output_path: str, target_duration: float) 
 
 
 def trim_silence(input_path: str, output_path: str) -> bool:
-    """Cắt khoảng lặng ở đầu file MP3 bằng FFmpeg silenceremove (chỉ cắt phần bắt đầu để tránh đứt câu)."""
+    """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file MP3 bằng FFmpeg silenceremove.
+    stop_periods=-1: tự động lặp cho đến khi hết khoảng lặng ở cuối.
+    stop_threshold=-45dB: ngưỡng cao hơn để cắt đuôi lặng triệt để hơn.
+    stop_duration=0.15: cắt khi im lặng > 150ms (tránh cắt ngắt nghỉ tự nhiên ngắn)."""
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-af", "silenceremove=start_periods=1:start_threshold=-50dB",
+        "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.15",
         "-c:a", "libmp3lame", "-q:a", "2",
         output_path
     ]

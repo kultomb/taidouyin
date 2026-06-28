@@ -38,7 +38,6 @@
 .douyin.com	TRUE	/	TRUE	1813660000	ttwid	1%7C4SGJqs6M6eTgK2kIr8L1QiiaCg8ATxzyrTNpoV-6PTY%7C1782555954%7Ca0f006b662ec1fd19babfc8794494bc6ffe436cd05195fcc616fe8401efad51e
 .douyin.com	TRUE	/	TRUE	1787739999	uid_tt	32ecaf3a06ad6ffe536eb7e5b90bf7ef
 .douyin.com	TRUE	/	TRUE	1787739999	uid_tt_ss	32ecaf3a06ad6ffe536eb7e5b90bf7ef
-www.douyin.com	FALSE	/	FALSE	1782557737	__ac_nonce	06a3fa5220005bf98d00
 www.douyin.com	FALSE	/	TRUE	1814091937	__ac_referer	__ac_blank
 www.douyin.com	FALSE	/	TRUE	1814091937	__ac_signature	_02B4Z6wo00f012MQnhwAAIDCBIF3EYCNrZ9jMJqAALMGbf
 www.douyin.com	FALSE	/	FALSE	1814091947	architecture	amd64

@@ -84,18 +84,31 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
         
     if mime_type.startswith("video/"):
         prompt = (
-            "You are an expert video transcriber, translator, and subtitler. "
-            "Analyze the video and audio input, transcribe the speech exactly, then translate it into Vietnamese. "
-            "Divide the text into short segments (sentences/clauses) and determine the start and end timestamps in seconds "
-            "for each segment based on both speech and visual actions (lip movements, screen events). "
-            "Also identify the speaker for each segment (e.g. Speaker A, Speaker B)."
+            "You are an expert video transcriber, translator, and subtitler specialized in Vietnamese dubbing. "
+            "Analyze the video and audio input together. Transcribe the speech exactly, then translate it into natural, fluent Vietnamese suitable for spoken dubbing.\n\n"
+            "CRITICAL SEGMENTATION RULES:\n"
+            "1. Divide text into short segments (1-2 sentences each, max 8 seconds per segment).\n"
+            "2. NEVER split a segment in the middle of a visual action (gesture, scene change, object interaction).\n"
+            "3. Align segment boundaries with natural pauses in speech AND visual action boundaries.\n"
+            "4. When there is a clear visual event (someone points, a product is shown, scene transitions), start a new segment at that exact moment.\n"
+            "5. Ensure each segment's start timestamp precisely matches the first lip movement or visual action onset.\n"
+            "6. Ensure each segment's end timestamp matches when the action/speech naturally concludes.\n"
+            "7. For overlapping speech with actions, prioritize the action boundary for segmentation.\n\n"
+            "Identify the speaker for each segment (e.g. Speaker A, Speaker B)."
         )
     else:
         prompt = (
-            "You are an expert audio transcriber, translator, and subtitler. "
-            "Listen to the audio input and transcribe the speech exactly, then translate it into Vietnamese. "
-            "Divide the text into short segments (sentences/clauses) and determine the start and end timestamps in seconds "
-            "for each segment. Also identify the speaker for each segment (e.g. Speaker A, Speaker B)."
+            "You are an expert audio transcriber, translator, and subtitler specialized in Vietnamese dubbing. "
+            "Listen to the audio input and transcribe the speech exactly, then translate it into natural, fluent Vietnamese suitable for spoken dubbing.\n\n"
+            "CRITICAL SEGMENTATION RULES:\n"
+            "1. Divide text into short segments (1-2 sentences each, max 8 seconds per segment).\n"
+            "2. NEVER split a segment in the middle of a natural speech pause or sentence boundary.\n"
+            "3. Align segment boundaries with natural pauses, breath points, and tone shifts in the speaker's voice.\n"
+            "4. When the speaker changes tone, pace, or topic, start a new segment.\n"
+            "5. Ensure each segment's start timestamp precisely matches the first audible word.\n"
+            "6. Ensure each segment's end timestamp matches when the speech naturally concludes (not just when sound stops).\n"
+            "7. Avoid segments shorter than 1.5 seconds or longer than 8 seconds.\n\n"
+            "Identify the speaker for each segment (e.g. Speaker A, Speaker B)."
         )
     
     schema = {
@@ -179,14 +192,20 @@ def ocr_and_translate_video(client: genai.Client, video_path: str) -> dict:
         raise StopTask(f"Failed to read file: {e}")
         
     prompt = (
-        "You are an expert video OCR tool, subtitle extractor, and translator.\n"
-        "Analyze the visual content of the video input and perform OCR on the hardcoded text (subtitles) appearing on screen.\n"
+        "You are an expert video OCR tool, subtitle extractor, and translator specialized in Vietnamese dubbing.\n"
+        "Analyze the visual content of the video input and perform OCR on the hardcoded text (subtitles) appearing on screen.\n\n"
+        "CRITICAL TIMESTAMP RULES (visual-based, must match video frame-by-frame):\n"
+        "1. Identify the EXACT frame number when each subtitle FIRST APPEARS on screen → start timestamp.\n"
+        "2. Identify the EXACT frame number when each subtitle DISAPPEARS from screen → end timestamp.\n"
+        "3. Do NOT use audio for timestamps - rely purely on visual subtitle appearance/disappearance.\n"
+        "4. If subtitles have fade-in/fade-out transitions, use the frame where text is fully visible / fully gone.\n"
+        "5. Ensure NO gap or overlap between consecutive subtitle segments on screen.\n"
+        "6. If the subtitle stays on screen while the speaker pauses, extend the end time accordingly.\n\n"
         "For each subtitle segment:\n"
-        "1. Identify the exact start and end timestamps in seconds when the text appears on screen.\n"
-        "2. Transcribe the native Chinese text exactly (remove any typos or half-formed words if possible).\n"
-        "3. Translate the transcribed text into natural, fluent Vietnamese.\n"
-        "4. Identify the speaker if clear, or default to 'Speaker A'.\n"
-        "Ensure the segments are sorted chronologically and timestamps are highly accurate based on visual transitions."
+        "- Transcribe the native Chinese text exactly (fix typos if possible).\n"
+        "- Translate into natural, fluent Vietnamese suitable for dubbing.\n"
+        "- Identify the speaker if clear, or default to 'Speaker A'.\n\n"
+        "Segments MUST be sorted chronologically by start time."
     )
     
     schema = {

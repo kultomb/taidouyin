@@ -282,14 +282,22 @@ def _build_atempo_filter(speed_factor: float) -> str:
 
 def _compute_actual_timeline(segments: list) -> list:
     """
-    Tính timeline thực tế khớp khít 100% với mốc thời gian của câu gốc.
-    Bắt buộc actual_start = original_start, actual_end = original_end.
-    Áp dụng tăng tốc độ đọc nhẹ (tối đa 1.25x) để tránh giọng đọc bị méo, rời rạc hoặc bị cắt.
+    Tính timeline THÔNG MINH đồng bộ với hành động video:
+    
+    CHIẾN LƯỢC MỚI (không dùng padding im lặng):
+    1. TTS ngắn hơn slot gốc → GIÃN CHẬM (atempo 0.85-0.98x) để lấp đầy slot.
+       - Tiếng Việt thường ngắn hơn tiếng Trung → giãn chậm giúp giọng đọc trầm ấm, dễ nghe hơn.
+       - actual_end = original_end (kết thúc đúng lúc nhân vật ngừng nói).
+    2. TTS dài hơn slot gốc → mượn gap phía sau, nếu không đủ thì tăng tốc nhẹ (max 1.15x).
+    3. actual_start luôn = original_start (khớp khẩu hình tuyệt đối).
     """
     import tempfile
     
     timeline = []
-    MAX_SPEED_FACTOR = 1.25
+    MAX_SPEEDUP = 1.15          # Tăng tốc tối đa (giữ giọng tự nhiên)
+    MAX_SLOWDOWN = 0.85         # Giãn chậm tối đa (tránh giọng quá rề rà)
+    MIN_GAP = 0.12              # Gap tối thiểu 120ms giữa các câu
+    TARGET_FILL_RATIO = 0.96    # Mục tiêu lấp đầy 96% slot gốc
  
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
@@ -305,34 +313,84 @@ def _compute_actual_timeline(segments: list) -> list:
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
         temp_path = None
-        
-        # Tăng tốc độ đọc nếu câu dịch dài hơn câu gốc, giới hạn tối đa 1.25x để giữ giọng đọc tự nhiên
-        if tts_dur > original_dur and original_dur > 0.1:
-            speed_factor = tts_dur / original_dur
-            if speed_factor > MAX_SPEED_FACTOR:
-                speed_factor = MAX_SPEED_FACTOR
-            
-            if speed_factor > 1.01 and audio_path and os.path.exists(audio_path):
-                logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f} (Capped at {MAX_SPEED_FACTOR})")
-                adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
-                try:
-                    atempo_filter = _build_atempo_filter(speed_factor)
-                    cmd = [
-                        "ffmpeg", "-y", "-i", audio_path,
-                        "-filter:a", atempo_filter,
-                        "-c:a", "libmp3lame", "-q:a", "2",
-                        adjusted_path
-                    ]
-                    subprocess.run(cmd, capture_output=True, check=True, timeout=30)
-                    audio_path = adjusted_path
-                    temp_path = adjusted_path
-                    tts_dur = tts_dur / speed_factor
-                except Exception as e:
-                    logger.warning(f"Segment {i} atempo failed: {e}")
  
-        # Bắt buộc mốc thời gian trùng khít hoàn toàn với câu thoại gốc
-        actual_start = original_start
-        actual_end = original_end
+        # Xác định gap phía sau
+        next_start = segments[i + 1]["start"] if (i + 1) < len(segments) else None
+        available_gap = (next_start - original_end) if next_start else 10.0
+ 
+        # ═══════════════════════════════════════════════
+        # CASE 1: TTS NGẮN hơn slot gốc → GIÃN CHẬM
+        # ═══════════════════════════════════════════════
+        if tts_dur <= original_dur and original_dur > 0.1:
+            # Tính tốc độ giãn để lấp đầy TARGET_FILL_RATIO của slot
+            desired_dur = original_dur * TARGET_FILL_RATIO
+            slowdown = desired_dur / tts_dur  # < 1.0 = giãn chậm
+            
+            if slowdown < MAX_SLOWDOWN:
+                # Quá chênh lệch → giãn tối đa MAX_SLOWDOWN, phần còn lại thêm gap nhẹ phía sau
+                speed_factor = MAX_SLOWDOWN
+                actual_end = original_end
+                tts_dur = tts_dur / MAX_SLOWDOWN
+                logger.info(
+                    f"Segment {i}: TTS quá ngắn ({tts_dur*MAX_SLOWDOWN:.1f}s vs slot {original_dur:.1f}s), "
+                    f"giãn chậm tối đa {MAX_SLOWDOWN:.2f}x → {tts_dur:.1f}s, đuôi gap lấp đầy"
+                )
+            else:
+                # Giãn chậm vừa phải để lấp đầy 96% slot
+                speed_factor = slowdown
+                tts_dur = desired_dur
+                actual_end = original_end
+                logger.info(
+                    f"Segment {i}: TTS ngắn hơn ({tts_dur/slowdown:.1f}s vs slot {original_dur:.1f}s), "
+                    f"giãn chậm {slowdown:.3f}x → lấp đầy {tts_dur:.1f}s (96% slot)"
+                )
+ 
+        # ═══════════════════════════════════════════════
+        # CASE 2: TTS DÀI hơn slot gốc → MƯỢN GAP / TĂNG TỐC
+        # ═══════════════════════════════════════════════
+        elif tts_dur > original_dur:
+            needed_extra = tts_dur - original_dur
+            borrowable = max(0, available_gap - MIN_GAP)
+            
+            if needed_extra <= borrowable:
+                # Mượn đủ từ gap
+                actual_end = original_end + needed_extra
+                logger.info(
+                    f"Segment {i}: TTS dài hơn ({tts_dur:.2f}s > slot {original_dur:.2f}s), "
+                    f"mượn {needed_extra:.2f}s từ gap"
+                )
+            else:
+                # Không đủ gap → tăng tốc
+                total_available = original_dur + borrowable
+                speed_factor = min(tts_dur / total_available, MAX_SPEEDUP) if total_available > 0.1 else MAX_SPEEDUP
+                actual_end = min(original_end + borrowable, original_end + tts_dur / speed_factor)
+                tts_dur = tts_dur / speed_factor
+                logger.info(
+                    f"Segment {i}: TTS quá dài ({tts_dur*speed_factor:.1f}s vs available {total_available:.1f}s), "
+                    f"tăng tốc {speed_factor:.3f}x → {tts_dur:.1f}s"
+                )
+        else:
+            # TTS ~= slot gốc
+            actual_end = original_end
+ 
+        # Áp dụng atempo (cả speedup >1.0 lẫn slowdown <1.0)
+        if abs(speed_factor - 1.0) > 0.01 and audio_path and os.path.exists(audio_path):
+            adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
+            try:
+                atempo_filter = _build_atempo_filter(speed_factor)
+                cmd = [
+                    "ffmpeg", "-y", "-i", audio_path,
+                    "-filter:a", atempo_filter,
+                    "-c:a", "libmp3lame", "-q:a", "2",
+                    adjusted_path
+                ]
+                subprocess.run(cmd, capture_output=True, check=True, timeout=30)
+                audio_path = adjusted_path
+                temp_path = adjusted_path
+            except Exception as e:
+                logger.warning(f"Segment {i} atempo failed: {e}")
+ 
+        actual_start = original_start  # Luôn khớp khẩu hình
 
         timeline.append({
             "audio_path": audio_path,

@@ -139,15 +139,20 @@ def run_pipeline_phase1(job_id: str, url: str):
 
 def align_ocr_with_asr_timestamps(ocr_subs: list, asr_subs: list, log_func) -> list:
     """
-    So khớp chéo các đoạn phụ đề từ OCR với các đoạn giọng nói từ ASR.
-    Hút (snap) mốc thời gian của OCR sang ASR nếu có độ trùng lặp cao để khớp khẩu hình.
+    Cross-check: So khớp chéo giữa OCR (timestamp từ HÌNH ẢNH - chính xác 100% với video)
+    và ASR (timestamp từ ÂM THANH - có thể lệch do delay phát âm).
+    
+    NGUYÊN TẮC QUAN TRỌNG:
+    - LUÔN GIỮ timestamp OCR gốc (vì OCR quét hình ảnh → khớp tuyệt đối với video).
+    - Chỉ dùng ASR để PHÁT HIỆN BẤT THƯỜNG (cảnh báo nếu lệch > 1s).
+    - KHÔNG ghi đè timestamp OCR bằng ASR.
     """
     if not asr_subs:
-        log_func("Không có phụ đề ASR để thực hiện căn khớp chéo. Giữ nguyên mốc thời gian OCR.")
+        log_func("Không có dữ liệu ASR để cross-check. Giữ nguyên timestamp OCR.")
         return ocr_subs
 
-    aligned_subs = []
-    aligned_count = 0
+    checked_subs = []
+    warning_count = 0
 
     for ocr_seg in ocr_subs:
         ocr_start = ocr_seg.get("start", 0.0)
@@ -158,39 +163,37 @@ def align_ocr_with_asr_timestamps(ocr_subs: list, asr_subs: list, log_func) -> l
         max_overlap = 0.0
         
         for asr_seg in asr_subs:
-            asr_start = asr_seg.get("start", 0.0)
-            asr_end = asr_seg.get("end", 0.0)
-            
-            # Tính toán khoảng thời gian chồng lấn
-            overlap_start = max(ocr_start, asr_start)
-            overlap_end = min(ocr_end, asr_end)
+            overlap_start = max(ocr_start, asr_seg.get("start", 0.0))
+            overlap_end = min(ocr_end, asr_seg.get("end", 0.0))
             overlap = overlap_end - overlap_start
             
             if overlap > 0:
-                ocr_duration = ocr_end - ocr_start
-                if ocr_duration > 0:
-                    overlap_ratio = overlap / ocr_duration
-                    # Nếu chồng lấn hơn 30% thời gian của đoạn phụ đề OCR
-                    if overlap_ratio > 0.3 and overlap > max_overlap:
-                        max_overlap = overlap
-                        best_match = asr_seg
-                        
+                ocr_dur = ocr_end - ocr_start
+                if ocr_dur > 0 and overlap / ocr_dur > 0.3 and overlap > max_overlap:
+                    max_overlap = overlap
+                    best_match = asr_seg
+        
         if best_match:
-            new_seg = ocr_seg.copy()
-            # Cập nhật thời gian theo mốc ASR chuẩn xác hơn
-            new_seg["start"] = best_match.get("start", ocr_start)
-            new_seg["end"] = best_match.get("end", ocr_end)
-            aligned_subs.append(new_seg)
-            aligned_count += 1
-            log_func(
-                f"Đã căn khớp '{ocr_text[:12]}...': "
-                f"[{ocr_start:.2f}s - {ocr_end:.2f}s] -> Hút theo ASR: [{new_seg['start']:.2f}s - {new_seg['end']:.2f}s]"
-            )
-        else:
-            aligned_subs.append(ocr_seg)
-            
-    log_func(f"Căn khớp hoàn tất: Đã hiệu chỉnh {aligned_count}/{len(ocr_subs)} mốc thời gian phụ đề.")
-    return aligned_subs
+            asr_start = best_match.get("start", 0.0)
+            asr_end = best_match.get("end", 0.0)
+            # Kiểm tra độ lệch giữa OCR và ASR
+            start_delta = abs(ocr_start - asr_start)
+            end_delta = abs(ocr_end - asr_end)
+            if start_delta > 1.0 or end_delta > 1.0:
+                warning_count += 1
+                log_func(
+                    f"⚠️ Cảnh báo: OCR-ASR lệch > 1s cho '{ocr_text[:15]}...' | "
+                    f"OCR [{ocr_start:.1f}s-{ocr_end:.1f}s] vs ASR [{asr_start:.1f}s-{asr_end:.1f}s]. "
+                    f"Giữ nguyên timestamp OCR."
+                )
+        # LUÔN giữ nguyên OCR segment (không ghi đè)
+        checked_subs.append(ocr_seg)
+
+    if warning_count > 0:
+        log_func(f"Cross-check hoàn tất: {warning_count}/{len(ocr_subs)} đoạn OCR lệch > 1s so với ASR (giữ nguyên OCR).")
+    else:
+        log_func(f"Cross-check hoàn tất: {len(ocr_subs)} đoạn OCR đồng bộ tốt với ASR (độ lệch < 1s).")
+    return checked_subs
 
 
 def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float):
