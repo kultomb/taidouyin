@@ -225,11 +225,22 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.querySelector('span').textContent = 'Đang xử lý...';
         processingCard.classList.remove('hidden');
         resultsCard.classList.add('hidden');
+        ocrSelectionCard.classList.add('hidden');
+
+        // Dừng và reset tất cả video player đang phát
+        [originalVideoPlayer, translatedVideoPlayer, ocrVideoPlayer].forEach(player => {
+            if (player) {
+                player.pause();
+                player.removeAttribute('src');
+                player.load();
+            }
+        });
+        currentJobId = null;
 
         // Reset steps nodes
-        document.querySelectorAll('.step-node').forEach(node => {
-            node.classList.remove('active', 'completed');
-        });
+        document.querySelectorAll('.step-node').forEach(node =>
+            node.classList.remove('active', 'completed')
+        );
         progressLineFill.style.width = '0%';
 
         // Reset Terminal Logs
