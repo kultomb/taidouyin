@@ -27,17 +27,67 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     };
 
-    const voiceSelect = document.getElementById('voiceSelect');
+    const voiceTrigger = document.getElementById('voiceSelectTrigger');
+    const voiceOptionsContainer = document.getElementById('voiceOptionsContainer');
+    const voiceSelectedText = document.getElementById('voiceSelectedText');
+    const customSelect = document.getElementById('voiceCustomSelect');
+    let selectedVoice = '';
 
     function updateVoiceOptions(provider) {
-        if (!voiceSelect) return;
-        voiceSelect.innerHTML = '';
+        if (!voiceOptionsContainer) return;
+        voiceOptionsContainer.innerHTML = '';
         const list = voices[provider] || [];
+        
         list.forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = v.value;
+            const opt = document.createElement('div');
+            opt.classList.add('custom-option');
+            if (v.value === selectedVoice) {
+                opt.classList.add('selected');
+                voiceSelectedText.textContent = v.label;
+            }
+            opt.dataset.value = v.value;
             opt.textContent = v.label;
-            voiceSelect.appendChild(opt);
+            
+            opt.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedVoice = v.value;
+                voiceSelectedText.textContent = v.label;
+                
+                // Clear selected class from siblings
+                voiceOptionsContainer.querySelectorAll('.custom-option').forEach(child => {
+                    child.classList.remove('selected');
+                });
+                opt.classList.add('selected');
+                
+                // Close select
+                customSelect.classList.remove('active');
+            });
+            
+            voiceOptionsContainer.appendChild(opt);
+        });
+        
+        // Reset selected text if the voice does not belong to the new provider
+        const matchingVoice = list.find(v => v.value === selectedVoice);
+        if (!matchingVoice) {
+            selectedVoice = '';
+            const defaultVoice = list[0] || { label: "Tự động phân vai (Đa giọng Nam/Nữ)" };
+            voiceSelectedText.textContent = defaultVoice.label;
+            if (voiceOptionsContainer.firstChild) {
+                voiceOptionsContainer.firstChild.classList.add('selected');
+            }
+        }
+    }
+
+    // Toggle dropdown
+    if (voiceTrigger && customSelect) {
+        voiceTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            customSelect.classList.toggle('active');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            customSelect.classList.remove('active');
         });
     }
 
@@ -154,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const asrMode = selectedAsrMode;
         const translateProvider = selectedTranslateProvider;
         const processMode = selectedProcessMode;
-        const voiceName = voiceSelect ? voiceSelect.value : "";
+        const voiceName = selectedVoice;
 
         // Reset UI States
         submitBtn.disabled = true;

@@ -81,11 +81,17 @@
                         </div>
 
                         <div class="setting-panel" id="voiceSelectPanel">
-                            <label class="setting-label" for="voiceSelect">Giọng đọc (Voice)</label>
-                            <div class="select-wrapper">
-                                <select id="voiceSelect" class="form-select">
+                            <label class="setting-label">Giọng đọc (Voice)</label>
+                            <div class="custom-select" id="voiceCustomSelect">
+                                <div class="custom-select-trigger" id="voiceSelectTrigger">
+                                    <span id="voiceSelectedText">Tự động phân vai (Đa giọng Nam/Nữ)</span>
+                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="custom-options-container" id="voiceOptionsContainer">
                                     <!-- Dynamic options populated via JS -->
-                                </select>
+                                </div>
                             </div>
                         </div>
 

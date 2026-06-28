@@ -335,52 +335,97 @@ body {
     margin-bottom: 12px;
 }
 
-/* Select control styling */
-.select-wrapper {
+/* Custom Select Dropdown Styling */
+.custom-select {
     position: relative;
-    display: flex;
-    align-items: center;
+    user-select: none;
 }
 
-.form-select {
-    width: 100%;
+.custom-select-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-color);
-    padding: 12px 16px;
     border-radius: var(--radius-md);
-    color: #fff;
-    font-family: var(--font-sans);
+    color: var(--text-primary);
     font-size: 0.875rem;
-    transition: var(--transition);
-    appearance: none;
-    -webkit-appearance: none;
+    font-weight: 500;
     cursor: pointer;
-    outline: none;
+    transition: var(--transition);
 }
 
-.form-select option {
-    background-color: var(--bg-dark);
+.custom-select:hover .custom-select-trigger {
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.custom-select.active .custom-select-trigger {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.custom-select-trigger .chevron-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.custom-select.active .chevron-icon {
+    transform: rotate(180deg);
+    color: var(--text-secondary);
+}
+
+.custom-options-container {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: #0d121f; /* Hài hòa với tông nền card tối */
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 50;
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.custom-select.active .custom-options-container {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.custom-option {
+    padding: 10px 14px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.custom-option:hover {
+    background: rgba(255, 255, 255, 0.06);
     color: var(--text-primary);
 }
 
-.form-select:focus {
-    border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.06);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-}
-
-.select-wrapper::after {
-    content: '▼';
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    position: absolute;
-    right: 16px;
-    pointer-events: none;
-    transition: var(--transition);
-}
-
-.select-wrapper:hover::after {
-    color: var(--text-secondary);
+.custom-option.selected {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
+    color: var(--text-primary);
+    border-left: 3px solid var(--accent);
+    padding-left: 11px;
 }
 
 .slider-wrapper {
