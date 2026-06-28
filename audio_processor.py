@@ -135,7 +135,7 @@ def mix_audio_and_video(
         f"[1:a]volume={bg_volume}[bg];"
         f"[bg][tts_trigger]sidechaincompress="
         f"threshold=0.01:ratio=8:attack=20:release=200:level_sc=0.15[bg_ducked];"
-        f"[bg_ducked][tts_voice]amix=inputs=2:duration=first[final_audio]"
+        f"[bg_ducked][tts_voice]amix=inputs=2:duration=first:normalize=0[final_audio]"
     )
     
     cmd.extend(["-filter_complex", filter_complex])
@@ -158,9 +158,12 @@ def mix_audio_and_video(
     try:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
         logger.info("Video export and mixing completed successfully.")
-        # Dọn file tạm
+        # Dọn file tạm (Bọc try-except tránh lỗi lock file)
         if os.path.exists(tts_mixed_path):
-            os.remove(tts_mixed_path)
+            try:
+                os.remove(tts_mixed_path)
+            except OSError:
+                pass
         return actual_timeline  # Trả về timeline thực tế cho SRT
     except subprocess.CalledProcessError as e:
         logger.error(f"ffmpeg error during mixing: {e.stderr}")

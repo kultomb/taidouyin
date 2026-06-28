@@ -403,15 +403,18 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             srt_original_path=srt_original_path
         )
         
-        # Dọn dẹp file trung gian
-        log("Dọn dẹp file trung gian...")
-        import shutil
-        tts_dir_path = os.path.join(job_folder, "tts")
-        if os.path.exists(tts_dir_path):
-            shutil.rmtree(tts_dir_path)
-        audio_file = os.path.join(job_folder, "audio.mp3")
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
+        # Dọn dẹp file trung gian (Bọc try-except để tránh lỗi Lock file trên Windows làm hỏng tiến độ)
+        try:
+            log("Dọn dẹp file trung gian...")
+            import shutil
+            tts_dir_path = os.path.join(job_folder, "tts")
+            if os.path.exists(tts_dir_path):
+                shutil.rmtree(tts_dir_path, ignore_errors=True)
+            audio_file = os.path.join(job_folder, "audio.mp3")
+            if os.path.exists(audio_file):
+                os.remove(audio_file)
+        except Exception as ce:
+            log(f"Cảnh báo dọn dẹp file trung gian thất bại (không ảnh hưởng video đầu ra): {ce}")
             
         job["translated_video"] = output_video_path
         job["status"] = "completed"
