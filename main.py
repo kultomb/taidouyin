@@ -146,6 +146,7 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
     """
     Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt).
     provider: "gemini" (Vertex AI) hoặc "gist" (Gist API miễn phí).
+    KHÔNG fallback chéo: chọn gì dùng đó.
     Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
     """
     texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
@@ -157,10 +158,10 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
     translated = False
 
     if provider == "gist":
-        # Gist API miễn phí
+        # Gist API miễn phí — chỉ dùng Gist, không fallback Gemini
         import requests as req
         GIST_URL = "https://http-honyaku-kiban-production-80.schnworks.com/translation/language/translate/v2"
-        log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gist API (miễn phí)...")
+        log_func(f"🌐 Gist API: Đang dịch {len(texts_to_translate)} đoạn (miễn phí)...")
         try:
             resp = req.post(
                 GIST_URL,
@@ -174,17 +175,19 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                 if gist_t and any(t.strip() for t in gist_t):
                     translations = gist_t
                     translated = True
-                    log_func(f"Gist API dịch thành công {len(translations)} đoạn.")
+                    log_func(f"✅ Gist API dịch thành công {len(translations)} đoạn.")
                 else:
-                    log_func("Gist API trả về kết quả rỗng.")
+                    log_func("⚠️ Gist API trả về kết quả rỗng. SRT sẽ có text gốc.")
+            elif resp.status_code == 404:
+                log_func("⚠️ Gist API endpoint không tồn tại (404). API có thể đã đổi URL.")
             else:
-                log_func(f"Gist API lỗi HTTP {resp.status_code}.")
+                log_func(f"⚠️ Gist API lỗi HTTP {resp.status_code}. SRT sẽ có text gốc.")
         except Exception as e:
-            log_func(f"Gist API không phản hồi: {str(e)[:100]}.")
+            log_func(f"⚠️ Gist API không phản hồi: {str(e)[:100]}. SRT sẽ có text gốc.")
 
-    if not translated:
-        # Gemini Vertex (luôn sẵn sàng)
-        log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gemini Vertex...")
+    else:  # gemini
+        # Gemini Vertex — chỉ dùng Gemini
+        log_func(f"🤖 Gemini Vertex: Đang dịch {len(texts_to_translate)} đoạn...")
         try:
             client = get_vertex_client()
             batch_text = "\n---\n".join(
@@ -208,11 +211,11 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                         translations[i] = lines[j]
                         j += 1
                 translated = True
-                log_func(f"Gemini Vertex dịch thành công {j}/{len(texts_to_translate)} đoạn.")
+                log_func(f"✅ Gemini Vertex dịch thành công {j}/{len(texts_to_translate)} đoạn.")
             else:
-                log_func("Gemini Vertex trả về rỗng.")
+                log_func("⚠️ Gemini Vertex trả về rỗng. SRT sẽ có text gốc.")
         except Exception as e:
-            log_func(f"Gemini Vertex lỗi: {str(e)[:100]}.")
+            log_func(f"⚠️ Gemini Vertex lỗi: {str(e)[:100]}. SRT sẽ có text gốc.")
 
     if not translated:
         log_func("⚠️ KHÔNG dịch được. Dùng text gốc (tiếng Trung) làm phụ đề.")
