@@ -24,7 +24,7 @@ logger = logging.getLogger("douyin_translator")
 
 # ─── Hằng số ─────────────────────────────────────────────────────────────────
 SAMPLE_FPS    = 10     # frame/giây sample (0.1s precision)
-CHANGE_THRESH = 12.0   # ngưỡng mean pixel diff để trigger re-OCR
+CHANGE_THRESH = 8.0    # ngưỡng mean pixel diff để trigger re-OCR
 MIN_SEG_DUR   = 0.20   # độ dài tối thiểu của 1 segment (giây)
 MIN_TEXT_LEN  = 3      # độ dài text tối thiểu (bỏ qua logo/nhiễu 1-2 ký tự)
 OCR_CONF_MIN  = 0.45   # confidence tối thiểu để giữ text
@@ -230,14 +230,13 @@ def extract_subtitle_segments(
             region = frame[y0:y1, x0:x1]
             gray   = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
             clean  = cv2.morphologyEx(gray, cv2.MORPH_OPEN, morph_k)
-            blurred = cv2.GaussianBlur(clean, (5, 5), 0)
 
             frame_count += 1
 
             if prev_clean is None:
                 do_ocr = True
             else:
-                diff   = cv2.absdiff(blurred, prev_clean)
+                diff   = cv2.absdiff(clean, prev_clean)
                 do_ocr = diff.mean() > change_threshold
 
             # Giới hạn tần suất OCR: không OCR quá MAX_OCR_PER_SEC lần/giây
@@ -275,7 +274,7 @@ def extract_subtitle_segments(
                     cur_text  = new_text or None
                     cur_start = ts if new_text else None
 
-            prev_clean = blurred
+            prev_clean = clean
 
         frame_idx += 1
 
