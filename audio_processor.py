@@ -306,65 +306,81 @@ def _compute_actual_timeline(segments: list) -> list:
         tts_dur = sub.get("tts_duration", 0)
         original_start = sub.get("start", 0)
         original_end = sub.get("end", 0)
-        original_dur = original_end - original_start
  
         if tts_dur <= 0:
-            tts_dur = original_dur
+            tts_dur = original_end - original_start
  
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
         temp_path = None
  
-        # Xác định gap phía sau
+        # Xác định mốc thời gian của câu tiếp theo
         next_start = segments[i + 1]["start"] if (i + 1) < len(segments) else None
-        available_gap = (next_start - original_end) if next_start else 10.0
+ 
+        # Rút ngắn thời gian kết thúc của câu trước để tạo khoảng lặng tối thiểu trước câu sau
+        effective_end = original_end
+        if next_start:
+            max_allowed_end = next_start - MIN_GAP
+            if max_allowed_end < original_end:
+                # Đảm bảo thời gian nói tối thiểu không quá nhỏ (ví dụ: ít nhất 0.2s)
+                if (max_allowed_end - original_start) >= 0.2:
+                    effective_end = max_allowed_end
+                    logger.info(f"Segment {i}: Co rút end time ({original_end:.2f}s -> {effective_end:.2f}s) để tạo khoảng lặng {MIN_GAP:.2f}s")
+                else:
+                    effective_end = max(original_end, original_start + 0.2)
+                    
+        effective_dur = effective_end - original_start
+
+        # Tính toán gap khả dụng để mượn (đã trừ đi khoảng nghỉ MIN_GAP)
+        available_gap = (next_start - effective_end - MIN_GAP) if next_start else 10.0
+        available_gap = max(0.0, available_gap)
  
         # ═══════════════════════════════════════════════
         # CASE 1: TTS NGẮN hơn slot gốc → GIÃN CHẬM
         # ═══════════════════════════════════════════════
-        if tts_dur <= original_dur and original_dur > 0.1:
+        if tts_dur <= effective_dur and effective_dur > 0.1:
             # Tính tốc độ giãn để lấp đầy TARGET_FILL_RATIO của slot
-            desired_dur = original_dur * TARGET_FILL_RATIO
+            desired_dur = effective_dur * TARGET_FILL_RATIO
             slowdown = desired_dur / tts_dur  # < 1.0 = giãn chậm
             
             if slowdown < MAX_SLOWDOWN:
                 # Quá chênh lệch → giãn tối đa MAX_SLOWDOWN, phần còn lại thêm gap nhẹ phía sau
                 speed_factor = MAX_SLOWDOWN
-                actual_end = original_end
+                actual_end = effective_end
                 tts_dur = tts_dur / MAX_SLOWDOWN
                 logger.info(
-                    f"Segment {i}: TTS quá ngắn ({tts_dur*MAX_SLOWDOWN:.1f}s vs slot {original_dur:.1f}s), "
+                    f"Segment {i}: TTS quá ngắn ({tts_dur*MAX_SLOWDOWN:.1f}s vs slot {effective_dur:.1f}s), "
                     f"giãn chậm tối đa {MAX_SLOWDOWN:.2f}x → {tts_dur:.1f}s, đuôi gap lấp đầy"
                 )
             else:
                 # Giãn chậm vừa phải để lấp đầy 96% slot
                 speed_factor = slowdown
                 tts_dur = desired_dur
-                actual_end = original_end
+                actual_end = effective_end
                 logger.info(
-                    f"Segment {i}: TTS ngắn hơn ({tts_dur/slowdown:.1f}s vs slot {original_dur:.1f}s), "
+                    f"Segment {i}: TTS ngắn hơn ({tts_dur/slowdown:.1f}s vs slot {effective_dur:.1f}s), "
                     f"giãn chậm {slowdown:.3f}x → lấp đầy {tts_dur:.1f}s (96% slot)"
                 )
  
         # ═══════════════════════════════════════════════
         # CASE 2: TTS DÀI hơn slot gốc → MƯỢN GAP / TĂNG TỐC
         # ═══════════════════════════════════════════════
-        elif tts_dur > original_dur:
-            needed_extra = tts_dur - original_dur
-            borrowable = max(0, available_gap - MIN_GAP)
+        elif tts_dur > effective_dur:
+            needed_extra = tts_dur - effective_dur
+            borrowable = available_gap
             
             if needed_extra <= borrowable:
                 # Mượn đủ từ gap
-                actual_end = original_end + needed_extra
+                actual_end = effective_end + needed_extra
                 logger.info(
-                    f"Segment {i}: TTS dài hơn ({tts_dur:.2f}s > slot {original_dur:.2f}s), "
+                    f"Segment {i}: TTS dài hơn ({tts_dur:.2f}s > slot {effective_dur:.2f}s), "
                     f"mượn {needed_extra:.2f}s từ gap"
                 )
             else:
                 # Không đủ gap → tăng tốc
-                total_available = original_dur + borrowable
+                total_available = effective_dur + borrowable
                 speed_factor = min(tts_dur / total_available, MAX_SPEEDUP) if total_available > 0.1 else MAX_SPEEDUP
-                actual_end = min(original_end + borrowable, original_end + tts_dur / speed_factor)
+                actual_end = min(effective_end + borrowable, effective_end + tts_dur / speed_factor)
                 tts_dur = tts_dur / speed_factor
                 logger.info(
                     f"Segment {i}: TTS quá dài ({tts_dur*speed_factor:.1f}s vs available {total_available:.1f}s), "
@@ -372,7 +388,7 @@ def _compute_actual_timeline(segments: list) -> list:
                 )
         else:
             # TTS ~= slot gốc
-            actual_end = original_end
+            actual_end = effective_end
  
         # Áp dụng atempo (cả speedup >1.0 lẫn slowdown <1.0)
         if abs(speed_factor - 1.0) > 0.01 and audio_path and os.path.exists(audio_path):
