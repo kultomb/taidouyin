@@ -315,8 +315,7 @@ def transcribe_audio_local_whisper(audio_path: str) -> dict:
             language="zh",
             beam_size=5,
             word_timestamps=True,
-            vad_filter=True,
-            vad_parameters=dict(min_speech_duration_ms=250)
+            vad_filter=False
         )
         
         subtitles = []
