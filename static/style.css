@@ -949,18 +949,7 @@ body {
     bottom: -1px;
 }
 
-.ocr-resize-label {
-    color: #fff;
-    background-color: rgba(9, 13, 22, 0.85);
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    pointer-events: none;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
+
 
 /* OCR Custom Timeline styling */
 .ocr-timeline-container {
