@@ -27,12 +27,18 @@ xb = XBogus(ua)
 
 # Test detail API
 aweme_id = "7642382445270109449"
+# Generate real msToken
+from utils.ms_token_manager import MsTokenManager
+mgr = MsTokenManager(user_agent=ua)
+real_ms_token = mgr.gen_real_ms_token()
+print(f"Real msToken len: {len(real_ms_token)}")
+
 params = {
     "device_platform": "webapp",
     "aid": "6383",
     "channel": "channel_pc_web",
     "aweme_id": aweme_id,
-    "msToken": "x" * 128 + "==",
+    "msToken": real_ms_token,
 }
 
 from urllib.parse import urlencode

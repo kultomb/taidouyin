@@ -11,8 +11,9 @@ from pydantic import BaseModel
 # Import our custom modules
 from downloader import download_douyin_video, load_cookies_txt
 from audio_processor import extract_audio, generate_srt, generate_srt_from_timeline, mix_audio_and_video
-from translator import get_vertex_client, transcribe_and_translate_audio, ocr_and_translate_video
+from translator import get_vertex_client, transcribe_and_translate_audio
 from tts_processor import generate_tts_for_subtitles
+from ocr_engine import extract_subtitle_segments
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -137,6 +138,51 @@ def run_pipeline_phase1(job_id: str, url: str):
         job["sub_step"] = "LỖI: Tải video gốc thất bại."
         log(f"LỖI HỆ THỐNG: {str(e)}")
 
+TRANSLATE_API_URL = "https://http-honyaku-kiban-production-80.schnworks.com/translation/language/translate/v2"
+
+def _translate_ocr_subtitles(ocr_segments: list, log_func) -> list:
+    """
+    Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt) qua Gist Translation API.
+    Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
+    """
+    import requests as req
+    texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
+    if not any(t.strip() for t in texts_to_translate):
+        log_func("Không có văn bản OCR nào để dịch.")
+        return []
+
+    log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gist API...")
+    try:
+        resp = req.post(
+            TRANSLATE_API_URL,
+            json={"texts": texts_to_translate, "targetLanguage": "vie"},
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+        if resp.status_code != 200:
+            log_func(f"Gist API lỗi HTTP {resp.status_code}: {resp.text[:200]}")
+            # Fallback: giữ nguyên text gốc
+            translations = [""] * len(texts_to_translate)
+        else:
+            data = resp.json()
+            translations = data.get("translations", [])
+    except Exception as e:
+        log_func(f"Gist API không phản hồi: {e}. Giữ nguyên text gốc.")
+        translations = [""] * len(texts_to_translate)
+
+    result = []
+    for i, seg in enumerate(ocr_segments):
+        result.append({
+            "start": seg.get("start", 0.0),
+            "end": seg.get("end", 0.0),
+            "text": seg.get("text", ""),
+            "translation": translations[i] if i < len(translations) else "",
+            "speaker": "Speaker A",
+        })
+    log_func(f"Dịch hoàn tất: {len(result)} đoạn phụ đề.")
+    return result
+
+
 def align_ocr_with_asr_timestamps(ocr_subs: list, asr_subs: list, log_func) -> list:
     """
     Cross-check: So khớp chéo giữa OCR (timestamp từ HÌNH ẢNH - chính xác 100% với video)
@@ -212,111 +258,73 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         
     try:
         subtitles = []
-        client = get_vertex_client()
         
         if use_ocr:
             job["step"] = 2
-            job["sub_step"] = "STEP 2.0: Đang cắt vùng quét phụ đề video..."
-            log(f"Cắt vùng phụ đề ngang (trục Y từ {y_start:.2f} đến {y_end:.2f})...")
-            cropped_video_path = os.path.join(job_folder, "cropped_subtitles.mp4")
+            job["sub_step"] = "STEP 2.0: Đang quét OCR offline (RapidOCR PaddleOCR ONNX)..."
+            log(f"Khởi động RapidOCR offline – vùng quét Y=[{y_start:.2f}–{y_end:.2f}], không tốn token Gemini...")
             original_audio_path = os.path.join(job_folder, "audio.mp3")
-            
-            import subprocess
-            crop_cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-vf", f"crop=w=iw:h=ih*({y_end}-{y_start}):x=0:y=ih*{y_start}",
-                "-c:a", "copy",
-                cropped_video_path
-            ]
+
+            # Tách âm thanh gốc trước, để chạy ASR song song với OCR
+            asr_result = []
+            asr_err = []
+            audio_ready = False
             try:
-                subprocess.run(crop_cmd, capture_output=True, check=True, timeout=60)
-                log(f"Đã cắt video phụ đề thành công: {cropped_video_path}")
+                log("Tách âm thanh gốc làm căn cứ cross-check...")
+                extract_audio(video_path, original_audio_path)
+                job["audio"] = original_audio_path
+                audio_ready = True
             except Exception as e:
-                log(f"Lỗi khi cắt video bằng ffmpeg: {e}. Tự động chuyển sang chế độ fallback ASR thường.")
-                use_ocr = False
-                
-            if use_ocr:
-                # Tách âm thanh gốc làm mốc so khớp
+                log(f"Cảnh báo tách âm thanh gốc thất bại: {e}. Sẽ chạy OCR thuần túy không cross-check.")
+
+            # Chạy ASR song song với OCR
+            def run_asr():
                 try:
-                    log("Tách âm thanh gốc làm căn cứ hiệu chỉnh mốc thời gian hội thoại...")
-                    extract_audio(video_path, original_audio_path)
-                    job["audio"] = original_audio_path
+                    if audio_ready and os.path.exists(original_audio_path):
+                        client_asr = get_vertex_client()
+                        res = transcribe_and_translate_audio(client_asr, original_audio_path)
+                        asr_result.append(res)
                 except Exception as e:
-                    log(f"Cảnh báo tách âm thanh gốc thất bại: {e}. Sẽ chạy OCR thuần túy không hiệu chỉnh.")
-                
-                job["step"] = 3
-                job["sub_step"] = "STEP 3.0: Đang quét OCR phụ đề cứng qua Gemini Vision..."
-                log("Khởi chạy song song quét OCR hình ảnh và nhận dạng giọng nói ASR để tối ưu hóa thời gian...")
-                
-                ocr_result = []
-                asr_result = []
-                ocr_err = []
-                asr_err = []
-                
-                def run_ocr():
-                    try:
-                        res = ocr_and_translate_video(client, cropped_video_path)
-                        ocr_result.append(res)
-                    except Exception as e:
-                        ocr_err.append(e)
-                        
-                def run_asr():
-                    try:
-                        if os.path.exists(original_audio_path):
-                            res = transcribe_and_translate_audio(client, original_audio_path)
-                            asr_result.append(res)
-                    except Exception as e:
-                        asr_err.append(e)
-                        
-                t1 = threading.Thread(target=run_ocr)
-                t2 = threading.Thread(target=run_asr)
-                
-                t1.start()
-                t2.start()
-                
-                t1.join()
-                t2.join()
-                
-                if ocr_err or not ocr_result:
-                    err_msg = ocr_err[0] if ocr_err else "Dữ liệu OCR trống"
-                    log(f"Lỗi quét phụ đề OCR: {err_msg}. Tự động chuyển sang sử dụng kết quả ASR song song.")
+                    asr_err.append(e)
+
+            t_asr = threading.Thread(target=run_asr)
+            t_asr.start()
+
+            # Chạy OCR offline (RapidOCR) – đồng bộ, dùng video gốc
+            try:
+                ocr_segments = extract_subtitle_segments(
+                    video_path=video_path,
+                    y_start_ratio=y_start,
+                    y_end_ratio=y_end,
+                    log_func=log,
+                )
+            except Exception as e:
+                log(f"Lỗi RapidOCR: {e}. Tự động chuyển sang ASR fallback.")
+                use_ocr = False
+                ocr_segments = []
+
+            # Chờ ASR hoàn thành (nếu đang chạy)
+            t_asr.join()
+
+            if use_ocr and ocr_segments:
+                log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch qua Gist API...")
+                subtitles = _translate_ocr_subtitles(ocr_segments, log)
+
+                if not subtitles:
+                    log("Dịch thất bại hoặc không có phụ đề. Chuyển sang ASR fallback.")
                     use_ocr = False
-                    if asr_result and asr_result[0].get("subtitles"):
-                        subtitles = asr_result[0].get("subtitles", [])
-                        subtitles.sort(key=lambda x: x.get("start", 0.0))
-                        log(f"Sử dụng thành công kết quả ASR fallback có sẵn: {len(subtitles)} phân đoạn.")
-                    else:
-                        log("Không có sẵn kết quả ASR song song hoặc ASR lỗi. Đang khởi chạy lại quy trình fallback ASR...")
                 else:
-                    ocr_data = ocr_result[0]
-                    subtitles = ocr_data.get("subtitles", [])
-                    subtitles.sort(key=lambda x: x.get("start", 0.0))
-                    log(f"Quét OCR hoàn tất. Trích xuất thành công {len(subtitles)} phân đoạn phụ đề.")
-                    
-                    if not subtitles:
-                        log("Không tìm thấy phụ đề nào qua OCR. Tự động chuyển sang sử dụng kết quả ASR song song.")
-                        use_ocr = False
-                        if asr_result and asr_result[0].get("subtitles"):
-                            subtitles = asr_result[0].get("subtitles", [])
-                            subtitles.sort(key=lambda x: x.get("start", 0.0))
-                            log(f"Sử dụng thành công kết quả ASR fallback có sẵn: {len(subtitles)} phân đoạn.")
+                    # Cross-check với ASR
+                    if asr_result and asr_result[0].get("subtitles"):
+                        log("Đang cross-check Hybrid Snapping: OCR vs ASR...")
+                        asr_subs = asr_result[0].get("subtitles", [])
+                        subtitles = align_ocr_with_asr_timestamps(subtitles, asr_subs, log)
                     else:
-                        # Căn khớp mốc thời gian của phụ đề OCR theo giọng nói thực tế từ ASR
-                        if asr_result and asr_result[0].get("subtitles"):
-                            log("Đang tiến hành căn khớp chéo (Hybrid Snapping) mốc thời gian phụ đề OCR theo âm thanh ASR...")
-                            asr_subs = asr_result[0].get("subtitles", [])
-                            subtitles = align_ocr_with_asr_timestamps(subtitles, asr_subs, log)
-                            subtitles.sort(key=lambda x: x.get("start", 0.0))
-                        else:
-                            log("Không có dữ liệu ASR song song hoặc ASR bị lỗi. Giữ nguyên mốc thời gian OCR gốc.")
-                
-                # Cleanup cropped video file
-                if os.path.exists(cropped_video_path):
-                    try:
-                        os.remove(cropped_video_path)
-                    except OSError:
-                        pass
+                        log("Không có dữ liệu ASR để cross-check. Giữ nguyên timestamp OCR (đã chính xác tuyệt đối).")
+                    subtitles.sort(key=lambda x: x.get("start", 0.0))
+            else:
+                log("RapidOCR không tìm thấy phụ đề hoặc lỗi. Dùng ASR fallback.")
+                use_ocr = False
                             
         # Chạy quy trình nhận diện từ giọng nói (ASR) thông thường nếu không dùng OCR hoặc bị lỗi/rỗng
         if not use_ocr:
