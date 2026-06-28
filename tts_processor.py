@@ -5,6 +5,16 @@ import edge_tts
 import logging
 from pathlib import Path
 
+# Force set Google Cloud env vars (fallback if not set via run.bat)
+if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+    default_creds = "C:/Users/CMD/Downloads/123.json"
+    if os.path.exists(default_creds):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = default_creds
+if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+    os.environ["GOOGLE_CLOUD_PROJECT"] = "full-video-499000"
+if not os.environ.get("GOOGLE_CLOUD_LOCATION"):
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
 logger = logging.getLogger("douyin_translator")
 
 # ============================================================
@@ -18,13 +28,57 @@ EDGE_VOICES = {
     "default": "vi-VN-HoaiMyNeural",
 }
 
-# Google Cloud TTS voices (premium, Vertex AI Neural2)
+# -------------------- Google Cloud TTS voices --------------------
 # Docs: https://cloud.google.com/text-to-speech/docs/voices
-GOOGLE_VOICES = {
-    "female": "vi-VN-Neural2-A",
-    "male": "vi-VN-Neural2-D",
-    "default": "vi-VN-Neural2-A",
+# Chỉ giữ giọng đã test thành công trên Vertex AI (10/23 hoạt động)
+
+# Gộp tất cả giọng đã xác nhận hoạt động
+ALL_GOOGLE_VOICES = {
+    "vi-VN-Neural2-A":   {"gender": "female", "label": "Neural2 A (Nữ HN)"},
+    "vi-VN-Neural2-D":   {"gender": "male",   "label": "Neural2 D (Nam SG)"},
+    "vi-VN-Standard-A":  {"gender": "female", "label": "Standard A (Nữ HN)"},
+    "vi-VN-Standard-B":  {"gender": "male",   "label": "Standard B (Nam HN)"},
+    "vi-VN-Standard-C":  {"gender": "female", "label": "Standard C (Nữ SG)"},
+    "vi-VN-Standard-D":  {"gender": "male",   "label": "Standard D (Nam SG)"},
+    "vi-VN-Wavenet-A":   {"gender": "female", "label": "Wavenet A (Nữ HN)"},
+    "vi-VN-Wavenet-B":   {"gender": "male",   "label": "Wavenet B (Nam HN)"},
+    "vi-VN-Wavenet-C":   {"gender": "female", "label": "Wavenet C (Nữ SG)"},
+    "vi-VN-Wavenet-D":   {"gender": "male",   "label": "Wavenet D (Nam SG)"},
 }
+
+# Giọng mặc định phân vai (female / male)
+_voice_list_female = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "female"]
+_voice_list_male   = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "male"]
+
+GOOGLE_VOICES = {
+    "female": _voice_list_female[0] if _voice_list_female else "vi-VN-Neural2-A",
+    "male":   _voice_list_male[0]   if _voice_list_male   else "vi-VN-Neural2-D",
+    "default": _voice_list_female[0] if _voice_list_female else "vi-VN-Neural2-A",
+}
+
+# ============================================================
+# Voice picker: phân phối giọng cho từng speaker
+# ============================================================
+_speaker_voice_index = {}  # cache index để cycle qua các giọng
+
+def pick_voice_for_speaker(speaker_name: str, voice_map: dict = None, gender: str = None) -> str:
+    """
+    Chọn giọng Google TTS cho một speaker.
+    - Nếu có voice_map, dùng giọng được chỉ định.
+    - Nếu không, cycle qua danh sách giọng phù hợp giới tính để đa dạng hóa.
+    """
+    if voice_map and speaker_name in voice_map:
+        return voice_map[speaker_name]
+
+    g = gender or detect_speaker_gender(speaker_name)
+    voices = _voice_list_female if g == "female" else _voice_list_male
+    if not voices:
+        return GOOGLE_VOICES.get(g, GOOGLE_VOICES["default"])
+
+    # Cycle: mỗi speaker mới sẽ lấy giọng tiếp theo trong danh sách
+    idx = _speaker_voice_index.get(speaker_name, len(_speaker_voice_index) % len(voices))
+    _speaker_voice_index[speaker_name] = idx
+    return voices[idx % len(voices)]
 
 def detect_speaker_gender(speaker_name: str) -> str:
     """Phân tích tên speaker để xác định giới tính: 'male' hoặc 'female'."""
@@ -43,11 +97,10 @@ def get_edge_voice(speaker_name: str, voice_map: dict = None) -> str:
     return EDGE_VOICES.get(gender, EDGE_VOICES["default"])
 
 def get_google_voice(speaker_name: str, voice_map: dict = None) -> str:
-    """Lấy giọng Google Cloud TTS theo speaker."""
+    """Lấy giọng Google Cloud TTS theo speaker (có phân phối đa dạng giọng)."""
     if voice_map and speaker_name in voice_map:
         return voice_map[speaker_name]
-    gender = detect_speaker_gender(speaker_name)
-    return GOOGLE_VOICES.get(gender, GOOGLE_VOICES["default"])
+    return pick_voice_for_speaker(speaker_name, voice_map)
 
 
 # ============================================================
@@ -104,14 +157,17 @@ def adjust_tts_speed(input_path: str, output_path: str, target_duration: float) 
 
 
 def trim_silence(input_path: str, output_path: str) -> bool:
-    """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file MP3 bằng FFmpeg silenceremove.
+    """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file audio bằng FFmpeg silenceremove.
+    Hỗ trợ cả MP3, WAV, PCM từ Gemini TTS.
     stop_periods=-1: tự động lặp cho đến khi hết khoảng lặng ở cuối.
     stop_threshold=-45dB: ngưỡng cao hơn để cắt đuôi lặng triệt để hơn.
     stop_duration=0.15: cắt khi im lặng > 150ms (tránh cắt ngắt nghỉ tự nhiên ngắn)."""
+    # Luôn re-encode ra MP3 để đảm bảo định dạng đồng nhất
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
         "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.15",
         "-c:a", "libmp3lame", "-q:a", "2",
+        "-ar", "44100",  # chuẩn hóa sample rate
         output_path
     ]
     try:
@@ -182,11 +238,149 @@ class GoogleTTSProvider:
 
 
 # ============================================================
+# Gemini TTS Provider (30 giọng, model: gemini-2.5-flash-preview-tts)
+# ============================================================
+
+GEMINI_VOICES = [
+    "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda",
+    "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus",
+    "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome",
+    "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam",
+    "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi",
+    "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"
+]
+
+# Phân loại giới tính gần đúng dựa trên tên
+_GEMINI_FEMALE = {"Zephyr", "Kore", "Leda", "Aoede", "Callirrhoe", "Autonoe",
+                   "Despina", "Erinome", "Laomedeia", "Pulcherrima", "Achird",
+                   "Vindemiatrix", "Sadachbia", "Sulafat"}
+_GEMINI_MALE = {"Puck", "Charon", "Fenrir", "Orus", "Enceladus", "Iapetus",
+                 "Umbriel", "Algieba", "Algenib", "Rasalgethi", "Achernar",
+                 "Alnilam", "Schedar", "Gacrux", "Zubenelgenubi", "Sadaltager"}
+
+GEMINI_VOICE_GENDER = {}
+for v in GEMINI_VOICES:
+    if v in _GEMINI_FEMALE:
+        GEMINI_VOICE_GENDER[v] = "female"
+    elif v in _GEMINI_MALE:
+        GEMINI_VOICE_GENDER[v] = "male"
+    else:
+        GEMINI_VOICE_GENDER[v] = "female"
+
+_gemini_speaker_index = {}
+
+def pick_gemini_voice(speaker_name: str, voice_map: dict = None, voice_name: str = None) -> str:
+    """
+    Chọn giọng Gemini TTS cho speaker.
+    Nếu có voice_map hoặc voice_name thì dùng giọng chỉ định.
+    Nếu không, cycle qua danh sách để đa dạng.
+    """
+    if voice_name:
+        return voice_name
+    if voice_map and speaker_name in voice_map:
+        return voice_map[speaker_name]
+
+    gender = detect_speaker_gender(speaker_name)
+    suitable = [v for v in GEMINI_VOICES if GEMINI_VOICE_GENDER.get(v) == gender]
+    if not suitable:
+        suitable = GEMINI_VOICES
+
+    idx = _gemini_speaker_index.get(speaker_name, len(_gemini_speaker_index) % len(suitable))
+    _gemini_speaker_index[speaker_name] = idx
+    return suitable[idx % len(suitable)]
+
+
+class GeminiTTSProvider:
+    """Gemini TTS: 30 giọng AI chất lượng cao, model gemini-2.5-flash-preview-tts.
+    Client được tạo 1 lần và share qua các thread."""
+    name = "gemini"
+
+    def __init__(self):
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from google import genai
+            import os
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+            location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+            creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+            
+            logger.info(f"[Gemini] Init client: project={project}, location={location}, creds={'set' if creds else 'MISSING'}")
+            
+            if not project:
+                logger.warning("[Gemini] GOOGLE_CLOUD_PROJECT not set! Trying 'full-video-499000'")
+                project = "full-video-499000"
+            
+            self._client = genai.Client(
+                vertexai=True,
+                project=project,
+                location=location
+            )
+        return self._client
+
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+        from google.genai import types
+
+        voice_name_actual = pick_gemini_voice(speaker, voice_map, voice_name)
+        logger.info(f"[Gemini TTS] '{text[:30]}...' -> {voice_name_actual}")
+
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name_actual)
+                )
+            )
+        )
+
+        client = self._get_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-preview-tts",
+            contents=[text],
+            config=config
+        )
+
+        for part in response.candidates[0].content.parts:
+            if part.inline_data and part.inline_data.mime_type.startswith("audio/"):
+                mime = part.inline_data.mime_type.lower()
+                if "pcm" in mime or "l16" in mime:
+                    rate = 24000
+                    if "rate=" in mime:
+                        try:
+                            rate = int(mime.split("rate=")[-1].split(";")[0].split(",")[0].strip())
+                        except Exception:
+                            pass
+                    import tempfile
+                    fd, tmp_path = tempfile.mkstemp(suffix=".pcm")
+                    try:
+                        with os.fdopen(fd, "wb") as tmp_f:
+                            tmp_f.write(part.inline_data.data)
+                        cmd = [
+                            "ffmpeg", "-y",
+                            "-f", "s16le",
+                            "-ar", str(rate),
+                            "-ac", "1",
+                            "-i", tmp_path,
+                            "-c:a", "libmp3lame", "-q:a", "2",
+                            output_path
+                        ]
+                        subprocess.run(cmd, capture_output=True, check=True)
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                else:
+                    with open(output_path, "wb") as f:
+                        f.write(part.inline_data.data)
+                return
+
+
+# ============================================================
 # Main TTS generator
 # ============================================================
 
-# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5 để tránh rate limit)
-TTS_CONCURRENCY = {"edge": 10, "google": 5}
+# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5, Gemini: 3 để tránh rate limit)
+TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 3}
 
 async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
     """edge-tts async wrapper."""
@@ -195,6 +389,10 @@ async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voic
 
 def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
     """Google TTS sync wrapper (dùng trong thread pool)."""
+    tts.synthesize(text, speaker, output_path, voice_map, voice_name)
+
+def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+    """Gemini TTS sync wrapper (dùng trong thread pool)."""
     tts.synthesize(text, speaker, output_path, voice_map, voice_name)
 
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None) -> tuple:
@@ -210,7 +408,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     failures = 0
     lock = asyncio.Lock()
     
-    if provider == "google":
+    if provider == "gemini":
+        tts = GeminiTTSProvider()
+    elif provider == "google":
         tts = GoogleTTSProvider()
     else:
         tts = None  # edge-tts doesn't need persistent client
@@ -228,7 +428,11 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
         async with semaphore:
             try:
                 loop = asyncio.get_event_loop()
-                if provider == "google":
+                if provider == "gemini":
+                    await loop.run_in_executor(
+                        None, _synthesize_gemini_sync, tts, text, speaker, file_path, voice_map, voice_name
+                    )
+                elif provider == "google":
                     await loop.run_in_executor(
                         None, _synthesize_google_sync, tts, text, speaker, file_path, voice_map, voice_name
                     )
@@ -278,9 +482,10 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     Returns:
         list segment với thêm key 'audio_path', 'tts_duration'
     """
-    provider_label = "Google Cloud TTS" if provider == "google" else "edge-tts"
+    provider_label = "Gemini TTS" if provider == "gemini" else ("Google Cloud TTS" if provider == "google" else "edge-tts")
     concurrency = TTS_CONCURRENCY.get(provider, 5)
     logger.info(f"Generating TTS for {len(subtitles)} segments [{provider_label}] ({concurrency} concurrent)...")
+    logger.info(f"DEBUG: provider={provider}, voice_map={voice_map}, voice_name={voice_name}")
     os.makedirs(output_dir, exist_ok=True)
     
     # Chạy async event loop
@@ -294,14 +499,14 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     
     logger.info(f"TTS done: {len(updated_subtitles)}/{len(subtitles)} segments, {google_failures} failed")
     
-    # Nếu Google TTS thất bại toàn bộ → tự động fallback edge-tts
-    if provider == "google" and google_failures > 0 and len(updated_subtitles) == 0:
+    # Nếu Google/Gemini TTS thất bại toàn bộ → tự động fallback edge-tts
+    if provider in ("google", "gemini") and google_failures > 0 and len(updated_subtitles) == 0:
         logger.error(
-            f"Google Cloud TTS failed all {google_failures} segments! "
+            f"{provider_label} failed all {google_failures} segments! "
             f"Falling back to edge-tts..."
         )
         return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=voice_map, voice_name=voice_name)
-    elif provider == "google" and google_failures > 0:
-        logger.warning(f"Google Cloud TTS: {google_failures}/{len(subtitles)} segments failed.")
+    elif provider in ("google", "gemini") and google_failures > 0:
+        logger.warning(f"{provider_label}: {google_failures}/{len(subtitles)} segments failed.")
     
     return updated_subtitles

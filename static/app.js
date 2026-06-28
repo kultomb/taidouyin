@@ -16,20 +16,91 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const voices = {
         edge: [
-            { value: "", label: "Tự động phân vai (Đa giọng Nam/Nữ)" },
-            { value: "vi-VN-HoaiMyNeural", label: "Nữ miền Nam (Hoài My)" },
-            { value: "vi-VN-NamMinhNeural", label: "Nam miền Nam (Nam Minh)" }
+            { value: "", label: "🎭 Tự động phân vai (Đa giọng Nam/Nữ)" },
+            { value: "vi-VN-HoaiMyNeural", label: "🔊 Nữ miền Nam (Hoài My)" },
+            { value: "vi-VN-NamMinhNeural", label: "🔊 Nam miền Nam (Nam Minh)" }
         ],
         google: [
-            { value: "", label: "Tự động phân vai (Đa giọng Nam/Nữ)" },
-            { value: "vi-VN-Neural2-A", label: "Nữ miền Nam (Neural2-A)" },
-            { value: "vi-VN-Neural2-D", label: "Nam miền Nam (Neural2-D)" }
+            { value: "", label: "🎭 Tự động phân vai (Đa giọng Nam/Nữ)" },
+            // Neural2 voices
+            { value: "vi-VN-Neural2-A", label: "🎙️ Neural2 A - Nữ HN" },
+            { value: "vi-VN-Neural2-D", label: "🎙️ Neural2 D - Nam SG" },
+            // Wavenet voices
+            { value: "vi-VN-Wavenet-A", label: "📻 Wavenet A - Nữ HN" },
+            { value: "vi-VN-Wavenet-B", label: "📻 Wavenet B - Nam HN" },
+            { value: "vi-VN-Wavenet-C", label: "📻 Wavenet C - Nữ SG" },
+            { value: "vi-VN-Wavenet-D", label: "📻 Wavenet D - Nam SG" },
+            // Standard voices
+            { value: "vi-VN-Standard-A", label: "📢 Standard A - Nữ HN" },
+            { value: "vi-VN-Standard-B", label: "📢 Standard B - Nam HN" },
+            { value: "vi-VN-Standard-C", label: "📢 Standard C - Nữ SG" },
+            { value: "vi-VN-Standard-D", label: "📢 Standard D - Nam SG" }
+        ],
+        gemini: [
+            { value: "", label: "🎭 Tự động phân vai (Đa giọng 30 giọng AI)" },
+            { value: "Zephyr", label: "🌟 Zephyr - Nữ" },
+            { value: "Puck", label: "🌟 Puck - Nam trầm ấm" },
+            { value: "Charon", label: "🌟 Charon - Nam" },
+            { value: "Kore", label: "🌟 Kore - Nữ" },
+            { value: "Fenrir", label: "🌟 Fenrir - Nam" },
+            { value: "Leda", label: "🌟 Leda - Nữ" },
+            { value: "Orus", label: "🌟 Orus - Nam" },
+            { value: "Aoede", label: "🌟 Aoede - Nữ" },
+            { value: "Callirrhoe", label: "🌟 Callirrhoe - Nữ" },
+            { value: "Autonoe", label: "🌟 Autonoe - Nữ" },
+            { value: "Enceladus", label: "🌟 Enceladus - Nam" },
+            { value: "Iapetus", label: "🌟 Iapetus - Nam" },
+            { value: "Umbriel", label: "🌟 Umbriel - Nam" },
+            { value: "Algieba", label: "🌟 Algieba - Nam" },
+            { value: "Despina", label: "🌟 Despina - Nữ" },
+            { value: "Erinome", label: "🌟 Erinome - Nữ" },
+            { value: "Algenib", label: "🌟 Algenib - Nam" },
+            { value: "Rasalgethi", label: "🌟 Rasalgethi - Nam" },
+            { value: "Laomedeia", label: "🌟 Laomedeia - Nữ" },
+            { value: "Achernar", label: "🌟 Achernar - Nam" },
+            { value: "Alnilam", label: "🌟 Alnilam - Nam" },
+            { value: "Schedar", label: "🌟 Schedar - Nam" },
+            { value: "Gacrux", label: "🌟 Gacrux - Nam" },
+            { value: "Pulcherrima", label: "🌟 Pulcherrima - Nữ" },
+            { value: "Achird", label: "🌟 Achird - Nữ" },
+            { value: "Zubenelgenubi", label: "🌟 Zubenelgenubi - Nam" },
+            { value: "Vindemiatrix", label: "🌟 Vindemiatrix - Nữ" },
+            { value: "Sadachbia", label: "🌟 Sadachbia - Nữ" },
+            { value: "Sadaltager", label: "🌟 Sadaltager - Nam" },
+            { value: "Sulafat", label: "🌟 Sulafat - Nữ" }
         ]
+    };
+
+    // --- Gender-specific voice lists (cho dropdown Nữ / Nam riêng) ---
+    function splitByGender(list) {
+        const female = [{ value: "", label: "Tự động" }];
+        const male = [{ value: "", label: "Tự động" }];
+        list.forEach(v => {
+            if (!v.value) return; // skip "auto" line
+            const lbl = (v.label || "").toLowerCase();
+            if (lbl.includes("nữ") || lbl.includes("female")) {
+                female.push(v);
+            } else if (lbl.includes("nam") || lbl.includes("male")) {
+                male.push(v);
+            }
+        });
+        return { female, male };
+    }
+
+    const genderVoices = {
+        edge: splitByGender(voices.edge),
+        google: splitByGender(voices.google),
+        gemini: splitByGender(voices.gemini)
     };
 
     let selectedEdgeVoice = '';
     let selectedGoogleVoice = '';
+    let selectedGeminiVoice = '';
+    let selectedEdgeFemale = '', selectedEdgeMale = '';
+    let selectedGoogleFemale = '', selectedGoogleMale = '';
+    let selectedGeminiFemale = '', selectedGeminiMale = '';
 
+    // --- Main voice dropdown refs ---
     const edgeSelect = document.getElementById('edgeVoiceSelect');
     const edgeTrigger = document.getElementById('edgeVoiceTrigger');
     const edgeOptionsContainer = document.getElementById('edgeVoiceOptions');
@@ -40,7 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const googleOptionsContainer = document.getElementById('googleVoiceOptions');
     const googleSelectedText = document.getElementById('googleVoiceSelectedText');
 
-    function populateCustomSelect(container, triggerText, selectEl, optionsList, getVal, setVal) {
+    const geminiSelect = document.getElementById('geminiVoiceSelect');
+    const geminiTrigger = document.getElementById('geminiVoiceTrigger');
+    const geminiOptionsContainer = document.getElementById('geminiVoiceOptions');
+    const geminiSelectedText = document.getElementById('geminiVoiceSelectedText');
+
+    // --- Gender voice dropdown refs ---
+    const edgeGenderRow = document.getElementById('edgeGenderVoices');
+    const googleGenderRow = document.getElementById('googleGenderVoices');
+    const geminiGenderRow = document.getElementById('geminiGenderVoices');
+
+    function populateCustomSelect(container, triggerText, selectEl, optionsList, getVal, setVal, onChange) {
         if (!container) return;
         container.innerHTML = '';
         optionsList.forEach(v => {
@@ -52,44 +133,107 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             opt.dataset.value = v.value;
             opt.textContent = v.label;
-            
+
             opt.addEventListener('click', (e) => {
                 e.stopPropagation();
                 setVal(v.value);
                 triggerText.textContent = v.label;
-                
+
                 container.querySelectorAll('.custom-option').forEach(c => {
                     c.classList.remove('selected');
                 });
                 opt.classList.add('selected');
                 selectEl.classList.remove('active');
+                if (onChange) onChange(v.value);
             });
             container.appendChild(opt);
         });
     }
 
+    function toggleGenderRow(provider, voiceValue) {
+        const row = provider === 'edge' ? edgeGenderRow : (provider === 'google' ? googleGenderRow : geminiGenderRow);
+        if (!row) return;
+        row.style.display = (voiceValue === '') ? 'flex' : 'none';
+    }
+
     populateCustomSelect(
-        edgeOptionsContainer,
-        edgeSelectedText,
-        edgeSelect,
+        edgeOptionsContainer, edgeSelectedText, edgeSelect,
         voices.edge,
         () => selectedEdgeVoice,
-        (val) => { selectedEdgeVoice = val; }
+        (val) => { selectedEdgeVoice = val; toggleGenderRow('edge', val); }
     );
 
     populateCustomSelect(
-        googleOptionsContainer,
-        googleSelectedText,
-        googleSelect,
+        googleOptionsContainer, googleSelectedText, googleSelect,
         voices.google,
         () => selectedGoogleVoice,
-        (val) => { selectedGoogleVoice = val; }
+        (val) => { selectedGoogleVoice = val; toggleGenderRow('google', val); }
     );
+
+    populateCustomSelect(
+        geminiOptionsContainer, geminiSelectedText, geminiSelect,
+        voices.gemini,
+        () => selectedGeminiVoice,
+        (val) => { selectedGeminiVoice = val; toggleGenderRow('gemini', val); }
+    );
+
+    // Hiển thị dropdown Nữ/Nam ngay khi load trang (mặc định "Tự động phân vai")
+    toggleGenderRow('edge', selectedEdgeVoice);
+    toggleGenderRow('google', selectedGoogleVoice);
+    toggleGenderRow('gemini', selectedGeminiVoice);
+
+    // Populate gender dropdowns
+    function setupGenderDropdown(provider, gender) {
+        const cap = gender.charAt(0).toUpperCase() + gender.slice(1);
+        const container = document.getElementById(`${provider}${cap}Options`);
+        const trigger = document.getElementById(`${provider}${cap}Trigger`);
+        const selectEl = document.getElementById(`${provider}${cap}Select`);
+        const selectedText = document.getElementById(`${provider}${cap}SelectedText`);
+
+        const getter = () => {
+            if (provider === 'edge') {
+                return gender === 'female' ? selectedEdgeFemale : selectedEdgeMale;
+            } else if (provider === 'gemini') {
+                return gender === 'female' ? selectedGeminiFemale : selectedGeminiMale;
+            } else {
+                return gender === 'female' ? selectedGoogleFemale : selectedGoogleMale;
+            }
+        };
+        const setter = (val) => {
+            if (provider === 'edge') {
+                if (gender === 'female') selectedEdgeFemale = val; else selectedEdgeMale = val;
+            } else if (provider === 'gemini') {
+                if (gender === 'female') selectedGeminiFemale = val; else selectedGeminiMale = val;
+            } else {
+                if (gender === 'female') selectedGoogleFemale = val; else selectedGoogleMale = val;
+            }
+        };
+
+        populateCustomSelect(container, selectedText, selectEl, genderVoices[provider][gender], getter, setter);
+
+        if (trigger && selectEl) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectEl.classList.toggle('active');
+            });
+        }
+        return selectEl;
+    }
+
+    const genderSelects = [
+        setupGenderDropdown('edge', 'female'),
+        setupGenderDropdown('edge', 'male'),
+        setupGenderDropdown('google', 'female'),
+        setupGenderDropdown('google', 'male'),
+        setupGenderDropdown('gemini', 'female'),
+        setupGenderDropdown('gemini', 'male')
+    ];
 
     if (edgeTrigger && edgeSelect) {
         edgeTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
             if (googleSelect) googleSelect.classList.remove('active');
+            genderSelects.forEach(s => s && s.classList.remove('active'));
             edgeSelect.classList.toggle('active');
         });
     }
@@ -98,13 +242,27 @@ document.addEventListener('DOMContentLoaded', () => {
         googleTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
             if (edgeSelect) edgeSelect.classList.remove('active');
+            if (geminiSelect) geminiSelect.classList.remove('active');
+            genderSelects.forEach(s => s && s.classList.remove('active'));
             googleSelect.classList.toggle('active');
+        });
+    }
+
+    if (geminiTrigger && geminiSelect) {
+        geminiTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (edgeSelect) edgeSelect.classList.remove('active');
+            if (googleSelect) googleSelect.classList.remove('active');
+            genderSelects.forEach(s => s && s.classList.remove('active'));
+            geminiSelect.classList.toggle('active');
         });
     }
 
     document.addEventListener('click', () => {
         if (edgeSelect) edgeSelect.classList.remove('active');
         if (googleSelect) googleSelect.classList.remove('active');
+        if (geminiSelect) geminiSelect.classList.remove('active');
+        genderSelects.forEach(s => s && s.classList.remove('active'));
     });
 
     ttsOptionCards.forEach(card => {
@@ -218,7 +376,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const asrMode = selectedAsrMode;
         const translateProvider = selectedTranslateProvider;
         const processMode = selectedProcessMode;
-        const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : selectedGoogleVoice;
+        const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : (selectedTtsProvider === 'gemini' ? selectedGeminiVoice : selectedGoogleVoice);
+        const voiceFemale = (selectedTtsProvider === 'edge') ? selectedEdgeFemale : (selectedTtsProvider === 'gemini' ? selectedGeminiFemale : selectedGoogleFemale);
+        const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -260,7 +420,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     asr_mode: asrMode,
                     translate_provider: translateProvider,
                     process_mode: processMode,
-                    voice_name: voiceName ? voiceName : null
+                    voice_name: voiceName ? voiceName : null,
+                    voice_female: voiceFemale || null,
+                    voice_male: voiceMale || null
                 })
             });
 

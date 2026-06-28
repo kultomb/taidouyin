@@ -492,7 +492,8 @@ body {
     top: calc(100% + 6px);
     left: 0;
     right: 0;
-    background: #0d121f; /* Hài hòa với tông nền card tối */
+    background: #0d121f;
+    /* Hài hòa với tông nền card tối */
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
@@ -534,6 +535,41 @@ body {
     color: var(--text-primary);
     border-left: 3px solid var(--accent);
     padding-left: 11px;
+}
+
+/* Gender-specific voice row (Nữ / Nam pickers) */
+.gender-voice-row {
+    display: none;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.gender-voice-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.gender-voice-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.01em;
+}
+
+.mini-select .custom-select-trigger {
+    padding: 8px 12px;
+    font-size: 0.78rem;
+}
+
+.mini-select .custom-options-container {
+    max-height: 180px;
+}
+
+.mini-select .custom-option {
+    padding: 7px 10px;
+    font-size: 0.75rem;
 }
 
 .slider-wrapper {

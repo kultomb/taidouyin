@@ -180,9 +180,9 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
     """
     Tải video trực tiếp qua Douyin Web API (giống VIDU):
     - aBogus (ưu tiên) hoặc XBogus fallback
-    - msToken thật từ mssdk hoặc fake
+    - msToken luôn được sinh (thật từ mssdk hoặc fake)
     - Cookie được sanitize
-    - Retry 3 lần với delay tăng dần
+    - Retry khi gặp empty 200 (anti-bot)
     """
     raw_cookies = load_cookies_txt()
     cookies = _sanitize_cookies(raw_cookies)
@@ -199,15 +199,18 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
         logger.warning(f"Không thể trích xuất aweme_id từ URL: {long_url}")
         return None
 
-    XBogus = get_xbogus_signer()
     ABogus, FingerprintGen = get_abogus_signer()
+    XBogus = get_xbogus_signer() if not ABogus else None  # chỉ fallback nếu không có aBogus
+
     if not XBogus and not ABogus:
         logger.warning("Không có bộ ký số (XBogus/aBogus). Bỏ qua tải API.")
         return None
 
-    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+    # Luôn sinh msToken (VIDU-style: ưu tiên thật, fallback fake)
     ms_token = _ensure_ms_token(cookies)
     logger.info(f"msToken: {ms_token[:20]}... (len={len(ms_token)})")
+
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 
     aids = ["6383", "1128"]
     aweme_detail = None
@@ -252,7 +255,7 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
         query = urlencode(params)
         base_url = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
 
-        # Ưu tiên aBogus, fallback XBogus (giống VIDU)
+        # Ưu tiên aBogus, fallback XBogus
         ab_result = _build_abogus_url(base_url, query, ua) if ABogus else None
         if ab_result:
             signed_url, new_ua = ab_result
@@ -279,7 +282,8 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
                     break
 
                 if len(response.text) == 0:
-                    logger.warning(f"API detail (aid={aid}) empty 200 (anti-bot). Retrying...")
+                    # Empty 200 = Anti-bot. Retry with delay (VIDU-style)
+                    logger.warning(f"API detail (aid={aid}) empty 200 (anti-bot). Retrying in {retry_delays[min(attempt, len(retry_delays)-1)]}s...")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delays[min(attempt, len(retry_delays) - 1)])
                     continue
@@ -287,7 +291,7 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
                 data = response.json()
                 aweme_detail = data.get("aweme_detail")
                 if aweme_detail:
-                    logger.info(f"SUCCESS with aid={aid} ({sign_method})!")
+                    logger.info(f"SUCCESS with aid={aid} ({sign_method})! Response={len(response.text)} bytes")
                     break
                 else:
                     sc = data.get("status_code", "?")

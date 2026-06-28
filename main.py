@@ -80,12 +80,14 @@ class TranslateRequest(BaseModel):
     url: str
     bg_volume: float = 0.30  # Ducking: bg audio volume when TTS is silent
     burn_subtitles: bool = False
-    tts_provider: str = "edge"  # "edge" hoặc "google"
+    tts_provider: str = "edge"  # "edge", "google", hoặc "gemini"
     asr_mode: str = "audio"  # "audio", "video", hoặc "whisper"
     translate_provider: str = "gemini"  # "gemini" hoặc "gist"
     process_mode: str = "ocr"  # "auto" hoặc "ocr"
     voice_map: Optional[Dict] = None  # Ánh xạ từ Speaker name sang giọng đọc chỉ định (tùy chọn)
     voice_name: Optional[str] = None  # Giọng đọc đồng nhất áp dụng cho toàn bộ video (tắt phân vai)
+    voice_female: Optional[str] = None  # Giọng Nữ khi chọn tự động phân vai
+    voice_male: Optional[str] = None    # Giọng Nam khi chọn tự động phân vai
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -582,12 +584,43 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             
         # Step 6: TTS AI
         job["step"] = 6
-        provider_label = "Google Cloud TTS (Neural2)" if tts_provider == "google" else "edge-tts (Microsoft Neural)"
+        if tts_provider == "gemini":
+            provider_label = "Gemini TTS (AI Native)"
+        elif tts_provider == "google":
+            provider_label = "Google Cloud TTS (Neural2)"
+        else:
+            provider_label = "edge-tts (Microsoft Neural)"
         job["sub_step"] = f"STEP 6.0: Đang lồng tiếng Việt bằng {provider_label}..."
         log(f"Tổng hợp giọng nói tiếng Việt bằng {provider_label}...")
         tts_dir = os.path.join(job_folder, "tts")
         os.makedirs(tts_dir, exist_ok=True)
-        subtitles_with_tts = generate_tts_for_subtitles(subtitles, tts_dir, provider=tts_provider, voice_map=job.get("voice_map"), voice_name=job.get("voice_name"))
+
+        # --- Build voice_map từ voice_female / voice_male nếu có ---
+        voice_map = job.get("voice_map")
+        voice_name = job.get("voice_name")
+        voice_female = job.get("voice_female")
+        voice_male = job.get("voice_male")
+
+        if not voice_map and not voice_name and (voice_female or voice_male):
+            # Tự động phân vai: gán giọng nữ/nam cho từng speaker dựa trên gender
+            voice_map = {}
+            seen_speakers = set()
+            for sub in subtitles:
+                spk = sub.get("speaker", "default")
+                if spk not in seen_speakers:
+                    seen_speakers.add(spk)
+                    gender = sub.get("gender", "female")
+                    if gender == "male" and voice_male:
+                        voice_map[spk] = voice_male
+                    elif gender == "female" and voice_female:
+                        voice_map[spk] = voice_female
+            if voice_map:
+                log(f"Phân vai giọng đọc: Nữ={voice_female}, Nam={voice_male} ({len(voice_map)} speakers)")
+
+        subtitles_with_tts = generate_tts_for_subtitles(
+            subtitles, tts_dir, provider=tts_provider,
+            voice_map=voice_map, voice_name=voice_name
+        )
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
         # Step 7: Tạo SRT
@@ -714,6 +747,8 @@ def start_translation(request: TranslateRequest):
         "process_mode": request.process_mode,
         "voice_map": request.voice_map,
         "voice_name": request.voice_name,
+        "voice_female": request.voice_female,
+        "voice_male": request.voice_male,
         "_created": time.time(),
     }
     

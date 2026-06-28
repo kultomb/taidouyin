@@ -56,8 +56,7 @@
                                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                             </svg>
                             <input type="text" id="videoUrl"
-                                placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)"
-                                required>
+                                placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
                         </div>
                     </div>
                 </div>
@@ -83,12 +82,42 @@
                                         <div class="custom-select" id="edgeVoiceSelect">
                                             <div class="custom-select-trigger" id="edgeVoiceTrigger">
                                                 <span id="edgeVoiceSelectedText">Tự động phân vai (Đa giọng)</span>
-                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
                                                     <polyline points="6 9 12 15 18 9"></polyline>
                                                 </svg>
                                             </div>
                                             <div class="custom-options-container" id="edgeVoiceOptions">
                                                 <!-- Dynamic options populated via JS -->
+                                            </div>
+                                        </div>
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="edgeGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="edgeFemaleSelect">
+                                                    <div class="custom-select-trigger" id="edgeFemaleTrigger">
+                                                        <span id="edgeFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="edgeFemaleOptions"></div>
+                                                </div>
+                                            </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="edgeMaleSelect">
+                                                    <div class="custom-select-trigger" id="edgeMaleTrigger">
+                                                        <span id="edgeMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="edgeMaleOptions"></div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -100,7 +129,7 @@
                                         <div class="tts-radio-circle"></div>
                                         <div class="tts-option-info">
                                             <span class="tts-name">Google TTS</span>
-                                            <span class="tts-badge">Neural2</span>
+                                            <span class="tts-badge">Classic</span>
                                         </div>
                                     </div>
                                     <div class="tts-voice-dropdown-wrapper">
@@ -108,12 +137,99 @@
                                         <div class="custom-select" id="googleVoiceSelect">
                                             <div class="custom-select-trigger" id="googleVoiceTrigger">
                                                 <span id="googleVoiceSelectedText">Tự động phân vai (Đa giọng)</span>
-                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
                                                     <polyline points="6 9 12 15 18 9"></polyline>
                                                 </svg>
                                             </div>
                                             <div class="custom-options-container" id="googleVoiceOptions">
                                                 <!-- Dynamic options populated via JS -->
+                                            </div>
+                                        </div>
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="googleGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="googleFemaleSelect">
+                                                    <div class="custom-select-trigger" id="googleFemaleTrigger">
+                                                        <span id="googleFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="googleFemaleOptions">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="googleMaleSelect">
+                                                    <div class="custom-select-trigger" id="googleMaleTrigger">
+                                                        <span id="googleMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="googleMaleOptions"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Gemini TTS Option -->
+                                <div class="tts-option-card" data-tts="gemini">
+                                    <div class="tts-option-header">
+                                        <div class="tts-radio-circle"></div>
+                                        <div class="tts-option-info">
+                                            <span class="tts-name">Gemini TTS</span>
+                                            <span class="tts-badge">AI</span>
+                                        </div>
+                                    </div>
+                                    <div class="tts-voice-dropdown-wrapper">
+                                        <label class="voice-mini-label">Chọn giọng đọc:</label>
+                                        <div class="custom-select" id="geminiVoiceSelect">
+                                            <div class="custom-select-trigger" id="geminiVoiceTrigger">
+                                                <span id="geminiVoiceSelectedText">Tự động phân vai (30 giọng)</span>
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
+                                            </div>
+                                            <div class="custom-options-container" id="geminiVoiceOptions">
+                                                <!-- Dynamic options populated via JS -->
+                                            </div>
+                                        </div>
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="geminiGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="geminiFemaleSelect">
+                                                    <div class="custom-select-trigger" id="geminiFemaleTrigger">
+                                                        <span id="geminiFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="geminiFemaleOptions">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="geminiMaleSelect">
+                                                    <div class="custom-select-trigger" id="geminiMaleTrigger">
+                                                        <span id="geminiMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="geminiMaleOptions"></div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -124,7 +240,8 @@
                         <div class="setting-panel">
                             <label class="setting-label">Chế độ xử lý (Process Mode)</label>
                             <div class="tts-toggle-group">
-                                <button type="button" class="process-toggle-btn tts-toggle-btn active" data-process="ocr">
+                                <button type="button" class="process-toggle-btn tts-toggle-btn active"
+                                    data-process="ocr">
                                     <span class="tts-name">Quét phụ đề</span>
                                     <span class="tts-badge">OCR</span>
                                 </button>
@@ -138,7 +255,9 @@
                         <div class="setting-panel">
                             <label class="setting-label">Âm lượng & Phụ đề</label>
                             <div class="setting-item" style="margin-bottom: 12px;">
-                                <label class="setting-sub-label" style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Âm lượng nhạc nền gốc (Ducking)</label>
+                                <label class="setting-sub-label"
+                                    style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Âm
+                                    lượng nhạc nền gốc (Ducking)</label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="bgVolume" min="0" max="1" step="0.05" value="0.20">
                                     <span id="volumeValue">20%</span>
@@ -164,8 +283,7 @@
                                     <span class="tts-name">Gemini Vertex</span>
                                     <span class="tts-badge">Chuẩn</span>
                                 </button>
-                                <button type="button" class="translate-toggle-btn tts-toggle-btn"
-                                    data-translate="gist">
+                                <button type="button" class="translate-toggle-btn tts-toggle-btn" data-translate="gist">
                                     <span class="tts-name">Gist API</span>
                                     <span class="tts-badge">Miễn phí</span>
                                 </button>
@@ -196,8 +314,7 @@
                 <div class="action-container" style="margin-top: 20px;">
                     <button type="submit" id="submitBtn" class="btn-primary">
                         <span>Bắt đầu tiến trình xử lý</span>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            class="arrow-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="arrow-icon">
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                             <polyline points="12 5 19 12 12 19"></polyline>
                         </svg>
