@@ -5,6 +5,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types, errors
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_exception_type
+from faster_whisper import WhisperModel
 
 logger = logging.getLogger("douyin_translator")
 
@@ -264,3 +265,56 @@ def ocr_and_translate_video(client: genai.Client, video_path: str) -> dict:
         if isinstance(e, StopTask):
             raise e
         raise TranslateError(f"Unexpected error: {str(e)}")
+
+
+_whisper_model = None
+
+def get_whisper_model() -> WhisperModel:
+    """Lazy initializer and caching for the faster-whisper WhisperModel."""
+    global _whisper_model
+    if _whisper_model is None:
+        logger.info("Initializing Local Whisper model (base)...")
+        try:
+            _whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+            logger.info("Loaded WhisperModel on GPU (CUDA)")
+        except Exception as e:
+            logger.warning(f"Failed to load WhisperModel on CUDA ({e}), falling back to CPU (int8)")
+            try:
+                _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+                logger.info("Loaded WhisperModel on CPU (int8)")
+            except Exception as cpu_e:
+                logger.error(f"Failed to load WhisperModel on CPU ({cpu_e})")
+                raise cpu_e
+    return _whisper_model
+
+def transcribe_audio_local_whisper(audio_path: str) -> dict:
+    """
+    Transcribes the audio file offline using Local Whisper.
+    Returns a dictionary matching the subtitle schema.
+    """
+    logger.info(f"Sending audio file to Local Whisper: {audio_path}")
+    if not os.path.exists(audio_path):
+        raise StopTask(f"File not found: {audio_path}")
+        
+    try:
+        model = get_whisper_model()
+        segments, info = model.transcribe(audio_path, language="zh", beam_size=5)
+        
+        subtitles = []
+        for segment in segments:
+            subtitles.append({
+                "start": round(segment.start, 2),
+                "end": round(segment.end, 2),
+                "speaker": "Speaker A",
+                "text": segment.text.strip(),
+                "translation": ""
+            })
+            
+        logger.info(f"Successfully transcribed {len(subtitles)} segments using Local Whisper.")
+        return {"subtitles": subtitles}
+    except Exception as e:
+        logger.error(f"Error during Local Whisper processing: {str(e)}")
+        if isinstance(e, StopTask):
+            raise e
+        raise TranslateError(f"Local Whisper error: {str(e)}")
+

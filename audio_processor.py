@@ -152,6 +152,7 @@ def mix_audio_and_video(
         escaped_srt_path = srt_path.replace("\\", "/").replace(":", "\\:")
         cmd.extend(["-vf", f"subtitles='{escaped_srt_path}'"])
     
+    cmd.extend(["-movflags", "+faststart"])
     cmd.append(output_video_path)
     
     logger.info(f"Running final ffmpeg mix (3 inputs)...")

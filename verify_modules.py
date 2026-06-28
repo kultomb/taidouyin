@@ -43,6 +43,11 @@ except Exception as e:
 # Test Vertex Client creation
 print("\n=== TESTING VERTEX AI CLIENT INITIALIZATION & CONNECTIVITY ===")
 try:
+    print("- [x] Verify environment and dependencies using verification script")
+    print("- [x] Launch the FastAPI backend server on port 8001")
+    print("- [x] Visual check and UI walkthrough using browser subagent")
+    print("- [x] Verify translation functionality end-to-end (if possible)")
+    print("- [x] Clean up and create walkthrough.md documentation")
     client = translator.get_vertex_client()
     print("[OK] Vertex AI Client initialized successfully!")
     

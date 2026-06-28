@@ -8,9 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn[data-tts]');
     const asrToggleBtns = document.querySelectorAll('.asr-toggle-btn');
     const translateToggleBtns = document.querySelectorAll('.translate-toggle-btn');
+    const processToggleBtns = document.querySelectorAll('.process-toggle-btn');
     let selectedTtsProvider = 'edge';
     let selectedAsrMode = 'audio';
     let selectedTranslateProvider = 'gemini';
+    let selectedProcessMode = 'ocr';
 
     // TTS Toggle Buttons
     ttsToggleBtns.forEach(btn => {
@@ -36,6 +38,15 @@ document.addEventListener('DOMContentLoaded', () => {
             translateToggleBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedTranslateProvider = btn.dataset.translate;
+        });
+    });
+
+    // Process Toggle Buttons
+    processToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            processToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedProcessMode = btn.dataset.process;
         });
     });
 
@@ -111,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ttsProvider = selectedTtsProvider;
         const asrMode = selectedAsrMode;
         const translateProvider = selectedTranslateProvider;
+        const processMode = selectedProcessMode;
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -133,7 +145,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider, asr_mode: asrMode, translate_provider: translateProvider })
+                body: JSON.stringify({
+                    url,
+                    bg_volume: bgVolume,
+                    burn_subtitles: burnSubtitles,
+                    tts_provider: ttsProvider,
+                    asr_mode: asrMode,
+                    translate_provider: translateProvider,
+                    process_mode: processMode
+                })
             });
 
             if (!response.ok) {

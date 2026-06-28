@@ -22,6 +22,28 @@ logger = logging.getLogger("douyin_translator")
 
 app = FastAPI(title="Douyin Video Translator SaaS")
 
+@app.on_event("startup")
+def verify_system_requirements():
+    import shutil
+    ffmpeg_path = shutil.which("ffmpeg")
+    ffprobe_path = shutil.which("ffprobe")
+    if not ffmpeg_path:
+        logger.error("=" * 60)
+        logger.error("LỖI KHỞI ĐỘNG: Không tìm thấy 'ffmpeg' trong biến môi trường PATH!")
+        logger.error("Vui lòng tải FFmpeg và cấu hình thư mục chứa ffmpeg.exe vào PATH.")
+        logger.error("Nếu không, các bước tách âm thanh và trộn video Việt hóa sẽ BỊ LỖI.")
+        logger.error("=" * 60)
+    else:
+        logger.info(f"[REQUIREMENT] Tìm thấy ffmpeg tại: {ffmpeg_path}")
+
+    if not ffprobe_path:
+        logger.error("=" * 60)
+        logger.error("LỖI KHỞI ĐỘNG: Không tìm thấy 'ffprobe' trong biến môi trường PATH!")
+        logger.error("Vui lòng đảm bảo ffprobe.exe được đặt cùng thư mục với ffmpeg.")
+        logger.error("=" * 60)
+    else:
+        logger.info(f"[REQUIREMENT] Tìm thấy ffprobe tại: {ffprobe_path}")
+
 # Serve UI static files
 # Ensure static directory exists
 os.makedirs("static", exist_ok=True)
@@ -36,10 +58,19 @@ _last_request_time = 0.0
 MIN_REQUEST_INTERVAL = 2.0  # Tối thiểu 2s giữa các request
 
 def _cleanup_expired_jobs():
-    """Xóa job quá hạn TTL để tránh memory leak."""
+    """Xóa job quá hạn TTL để tránh memory leak và giải phóng bộ nhớ vật lý."""
+    import shutil
     now = time.time()
     expired = [jid for jid, j in jobs.items() if now - j.get("_created", now) > JOBS_TTL_SECONDS]
     for jid in expired:
+        job = jobs[jid]
+        folder = job.get("job_folder")
+        if folder and os.path.exists(folder):
+            try:
+                shutil.rmtree(folder, ignore_errors=True)
+                logger.info(f"Đã giải phóng thư mục vật lý của job hết hạn: {folder}")
+            except Exception as fe:
+                logger.warning(f"Không thể xóa thư mục rác {folder}: {fe}")
         del jobs[jid]
     if expired:
         logger.info(f"Cleaned up {len(expired)} expired jobs")
@@ -49,8 +80,9 @@ class TranslateRequest(BaseModel):
     bg_volume: float = 0.30  # Ducking: bg audio volume when TTS is silent
     burn_subtitles: bool = False
     tts_provider: str = "edge"  # "edge" hoặc "google"
-    asr_mode: str = "audio"  # "audio" hoặc "video"
+    asr_mode: str = "audio"  # "audio", "video", hoặc "whisper"
     translate_provider: str = "gemini"  # "gemini" hoặc "gist"
+    process_mode: str = "ocr"  # "auto" hoặc "ocr"
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -130,10 +162,23 @@ def run_pipeline_phase1(job_id: str, url: str):
             except Exception as fe:
                 log(f"Không thể tối ưu hóa video Fast Start: {fe}. Tiếp tục dùng tệp gốc.")
         
-        # Chuyển trạng thái sang chờ người dùng chọn vùng OCR
-        job["status"] = "awaiting_ocr_selection"
-        job["sub_step"] = "Đang chờ người dùng chọn vùng quét phụ đề (OCR)..."
-        log("Tải video gốc thành công. Trình duyệt đang hiển thị video để chọn vùng OCR phụ đề cứng.")
+        process_mode = job.get("process_mode", "ocr")
+        if process_mode == "auto":
+            log("Chế độ xử lý: Tự động (ASR). Bắt đầu Phase 2 ngay lập tức không qua chọn vùng...")
+            job["status"] = "running"
+            run_pipeline_phase2(
+                job_id=job_id,
+                use_ocr=False,
+                y_start=0.0,
+                y_end=0.0,
+                x_start=0.0,
+                x_end=0.0
+            )
+        else:
+            # Chuyển trạng thái sang chờ người dùng chọn vùng OCR
+            job["status"] = "awaiting_ocr_selection"
+            job["sub_step"] = "Đang chờ người dùng chọn vùng quét phụ đề (OCR)..."
+            log("Tải video gốc thành công. Trình duyệt đang hiển thị video để chọn vùng OCR phụ đề cứng.")
         
     except Exception as e:
         logger.error(f"Pipeline Phase 1 failure: {str(e)}", exc_info=True)
@@ -400,11 +445,22 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             # Step 3: ASR
             if not subtitles:
                 job["step"] = 3
-                job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
-                log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
+                asr_mode = job.get("asr_mode", "audio")
+                if asr_mode == "whisper":
+                    job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Local Whisper offline..."
+                    log("Đang tải mô hình Whisper và chạy ASR offline trên tệp âm thanh...")
+                    from translator import transcribe_audio_local_whisper
+                    whisper_result = transcribe_audio_local_whisper(original_audio_path)
+                    whisper_subs = whisper_result.get("subtitles", [])
+                    log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Whisper. Đang gửi sang bộ dịch...")
+                    translate_provider = job.get("translate_provider", "gemini")
+                    subtitles = _translate_ocr_subtitles(whisper_subs, log, provider=translate_provider)
+                else:
+                    job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
+                    log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
+                    subtitles_data = transcribe_and_translate_audio(client, original_audio_path)
+                    subtitles = subtitles_data.get("subtitles", [])
                 
-                subtitles_data = transcribe_and_translate_audio(client, original_audio_path)
-                subtitles = subtitles_data.get("subtitles", [])
                 subtitles.sort(key=lambda x: x.get("start", 0.0))
                 log(f"Hoàn thành nhận dạng giọng nói ASR. Tìm thấy {len(subtitles)} phân đoạn hội thoại.")
             else:
@@ -554,6 +610,7 @@ def start_translation(request: TranslateRequest):
         "tts_provider": request.tts_provider,
         "asr_mode": request.asr_mode,
         "translate_provider": request.translate_provider,
+        "process_mode": request.process_mode,
         "_created": time.time(),
     }
     
