@@ -11,7 +11,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.1">
 </head>
 
 <body>
@@ -180,6 +180,35 @@
             </div>
         </section>
 
+        <!-- OCR Crop Selector Panel -->
+        <section id="ocrSelectionCard" class="card ocr-card hidden">
+            <h2 class="card-title">Chọn vùng quét phụ đề chữ (OCR)</h2>
+            <p class="card-subtitle" style="margin-bottom: 20px; color: var(--text-secondary);">Hãy kéo thả hoặc điều chỉnh thanh dải màu sáng đè lên khu vực phụ đề chữ chạy của video gốc bên dưới để bắt đầu quét OCR chữ cứng.</p>
+            
+            <div class="ocr-workspace">
+                <div class="ocr-video-container" id="ocrVideoContainer">
+                    <video id="ocrVideoPlayer" class="video-player" autoplay muted playsinline loop controls></video>
+                    <!-- Drag crop overlay -->
+                    <div class="ocr-crop-overlay" id="ocrCropOverlay">
+                        <div class="ocr-crop-box" id="ocrCropBox">
+                            <div class="ocr-resize-handle top" id="handleTop"></div>
+                            <div class="ocr-resize-label">Khu vực quét phụ đề</div>
+                            <div class="ocr-resize-handle bottom" id="handleBottom"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ocr-actions" style="margin-top: 24px; display: flex; gap: 16px; justify-content: center;">
+                <button type="button" id="btnStartOcr" class="btn-primary" style="margin: 0;">
+                    <span>Bắt đầu quét OCR phụ đề</span>
+                </button>
+                <button type="button" id="btnSkipOcr" class="btn-download secondary" style="margin: 0; padding: 12px 24px;">
+                    <span>Bỏ qua, dịch thường (ASR)</span>
+                </button>
+            </div>
+        </section>
+
         <!-- Final Results & Downloads -->
         <section id="resultsCard" class="card results-card hidden">
             <h2 class="card-title">Kết quả dịch thuật</h2>
@@ -232,7 +261,7 @@
         <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=1.1"></script>
 </body>
 
 </html>

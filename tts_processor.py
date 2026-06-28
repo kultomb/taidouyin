@@ -199,7 +199,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     
     concurrency = TTS_CONCURRENCY.get(provider, 5)
     semaphore = asyncio.Semaphore(concurrency)
-    updated = []
+    updated = [None] * len(subtitles)
     failures = 0
     lock = asyncio.Lock()
     
@@ -242,7 +242,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     sub_copy = dict(sub)
                     sub_copy["audio_path"] = os.path.abspath(file_path)
                     sub_copy["tts_duration"] = actual_duration
-                    updated.append(sub_copy)
+                    updated[idx] = sub_copy
             except Exception as e:
                 logger.error(f"[{provider}] Failed segment {idx}: {e}")
                 async with lock:
@@ -251,7 +251,8 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     tasks = [process_one(i, sub) for i, sub in enumerate(subtitles)]
     await asyncio.gather(*tasks)
     
-    return updated, failures
+    filtered_updated = [item for item in updated if item is not None]
+    return filtered_updated, failures
 
 
 def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",

@@ -85,8 +85,9 @@ def mix_audio_and_video(
     output_video_path: str,
     bg_volume: float = 0.15,
     burn_subtitles: bool = False,
-    srt_path: str = None
-) -> str:
+    srt_path: str = None,
+    srt_original_path: str = None
+) -> list:
     """
     Mixes the original video, original audio (reduced volume for background music),
     and TTS audio clips (aligned to their start timestamps).
@@ -103,6 +104,12 @@ def mix_audio_and_video(
     # ============================================================
     tts_mixed_path = os.path.join(out_dir, "_tts_mixed.mp3")
     actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path)
+    
+    # Ghi đè file SRT với timeline thực tế để khớp chính xác với audio
+    if srt_path:
+        generate_srt_from_timeline(actual_timeline, srt_path, use_original=False)
+    if srt_original_path:
+        generate_srt_from_timeline(actual_timeline, srt_original_path, use_original=True)
     
     # ============================================================
     # Pass 2: Mix video + bg audio (ducked) + TTS voiceover
@@ -190,8 +197,14 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
             silence_files.append(silence_file)
             accumulated_duration += gap
 
+        # Lưu lại thời gian bắt đầu thực tế trong audio ghép
+        seg["actual_start"] = round(accumulated_duration, 3)
+
         concat_parts.append(audio_path)
         accumulated_duration += seg["tts_duration"]
+
+        # Lưu lại thời gian kết thúc thực tế trong audio ghép
+        seg["actual_end"] = round(accumulated_duration, 3)
 
     if not concat_parts:
         _generate_silence(output_path, 1.0)
@@ -233,6 +246,24 @@ def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
     return actual_timeline
 
 
+def _build_atempo_filter(speed_factor: float) -> str:
+    """
+    Tạo chuỗi bộ lọc atempo cho ffmpeg hỗ trợ bất kỳ speed_factor nào.
+    Mỗi bộ lọc atempo chỉ hỗ trợ giá trị từ 0.5 đến 2.0.
+    """
+    factors = []
+    temp = speed_factor
+    while temp > 2.0:
+        factors.append(2.0)
+        temp /= 2.0
+    while temp < 0.5:
+        factors.append(0.5)
+        temp /= 0.5
+    if temp != 1.0:
+        factors.append(temp)
+    return ",".join([f"atempo={f:.4f}" for f in factors])
+
+
 def _compute_actual_timeline(segments: list) -> list:
     """
     Tính timeline thực tế khớp khít 100% với thời lượng và mốc thời gian của câu gốc.
@@ -242,7 +273,7 @@ def _compute_actual_timeline(segments: list) -> list:
     import tempfile
     
     timeline = []
-
+ 
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
         
@@ -250,10 +281,10 @@ def _compute_actual_timeline(segments: list) -> list:
         original_start = sub.get("start", 0)
         original_end = sub.get("end", 0)
         original_dur = original_end - original_start
-
+ 
         if tts_dur <= 0:
             tts_dur = original_dur
-
+ 
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
         
@@ -265,9 +296,10 @@ def _compute_actual_timeline(segments: list) -> list:
                 logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f}")
                 adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
                 try:
+                    atempo_filter = _build_atempo_filter(speed_factor)
                     cmd = [
                         "ffmpeg", "-y", "-i", audio_path,
-                        "-filter:a", f"atempo={speed_factor:.4f}",
+                        "-filter:a", atempo_filter,
                         "-c:a", "libmp3lame", "-q:a", "2",
                         adjusted_path
                     ]

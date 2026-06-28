@@ -11,7 +11,7 @@ from pydantic import BaseModel
 # Import our custom modules
 from downloader import download_douyin_video, load_cookies_txt
 from audio_processor import extract_audio, generate_srt, generate_srt_from_timeline, mix_audio_and_video
-from translator import get_vertex_client, transcribe_and_translate_audio
+from translator import get_vertex_client, transcribe_and_translate_audio, ocr_and_translate_video
 from tts_processor import generate_tts_for_subtitles
 
 # Configure logging
@@ -49,10 +49,18 @@ class TranslateRequest(BaseModel):
     tts_provider: str = "edge"  # "edge" hoặc "google"
     asr_mode: str = "audio"  # "audio" hoặc "video"
 
-def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, tts_provider: str = "edge", asr_mode: str = "audio"):
+class ResumeRequest(BaseModel):
+    use_ocr: bool
+    y_start: float = 0.80
+    y_end: float = 0.95
+
+def run_pipeline_phase1(job_id: str, url: str):
     job = jobs[job_id]
-    job_folder = f"output/{time.strftime('%Y%m%d_%H%M%S')}"
+    job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    job_folder = f"output/{job_folder_name}"
     os.makedirs(job_folder, exist_ok=True)
+    job["job_folder"] = job_folder
+    job["folder_name"] = job_folder_name
     
     def log(msg: str):
         timestamp = time.strftime("%H:%M:%S")
@@ -75,72 +83,139 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         job["original_video"] = video_path
         log(f"Tải video gốc thành công: {video_path}")
         
-        # Step 2: Tách Âm thanh
-        job["step"] = 2
-        job["sub_step"] = "STEP 2.0: Đang tách luồng âm thanh từ video..."
-        log("Trích xuất âm thanh gốc bằng ffmpeg...")
-        original_audio_path = os.path.join(job_folder, "audio.mp3")
-        extract_audio(video_path, original_audio_path)
-        job["audio"] = original_audio_path
-        log(f"Trích xuất âm thanh thành công: {original_audio_path}")
-        
-        job["sub_step"] = "STEP 2.5: Đang tách vocal giọng nói (Demucs)..."
-        log("Phân tích tần số âm thanh và cô lập giọng nói...")
-        time.sleep(1.5)
-        
-        # Step 3: ASR
-        job["step"] = 3
-        job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
-        log("Khởi tạo kết nối Vertex AI Client...")
-        client = get_vertex_client()
-        
-        import subprocess
-        if asr_mode == "video":
-            job["sub_step"] = "STEP 3.2: Đang tối ưu hóa và nén video gửi tới Gemini..."
-            log("Nén video chất lượng cực thấp (320x240, mono audio) để giảm dung lượng tải lên...")
-            compressed_video_path = os.path.join(job_folder, "compressed_video.mp4")
-            
-            compress_cmd = [
+        # Di chuyển moov atom lên đầu (Fast Start) để trình duyệt load và hiển thị ngay lập tức
+        if video_path and os.path.exists(video_path):
+            log("Tối ưu hóa cấu trúc video (Fast Start) để trình duyệt hiển thị ngay lập tức...")
+            fast_path = os.path.join(job_folder, "original_fast.mp4")
+            fast_cmd = [
                 "ffmpeg", "-y",
                 "-i", video_path,
-                "-vf", "scale=320:-2,fps=10",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "32",
-                "-c:a", "aac", "-b:a", "32k", "-ac", "1",
-                compressed_video_path
+                "-c", "copy",
+                "-map", "0",
+                "-movflags", "+faststart",
+                fast_path
             ]
             try:
-                subprocess.run(compress_cmd, capture_output=True, check=True, timeout=60)
-                log(f"Nén video thành công: {compressed_video_path} (Kích thước: {os.path.getsize(compressed_video_path) / 1024 / 1024:.2f} MB)")
-                asr_input_path = compressed_video_path
-            except Exception as e:
-                log(f"Lỗi nén video: {e}. Tự động fallback sang nhận diện chỉ âm thanh.")
-                asr_input_path = original_audio_path
-        else:
-            asr_input_path = original_audio_path
-            log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
+                import subprocess
+                subprocess.run(fast_cmd, capture_output=True, check=True, timeout=30)
+                os.replace(fast_path, video_path)
+                log("Tối ưu hóa cấu trúc video thành công.")
+            except Exception as fe:
+                log(f"Không thể tối ưu hóa video Fast Start: {fe}. Tiếp tục dùng tệp gốc.")
         
-        job["sub_step"] = "STEP 3.5: Đang chạy ASR và định vị mốc thời gian..."
-        subtitles_data = transcribe_and_translate_audio(client, asr_input_path)
-        subtitles = subtitles_data.get("subtitles", [])
+        # Chuyển trạng thái sang chờ người dùng chọn vùng OCR
+        job["status"] = "awaiting_ocr_selection"
+        job["sub_step"] = "Đang chờ người dùng chọn vùng quét phụ đề (OCR)..."
+        log("Tải video gốc thành công. Trình duyệt đang hiển thị video để chọn vùng OCR phụ đề cứng.")
         
-        # Sắp xếp các phân đoạn hội thoại theo thứ tự thời gian tăng dần
-        subtitles.sort(key=lambda x: x.get("start", 0.0))
+    except Exception as e:
+        logger.error(f"Pipeline Phase 1 failure: {str(e)}", exc_info=True)
+        job["status"] = "failed"
+        job["error"] = str(e)
+        job["sub_step"] = "LỖI: Tải video gốc thất bại."
+        log(f"LỖI HỆ THỐNG: {str(e)}")
+
+
+def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float):
+    job = jobs[job_id]
+    job_folder = job["job_folder"]
+    video_path = job["original_video"]
+    bg_volume = job.get("bg_volume", 0.15)
+    burn_subtitles = job.get("burn_subtitles", False)
+    tts_provider = job.get("tts_provider", "edge")
+    
+    def log(msg: str):
+        timestamp = time.strftime("%H:%M:%S")
+        line = f"[{timestamp}] INFO - {msg}"
+        job["logs"].append(line)
+        logger.info(f"[{job_id}] {msg}")
         
-        log(f"Hoàn thành nhận dạng giọng nói. Tìm thấy {len(subtitles)} phân đoạn hội thoại.")
+    try:
+        subtitles = []
+        client = get_vertex_client()
         
-        # Step 4: Dịch thuật
-        job["step"] = 4
-        job["sub_step"] = "STEP 4.0: Đang dịch thuật sang Tiếng Việt..."
-        log("Đang dịch và tối ưu hóa bản dịch tiếng Việt...")
-        for idx, sub in enumerate(subtitles):
-            log(f"Phân đoạn {idx+1}: '{sub['text']}' -> '{sub['translation']}'")
+        if use_ocr:
+            job["step"] = 2
+            job["sub_step"] = "STEP 2.0: Đang cắt vùng quét phụ đề video..."
+            log(f"Cắt vùng phụ đề ngang (trục Y từ {y_start:.2f} đến {y_end:.2f})...")
+            cropped_video_path = os.path.join(job_folder, "cropped_subtitles.mp4")
             
-        # Step 5: Nhận diện giọng
+            import subprocess
+            crop_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-vf", f"crop=w=iw:h=ih*({y_end}-{y_start}):x=0:y=ih*{y_start}",
+                "-c:a", "copy",
+                cropped_video_path
+            ]
+            try:
+                subprocess.run(crop_cmd, capture_output=True, check=True, timeout=60)
+                log(f"Đã cắt video phụ đề thành công: {cropped_video_path}")
+            except Exception as e:
+                log(f"Lỗi khi cắt video bằng ffmpeg: {e}. Tự động chuyển sang chế độ fallback ASR thường.")
+                use_ocr = False
+                
+            if use_ocr:
+                job["step"] = 3
+                job["sub_step"] = "STEP 3.0: Đang quét OCR phụ đề cứng qua Gemini Vision..."
+                log("Gửi video đã cắt cho Gemini để trích xuất phụ đề chữ tiếng Trung...")
+                try:
+                    ocr_data = ocr_and_translate_video(client, cropped_video_path)
+                    subtitles = ocr_data.get("subtitles", [])
+                    # Sắp xếp các đoạn theo thời gian tăng dần
+                    subtitles.sort(key=lambda x: x.get("start", 0.0))
+                    log(f"Quét OCR hoàn tất. Trích xuất thành công {len(subtitles)} phân đoạn phụ đề.")
+                    
+                    if not subtitles:
+                        log("Không tìm thấy phụ đề nào qua OCR. Tự động fallback sang ASR thường.")
+                        use_ocr = False
+                except Exception as e:
+                    log(f"Lỗi quét phụ đề OCR: {e}. Tự động fallback sang ASR nhận diện từ giọng nói.")
+                    use_ocr = False
+                finally:
+                    if os.path.exists(cropped_video_path):
+                        try:
+                            os.remove(cropped_video_path)
+                        except OSError:
+                            pass
+                            
+        # Chạy quy trình nhận diện từ giọng nói (ASR) thông thường nếu không dùng OCR hoặc bị lỗi/rỗng
+        if not use_ocr:
+            # Step 2: Tách Âm thanh
+            job["step"] = 2
+            job["sub_step"] = "STEP 2.0: Đang tách luồng âm thanh từ video..."
+            log("Trích xuất âm thanh gốc bằng ffmpeg...")
+            original_audio_path = os.path.join(job_folder, "audio.mp3")
+            extract_audio(video_path, original_audio_path)
+            job["audio"] = original_audio_path
+            log(f"Trích xuất âm thanh thành công: {original_audio_path}")
+            
+            job["sub_step"] = "STEP 2.5: Đang tách vocal giọng nói (Demucs)..."
+            log("Phân tích tần số âm thanh và cô lập giọng nói...")
+            time.sleep(1.5)
+            
+            # Step 3: ASR
+            job["step"] = 3
+            job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
+            log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
+            
+            subtitles_data = transcribe_and_translate_audio(client, original_audio_path)
+            subtitles = subtitles_data.get("subtitles", [])
+            subtitles.sort(key=lambda x: x.get("start", 0.0))
+            log(f"Hoàn thành nhận dạng giọng nói ASR. Tìm thấy {len(subtitles)} phân đoạn hội thoại.")
+            
+        # Step 4: Dịch thuật (Đã dịch sang Việt trong OCR hoặc ASR)
+        job["step"] = 4
+        job["sub_step"] = "STEP 4.0: Đang dịch thuật và biên tập phụ đề..."
+        log("Biên dịch tối ưu hóa bản dịch tiếng Việt...")
+        for idx, sub in enumerate(subtitles):
+            log(f"Phân đoạn {idx+1}: '{sub.get('text', '')}' -> '{sub.get('translation', '')}'")
+            
+        # Step 5: Nhận diện giọng / Gán vai
         job["step"] = 5
         job["sub_step"] = "STEP 5.0: Đang phân loại người nói (Diarization)..."
-        log("Nhận dạng danh tính giọng đọc và gán vai...")
         for idx, sub in enumerate(subtitles):
-            log(f"Gán vai cho phân đoạn {idx+1}: {sub['speaker']}")
+            log(f"Gán vai cho phân đoạn {idx+1}: {sub.get('speaker', 'default')}")
             
         # Step 6: TTS AI
         job["step"] = 6
@@ -170,6 +245,13 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         log("Ghép giọng đọc AI, giảm âm lượng nhạc nền gốc và xuất video thành phẩm...")
         
         output_video_path = os.path.join(job_folder, "translated_video.mp4")
+        
+        # Nếu chạy qua nhánh OCR thì cần trích xuất original audio trước để mix
+        original_audio_path = os.path.join(job_folder, "audio.mp3")
+        if not os.path.exists(original_audio_path):
+            extract_audio(video_path, original_audio_path)
+            job["audio"] = original_audio_path
+            
         actual_timeline = mix_audio_and_video(
             video_path=video_path,
             original_audio_path=original_audio_path,
@@ -177,7 +259,8 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
             output_video_path=output_video_path,
             bg_volume=bg_volume,
             burn_subtitles=burn_subtitles,
-            srt_path=srt_path
+            srt_path=srt_path,
+            srt_original_path=srt_original_path
         )
         
         # Dọn dẹp file trung gian
@@ -189,22 +272,20 @@ def run_pipeline(job_id: str, url: str, bg_volume: float, burn_subtitles: bool, 
         audio_file = os.path.join(job_folder, "audio.mp3")
         if os.path.exists(audio_file):
             os.remove(audio_file)
-        
+            
         job["translated_video"] = output_video_path
         job["status"] = "completed"
         job["sub_step"] = "Hoàn thành! Video đã sẵn sàng trong thư mục output."
         log(f"Hoàn thành! Video lưu tại: {job_folder}/")
-        log(f"  - translated_video.mp4 (video đã dịch)")
-        log(f"  - original.mp4 (video gốc)")
-        log(f"  - subtitles.srt (phụ đề tiếng Việt, cùng thời gian)")
-        log(f"  - subtitles_original.srt (phụ đề tiếng Trung, cùng thời gian)")
         
     except Exception as e:
-        logger.error(f"Pipeline failure: {str(e)}", exc_info=True)
+        logger.error(f"Pipeline Phase 2 failure: {str(e)}", exc_info=True)
         job["status"] = "failed"
         job["error"] = str(e)
         job["sub_step"] = "LỖI: Tiến trình xử lý thất bại."
         log(f"LỖI HỆ THỐNG: {str(e)}")
+
+
 @app.post("/api/get-cookies")
 def get_cookies_endpoint():
     import subprocess
@@ -259,6 +340,10 @@ def start_translation(request: TranslateRequest):
         "srt_original": None,
         "audio": None,
         "error": None,
+        "bg_volume": request.bg_volume,
+        "burn_subtitles": request.burn_subtitles,
+        "tts_provider": request.tts_provider,
+        "asr_mode": request.asr_mode,
         "_created": time.time(),
     }
     
@@ -267,13 +352,36 @@ def start_translation(request: TranslateRequest):
     
     # Start thread
     thread = threading.Thread(
-        target=run_pipeline,
-        args=(job_id, request.url, request.bg_volume, request.burn_subtitles, request.tts_provider, request.asr_mode),
+        target=run_pipeline_phase1,
+        args=(job_id, request.url),
         daemon=True
     )
     thread.start()
     
     return {"job_id": job_id}
+
+
+@app.post("/api/translate/resume/{job_id}")
+def resume_translation(job_id: str, request: ResumeRequest):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên xử lý.")
+        
+    job = jobs[job_id]
+    if job["status"] != "awaiting_ocr_selection":
+        raise HTTPException(status_code=400, detail="Phiên xử lý không ở trạng thái chờ chọn vùng OCR.")
+        
+    job["status"] = "running"
+    job["sub_step"] = "Bắt đầu tiếp tục tiến trình..."
+    
+    # Khởi chạy luồng xử lý Phase 2
+    thread = threading.Thread(
+        target=run_pipeline_phase2,
+        args=(job_id, request.use_ocr, request.y_start, request.y_end),
+        daemon=True
+    )
+    thread.start()
+    
+    return {"status": "success", "message": "Đã tiếp tục tiến trình dịch thuật."}
 
 @app.get("/api/status/{job_id}")
 def get_status(job_id: str):
@@ -284,12 +392,12 @@ def get_status(job_id: str):
     
     # Prepare download urls
     result_urls = {}
-    if job["status"] == "completed":
+    if "folder_name" in job:
         result_urls = {
-            "original_video_url": f"/api/download/{job_id}/original_video.mp4" if job["original_video"] else None,
-            "translated_video_url": f"/api/download/{job_id}/translated_video.mp4" if job["translated_video"] else None,
-            "srt_url": f"/api/download/{job_id}/subtitles.srt" if job["srt"] else None,
-            "srt_original_url": f"/api/download/{job_id}/subtitles_original.srt" if job.get("srt_original") else None,
+            "original_video_url": f"/output/{job['folder_name']}/original.mp4" if job.get("original_video") else None,
+            "translated_video_url": f"/output/{job['folder_name']}/translated_video.mp4" if job.get("translated_video") else None,
+            "srt_url": f"/output/{job['folder_name']}/subtitles.srt" if job.get("srt") else None,
+            "srt_original_url": f"/output/{job['folder_name']}/subtitles_original.srt" if job.get("srt_original") else None,
         }
         
     return {
@@ -335,6 +443,9 @@ def download_file(job_id: str, file_type: str):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp được yêu cầu.")
         
     return FileResponse(path, media_type=media_type, filename=os.path.basename(path))
+
+# Serve Output files statically for video range streaming support
+app.mount("/output", StaticFiles(directory="output"), name="output")
 
 # Serve Frontend static files directly
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

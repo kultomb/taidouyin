@@ -154,3 +154,94 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
         if isinstance(e, StopTask):
             raise e
         raise TranslateError(f"Unexpected error: {str(e)}")
+
+
+@retry(
+    retry=retry_if_not_exception_type(NO_RETRY_EXCEPT),
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(3),
+    reraise=True
+)
+def ocr_and_translate_video(client: genai.Client, video_path: str) -> dict:
+    """
+    Sends the cropped video file to Gemini 2.5 Flash, performing OCR on hardcoded subtitles
+    and translating them into Vietnamese.
+    Returns a dictionary matching the subtitle schema.
+    """
+    logger.info(f"Sending cropped video to Gemini for OCR and Translation: {video_path}")
+    
+    if not os.path.exists(video_path):
+        raise StopTask(f"File not found: {video_path}")
+        
+    try:
+        file_bytes = Path(video_path).read_bytes()
+    except Exception as e:
+        raise StopTask(f"Failed to read file: {e}")
+        
+    prompt = (
+        "You are an expert video OCR tool, subtitle extractor, and translator.\n"
+        "Analyze the visual content of the video input and perform OCR on the hardcoded text (subtitles) appearing on screen.\n"
+        "For each subtitle segment:\n"
+        "1. Identify the exact start and end timestamps in seconds when the text appears on screen.\n"
+        "2. Transcribe the native Chinese text exactly (remove any typos or half-formed words if possible).\n"
+        "3. Translate the transcribed text into natural, fluent Vietnamese.\n"
+        "4. Identify the speaker if clear, or default to 'Speaker A'.\n"
+        "Ensure the segments are sorted chronologically and timestamps are highly accurate based on visual transitions."
+    )
+    
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "subtitles": {
+                "type": "ARRAY",
+                "description": "List of all OCR-extracted and translated subtitle segments",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "start": {"type": "NUMBER", "description": "Start time in seconds of the subtitle appearance"},
+                        "end": {"type": "NUMBER", "description": "End time in seconds of the subtitle disappearance"},
+                        "speaker": {"type": "STRING", "description": "Speaker label (e.g., Speaker A)"},
+                        "text": {"type": "STRING", "description": "Original transcript from OCR in Chinese"},
+                        "translation": {"type": "STRING", "description": "Vietnamese translation of the transcript"}
+                    },
+                    "required": ["start", "end", "speaker", "text", "translation"]
+                }
+            }
+        },
+        "required": ["subtitles"]
+    }
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_text(text=prompt),
+                types.Part.from_bytes(data=file_bytes, mime_type="video/mp4"),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+                temperature=0.1,
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
+            )
+        )
+        
+        if not response.text:
+            raise TranslateError("Empty response received from Gemini.")
+            
+        parsed_result = json.loads(response.text)
+        logger.info(f"Successfully received {len(parsed_result.get('subtitles', []))} OCR subtitle segments from Gemini.")
+        return parsed_result
+        
+    except errors.APIError as e:
+        logger.error(f"Vertex API Error during OCR: code={e.code}, message={e.message}")
+        if e.code in (400, 403, 404, 500):
+            raise StopTask(f"Fatal API error: {e.message}")
+        if e.code == 429:
+            raise TranslateError("Rate limit / Quota exceeded, retrying...")
+        raise TranslateError(e.message)
+    except Exception as e:
+        logger.error(f"Error during Gemini OCR processing: {str(e)}")
+        if isinstance(e, StopTask):
+            raise e
+        raise TranslateError(f"Unexpected error: {str(e)}")

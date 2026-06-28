@@ -36,6 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressLineFill = document.getElementById('progressLineFill');
     const terminalBody = document.getElementById('terminalBody');
 
+    const ocrSelectionCard = document.getElementById('ocrSelectionCard');
+    const ocrVideoPlayer = document.getElementById('ocrVideoPlayer');
+    const btnStartOcr = document.getElementById('btnStartOcr');
+    const btnSkipOcr = document.getElementById('btnSkipOcr');
+    let currentJobId = null;
+
     const resultsCard = document.getElementById('resultsCard');
     const originalVideoPlayer = document.getElementById('originalVideoPlayer');
     const translatedVideoPlayer = document.getElementById('translatedVideoPlayer');
@@ -172,8 +178,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentStep = data.step || 0;
             updateStepProgressUI(currentStep);
 
-            // 4. Handle Completion/Failure
-            if (data.status === 'completed') {
+            // 4. Handle Completion/Failure / OCR Selection
+            if (data.status === 'awaiting_ocr_selection') {
+                clearInterval(pollInterval);
+                currentJobId = jobId;
+                
+                // Show OCR panel and load video
+                processingCard.classList.add('hidden');
+                ocrSelectionCard.classList.remove('hidden');
+                
+                const videoUrl = data.result.original_video_url;
+                ocrVideoPlayer.src = videoUrl;
+                ocrVideoPlayer.load();
+                
+                appendLogLine('Video gốc đã tải xong. Hãy kéo chỉnh dải màu sáng đè lên khu vực chạy chữ phụ đề của video và nhấn "Bắt đầu quét OCR phụ đề".', 'success');
+                
+                // Smooth scroll to OCR Selection Workspace
+                setTimeout(() => {
+                    ocrSelectionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+
+            } else if (data.status === 'completed') {
                 clearInterval(pollInterval);
                 appendLogLine('--- TIẾN TRÌNH HOÀN THÀNH XUẤT SẮC ---', 'success');
 
@@ -249,6 +274,162 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Crop selection box dragging/resizing logic
+    const ocrCropOverlay = document.getElementById('ocrCropOverlay');
+    const ocrCropBox = document.getElementById('ocrCropBox');
+    let isDragging = false;
+    let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom'
+    let startY = 0;
+    let startTop = 80;   // percentage
+    let startHeight = 15; // percentage
+
+    ocrCropBox.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startY = e.clientY;
+        
+        const rect = ocrCropBox.getBoundingClientRect();
+        const clickY = e.clientY - rect.top;
+        if (clickY <= 15) {
+            dragType = 'resize-top';
+        } else if (clickY >= rect.height - 15) {
+            dragType = 'resize-bottom';
+        } else {
+            dragType = 'move';
+        }
+        
+        startTop = parseFloat(ocrCropBox.style.top || '80');
+        startHeight = parseFloat(ocrCropBox.style.height || '15');
+        
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaY = ((e.clientY - startY) / overlayRect.height) * 100;
+        
+        if (dragType === 'move') {
+            let newTop = startTop + deltaY;
+            newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+            ocrCropBox.style.top = `${newTop}%`;
+        } else if (dragType === 'resize-top') {
+            let newTop = startTop + deltaY;
+            let newHeight = startHeight - deltaY;
+            if (newTop >= 0 && newHeight >= 5) {
+                ocrCropBox.style.top = `${newTop}%`;
+                ocrCropBox.style.height = `${newHeight}%`;
+            }
+        } else if (dragType === 'resize-bottom') {
+            let newHeight = startHeight + deltaY;
+            if (startTop + newHeight <= 100 && newHeight >= 5) {
+                ocrCropBox.style.height = `${newHeight}%`;
+            }
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    // Touch support for dragging on mobile devices
+    ocrCropBox.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        isDragging = true;
+        const touch = e.touches[0];
+        startY = touch.clientY;
+        
+        const rect = ocrCropBox.getBoundingClientRect();
+        const clickY = touch.clientY - rect.top;
+        if (clickY <= 20) {
+            dragType = 'resize-top';
+        } else if (clickY >= rect.height - 20) {
+            dragType = 'resize-bottom';
+        } else {
+            dragType = 'move';
+        }
+        
+        startTop = parseFloat(ocrCropBox.style.top || '80');
+        startHeight = parseFloat(ocrCropBox.style.height || '15');
+        
+        e.preventDefault();
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaY = ((touch.clientY - startY) / overlayRect.height) * 100;
+        
+        if (dragType === 'move') {
+            let newTop = startTop + deltaY;
+            newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+            ocrCropBox.style.top = `${newTop}%`;
+        } else if (dragType === 'resize-top') {
+            let newTop = startTop + deltaY;
+            let newHeight = startHeight - deltaY;
+            if (newTop >= 0 && newHeight >= 5) {
+                ocrCropBox.style.top = `${newTop}%`;
+                ocrCropBox.style.height = `${newHeight}%`;
+            }
+        } else if (dragType === 'resize-bottom') {
+            let newHeight = startHeight + deltaY;
+            if (startTop + newHeight <= 100 && newHeight >= 5) {
+                ocrCropBox.style.height = `${newHeight}%`;
+            }
+        }
+    });
+
+    document.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+
+    // Resume execution handler
+    async function resumeJob(jobId, useOcr) {
+        ocrSelectionCard.classList.add('hidden');
+        processingCard.classList.remove('hidden');
+        
+        const y_start = parseFloat(ocrCropBox.style.top || '80') / 100;
+        const y_height = parseFloat(ocrCropBox.style.height || '15') / 100;
+        const y_end = y_start + y_height;
+        
+        appendLogLine(`[GỬI CẤU HÌNH] Chạy quy trình tiếp tục: Dùng OCR = ${useOcr}, Y-axis = [${y_start.toFixed(2)}, ${y_end.toFixed(2)}]`, 'info');
+        
+        try {
+            const response = await fetch(`/api/translate/resume/${jobId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    use_ocr: useOcr,
+                    y_start: y_start,
+                    y_end: y_end
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Lỗi phản hồi từ máy chủ.');
+            }
+            
+            // Re-start status polling
+            displayedLogCount = 0; // reset logs display
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => pollJobStatus(jobId), 1200);
+            
+        } catch (err) {
+            appendLogLine(`Lỗi khi tiếp tục tiến trình: ${err.message}`, 'error');
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = 'Bắt đầu tiến trình xử lý';
+        }
+    }
+
+    btnStartOcr.addEventListener('click', () => {
+        if (currentJobId) resumeJob(currentJobId, true);
+    });
+
+    btnSkipOcr.addEventListener('click', () => {
+        if (currentJobId) resumeJob(currentJobId, false);
+    });
 
     // Log printer helper
     function appendLogLine(message, type = 'info') {
