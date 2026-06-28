@@ -426,8 +426,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
         file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
         
         async with semaphore:
+            success_segment = False
+            loop = asyncio.get_event_loop()
             try:
-                loop = asyncio.get_event_loop()
                 if provider == "gemini":
                     await loop.run_in_executor(
                         None, _synthesize_gemini_sync, tts, text, speaker, file_path, voice_map, voice_name
@@ -438,24 +439,39 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     )
                 else:
                     await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name)
-                
-                # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
-                trimmed_file_path = file_path + ".trimmed.mp3"
-                success = await loop.run_in_executor(
-                    None, trim_silence, file_path, trimmed_file_path
-                )
-                if success and os.path.exists(trimmed_file_path):
-                    os.replace(trimmed_file_path, file_path)
-                
-                actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
-                
-                async with lock:
-                    sub_copy = dict(sub)
-                    sub_copy["audio_path"] = os.path.abspath(file_path)
-                    sub_copy["tts_duration"] = actual_duration
-                    updated[idx] = sub_copy
+                success_segment = True
             except Exception as e:
                 logger.error(f"[{provider}] Failed segment {idx}: {e}")
+                if provider in ("gemini", "google"):
+                    logger.info(f"[{provider}] Falling back to edge-tts for segment {idx}...")
+                    try:
+                        await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name=None)
+                        success_segment = True
+                    except Exception as fe:
+                        logger.error(f"[Fallback edge-tts] Failed segment {idx}: {fe}")
+
+            if success_segment:
+                try:
+                    # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
+                    trimmed_file_path = file_path + ".trimmed.mp3"
+                    success_trim = await loop.run_in_executor(
+                        None, trim_silence, file_path, trimmed_file_path
+                    )
+                    if success_trim and os.path.exists(trimmed_file_path):
+                        os.replace(trimmed_file_path, file_path)
+                    
+                    actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
+                    
+                    async with lock:
+                        sub_copy = dict(sub)
+                        sub_copy["audio_path"] = os.path.abspath(file_path)
+                        sub_copy["tts_duration"] = actual_duration
+                        updated[idx] = sub_copy
+                except Exception as post_e:
+                    logger.error(f"Failed processing audio for segment {idx}: {post_e}")
+                    async with lock:
+                        failures += 1
+            else:
                 async with lock:
                     failures += 1
     
@@ -505,7 +521,8 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
             f"{provider_label} failed all {google_failures} segments! "
             f"Falling back to edge-tts..."
         )
-        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=voice_map, voice_name=voice_name)
+        fallback_voice_name = voice_name if voice_name in EDGE_VOICES.values() else None
+        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=voice_map, voice_name=fallback_voice_name)
     elif provider in ("google", "gemini") and google_failures > 0:
         logger.warning(f"{provider_label}: {google_failures}/{len(subtitles)} segments failed.")
     
