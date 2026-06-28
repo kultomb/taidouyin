@@ -56,7 +56,29 @@ class ResumeRequest(BaseModel):
 
 def run_pipeline_phase1(job_id: str, url: str):
     job = jobs[job_id]
-    job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    
+    # Trích xuất Aweme ID để đặt tên thư mục dễ nhận biết
+    from downloader import (
+        clean_and_rewrite_douyin_url,
+        extract_aweme_id,
+        resolve_short_url,
+        load_cookies_txt
+    )
+    aweme_id = "video"
+    try:
+        clean_url = clean_and_rewrite_douyin_url(url)
+        if "douyin.com" in clean_url and ("v.douyin.com" in clean_url or "v.iesdouyin.com" in clean_url):
+            cookies = load_cookies_txt()
+            resolved_url = resolve_short_url(clean_url, cookies)
+        else:
+            resolved_url = clean_url
+        extracted = extract_aweme_id(resolved_url)
+        if extracted:
+            aweme_id = extracted
+    except Exception as e:
+        logger.warning(f"Không thể trích xuất aweme_id trước khi tạo thư mục: {e}")
+
+    job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{aweme_id}"
     job_folder = f"output/{job_folder_name}"
     os.makedirs(job_folder, exist_ok=True)
     job["job_folder"] = job_folder
