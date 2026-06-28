@@ -7,6 +7,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from typing import Optional, Dict
 
 # Import our custom modules
 from downloader import download_douyin_video, load_cookies_txt
@@ -83,8 +84,8 @@ class TranslateRequest(BaseModel):
     asr_mode: str = "audio"  # "audio", "video", hoặc "whisper"
     translate_provider: str = "gemini"  # "gemini" hoặc "gist"
     process_mode: str = "ocr"  # "auto" hoặc "ocr"
-    voice_map: dict = None  # Ánh xạ từ Speaker name sang giọng đọc chỉ định (tùy chọn)
-    voice_name: str = None  # Giọng đọc đồng nhất áp dụng cho toàn bộ video (tắt phân vai)
+    voice_map: Optional[Dict] = None  # Ánh xạ từ Speaker name sang giọng đọc chỉ định (tùy chọn)
+    voice_name: Optional[str] = None  # Giọng đọc đồng nhất áp dụng cho toàn bộ video (tắt phân vai)
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
