@@ -88,57 +88,35 @@
                         </button>
                     </div>
 
-                    <!-- RIGHT: Settings tabs -->
+                    <!-- RIGHT: Settings tabs (compact) -->
                     <div class="form-right">
                         <div class="settings-tabs">
-                            <div class="setting-panel">
-                                <label class="setting-label">🗣️ Công cụ lồng tiếng (TTS)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="tts-toggle-btn active" data-tts="edge">
-                                        <span class="tts-icon">🎤</span>
-                                        <span class="tts-name">Edge TTS</span>
-                                        <span class="tts-badge">Miễn phí</span>
-                                    </button>
-                                    <button type="button" class="tts-toggle-btn" data-tts="google">
-                                        <span class="tts-icon">☁️</span>
-                                        <span class="tts-name">Google TTS</span>
-                                        <span class="tts-badge">Neural2</span>
-                                    </button>
+                            <div class="setting-row">
+                                <span class="setting-icon">🗣️</span>
+                                <span class="setting-name">TTS</span>
+                                <div class="tts-toggle-group compact">
+                                    <button type="button" class="tts-toggle-btn active" data-tts="edge">Edge</button>
+                                    <button type="button" class="tts-toggle-btn" data-tts="google">Google</button>
                                 </div>
                             </div>
-
-                            <div class="setting-panel">
-                                <label class="setting-label">🎙️ Phương thức nhận dạng (ASR)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="asr-toggle-btn tts-toggle-btn active" data-asr="audio">
-                                        <span class="tts-icon">🎵</span>
-                                        <span class="tts-name">Chỉ âm thanh</span>
-                                        <span class="tts-badge">Nhanh</span>
-                                    </button>
-                                    <button type="button" class="asr-toggle-btn tts-toggle-btn" data-asr="video">
-                                        <span class="tts-icon">🎬</span>
-                                        <span class="tts-name">Đa phương thức</span>
-                                        <span class="tts-badge">Khớp hình</span>
-                                    </button>
+                            <div class="setting-row">
+                                <span class="setting-icon">🎙️</span>
+                                <span class="setting-name">ASR</span>
+                                <div class="tts-toggle-group compact">
+                                    <button type="button" class="asr-toggle-btn tts-toggle-btn active"
+                                        data-asr="audio">Âm thanh</button>
+                                    <button type="button" class="asr-toggle-btn tts-toggle-btn"
+                                        data-asr="video">Video</button>
                                 </div>
                             </div>
-
-                            <div class="setting-panel">
-                                <label class="setting-label">🌐 Dịch thuật (Translation)</label>
-                                <div class="tts-toggle-group">
+                            <div class="setting-row">
+                                <span class="setting-icon">🌐</span>
+                                <span class="setting-name">Dịch</span>
+                                <div class="tts-toggle-group compact">
                                     <button type="button" class="translate-toggle-btn tts-toggle-btn active"
-                                        data-translate="gemini">
-                                        <span class="tts-icon">🤖</span>
-                                        <span class="tts-name">Gemini Vertex</span>
-                                        <span class="tts-badge">Chuẩn</span>
-                                    </button>
+                                        data-translate="gemini">Gemini</button>
                                     <button type="button" class="translate-toggle-btn tts-toggle-btn"
-                                        data-translate="gist">
-                                        <span class="tts-icon">🆓</span>
-                                        <span class="tts-name">Gist API</span>
-                                        <span class="tts-badge"
-                                            style="background:rgba(239,68,68,0.2);color:#ef4444;">Offline</span>
-                                    </button>
+                                        data-translate="gist">Gist</button>
                                 </div>
                             </div>
                         </div>
