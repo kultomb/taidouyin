@@ -476,6 +476,56 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentJobId) resumeJob(currentJobId, false);
     });
 
+    // Custom timeline controller logic
+    const btnOcrPlayPause = document.getElementById('btnOcrPlayPause');
+    const ocrTimelineSlider = document.getElementById('ocrTimelineSlider');
+    const ocrTimeCurrent = document.getElementById('ocrTimeCurrent');
+    const ocrTimeDuration = document.getElementById('ocrTimeDuration');
+
+    function formatTime(secs) {
+        if (isNaN(secs) || secs === Infinity) return '0:00';
+        const m = Math.floor(secs / 60);
+        const s = Math.floor(secs % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    ocrVideoPlayer.addEventListener('timeupdate', () => {
+        if (!ocrVideoPlayer.duration) return;
+        const percent = (ocrVideoPlayer.currentTime / ocrVideoPlayer.duration) * 100;
+        ocrTimelineSlider.value = percent;
+        ocrTimeCurrent.textContent = formatTime(ocrVideoPlayer.currentTime);
+    });
+
+    ocrVideoPlayer.addEventListener('durationchange', () => {
+        ocrTimeDuration.textContent = formatTime(ocrVideoPlayer.duration);
+    });
+
+    ocrVideoPlayer.addEventListener('loadedmetadata', () => {
+        ocrTimeDuration.textContent = formatTime(ocrVideoPlayer.duration);
+    });
+
+    ocrTimelineSlider.addEventListener('input', () => {
+        if (!ocrVideoPlayer.duration) return;
+        const newTime = (ocrTimelineSlider.value / 100) * ocrVideoPlayer.duration;
+        ocrVideoPlayer.currentTime = newTime;
+    });
+
+    btnOcrPlayPause.addEventListener('click', () => {
+        if (ocrVideoPlayer.paused) {
+            ocrVideoPlayer.play();
+        } else {
+            ocrVideoPlayer.pause();
+        }
+    });
+
+    ocrVideoPlayer.addEventListener('pause', () => {
+        btnOcrPlayPause.querySelector('span').textContent = 'Phát video';
+    });
+
+    ocrVideoPlayer.addEventListener('play', () => {
+        btnOcrPlayPause.querySelector('span').textContent = 'Tạm dừng';
+    });
+
     // Log printer helper
     function appendLogLine(message, type = 'info') {
         const div = document.createElement('div');
