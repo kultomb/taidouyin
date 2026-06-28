@@ -941,20 +941,12 @@ body {
     background: transparent;
 }
 
-.ocr-resize-handle.left {
-    left: -1px;
-    top: 0;
-    width: 2px;
-    height: 100%;
-    cursor: ew-resize;
+.ocr-resize-handle.top {
+    top: -1px;
 }
 
-.ocr-resize-handle.right {
-    right: -1px;
-    top: 0;
-    width: 2px;
-    height: 100%;
-    cursor: ew-resize;
+.ocr-resize-handle.bottom {
+    bottom: -1px;
 }
 
 

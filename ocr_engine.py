@@ -25,8 +25,10 @@ logger = logging.getLogger("douyin_translator")
 # ─── Hằng số ─────────────────────────────────────────────────────────────────
 SAMPLE_FPS    = 10     # frame/giây sample (0.1s precision)
 CHANGE_THRESH = 8.0    # ngưỡng mean pixel diff để trigger re-OCR
-MIN_SEG_DUR   = 0.25   # độ dài tối thiểu của 1 segment (giây)
+MIN_SEG_DUR   = 0.20   # độ dài tối thiểu của 1 segment (giây)
+MIN_TEXT_LEN  = 3      # độ dài text tối thiểu (bỏ qua logo/nhiễu 1-2 ký tự)
 OCR_CONF_MIN  = 0.45   # confidence tối thiểu để giữ text
+MAX_OCR_PER_SEC = 4.0  # giới hạn số lần OCR mỗi giây (tránh quét logo/intro)
 
 # ─── RapidOCR singleton ───────────────────────────────────────────────────────
 _rapid_ocr = None
@@ -46,6 +48,12 @@ def _get_ocr():
                 "RapidOCR chưa cài. Chạy: pip install rapidocr-onnxruntime"
             ) from exc
     return _rapid_ocr
+
+
+def _is_valid_chinese_text(text: str) -> bool:
+    """Kiểm tra text có chứa ít nhất 2 ký tự CJK (Trung/Nhật/Hàn)."""
+    cjk_count = sum(1 for ch in text if '\u4e00' <= ch <= '\u9fff' or '\u3400' <= ch <= '\u4dbf')
+    return cjk_count >= 2
 
 
 def _ocr_region(region_bgr: np.ndarray) -> str:
@@ -77,7 +85,12 @@ def _ocr_region(region_bgr: np.ndarray) -> str:
                 text, score = item[1], item[2]
                 if score >= OCR_CONF_MIN and text and text.strip():
                     texts.append(text.strip())
-        return "".join(texts)  # tiếng Trung không có khoảng trắng giữa từ
+        joined = "".join(texts)  # tiếng Trung không có khoảng trắng giữa từ
+
+        # Filter: nếu không có ít nhất 2 ký tự CJK → bỏ qua (logo/nhiễu)
+        if joined and not _is_valid_chinese_text(joined):
+            return ""
+        return joined
     except Exception as exc:
         logger.warning(f"RapidOCR lỗi: {exc}")
         return ""
@@ -129,7 +142,8 @@ def extract_subtitle_segments(
 
     _log(
         f"Video: {vid_w}×{vid_h} @ {native_fps:.1f}fps, {duration:.1f}s | "
-        f"Vùng phụ đề: x=[{x0}–{x1}px], y=[{y0}–{y1}px] | Sample mỗi {frame_step} frame (~{sample_fps}fps)"
+        f"Vùng quét: x=[{x0}–{x1}px] y=[{y0}–{y1}px] | "
+        f"Sample mỗi {frame_step} frame (~{sample_fps}fps)"
     )
     _log("Khởi động RapidOCR (PaddleOCR ONNX)...")
     _get_ocr()  # warm-up
@@ -144,6 +158,7 @@ def extract_subtitle_segments(
     ocr_count   = 0
     frame_count = 0
     frame_idx   = 0
+    last_ocr_ts = -99.0  # giới hạn tần suất OCR theo thời gian
 
     while True:
         ret, frame = cap.read()
@@ -164,9 +179,18 @@ def extract_subtitle_segments(
                 diff   = cv2.absdiff(clean, prev_clean)
                 do_ocr = diff.mean() > change_threshold
 
+            # Giới hạn tần suất OCR: không OCR quá MAX_OCR_PER_SEC lần/giây
+            if do_ocr and (ts - last_ocr_ts) < (1.0 / MAX_OCR_PER_SEC):
+                do_ocr = False
+
             if do_ocr:
                 ocr_count += 1
+                last_ocr_ts = ts
                 new_text = _ocr_region(region).strip()
+
+                # Filter rác: text quá ngắn (logo/intro 1-2 ký tự lẻ)
+                if new_text and len(new_text) < MIN_TEXT_LEN:
+                    new_text = ""
 
                 if new_text != cur_text:
                     # Đóng segment cũ

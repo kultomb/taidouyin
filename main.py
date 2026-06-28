@@ -144,7 +144,8 @@ TRANSLATE_API_URL = "https://http-honyaku-kiban-production-80.schnworks.com/tran
 
 def _translate_ocr_subtitles(ocr_segments: list, log_func) -> list:
     """
-    Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt) qua Gist Translation API.
+    Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt).
+    Ưu tiên Gist API, fallback Gemini, cuối cùng giữ text gốc.
     Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
     """
     import requests as req
@@ -153,32 +154,79 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func) -> list:
         log_func("Không có văn bản OCR nào để dịch.")
         return []
 
+    translations = [""] * len(texts_to_translate)
+    translated = False
+
+    # Cách 1: Gist API (nhanh, miễn phí)
     log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gist API...")
     try:
         resp = req.post(
             TRANSLATE_API_URL,
             json={"texts": texts_to_translate, "targetLanguage": "vie"},
             headers={"Content-Type": "application/json"},
-            timeout=30
+            timeout=15
         )
-        if resp.status_code != 200:
-            log_func(f"Gist API lỗi HTTP {resp.status_code}: {resp.text[:200]}")
-            # Fallback: giữ nguyên text gốc
-            translations = [""] * len(texts_to_translate)
-        else:
+        if resp.status_code == 200:
             data = resp.json()
-            translations = data.get("translations", [])
+            gist_translations = data.get("translations", [])
+            if gist_translations and any(t.strip() for t in gist_translations):
+                translations = gist_translations
+                translated = True
+                log_func(f"Gist API dịch thành công {len(translations)} đoạn.")
+            else:
+                log_func("Gist API trả về kết quả rỗng.")
+        else:
+            log_func(f"Gist API lỗi HTTP {resp.status_code}.")
     except Exception as e:
-        log_func(f"Gist API không phản hồi: {e}. Giữ nguyên text gốc.")
-        translations = [""] * len(texts_to_translate)
+        log_func(f"Gist API không phản hồi: {str(e)[:100]}.")
+
+    # Cách 2: Gemini fallback (nếu Gist thất bại)
+    if not translated:
+        log_func("Đang dịch fallback qua Gemini 2.5 Flash...")
+        try:
+            client = get_vertex_client()
+            batch_text = "\n---\n".join(
+                f"[{i+1}] {t}" for i, t in enumerate(texts_to_translate) if t.strip()
+            )
+            prompt = (
+                "Translate each Chinese text below into Vietnamese. "
+                "Return ONLY the translations, one per line, in the same order. "
+                "Keep the translations natural and suitable for dubbing.\n\n" + batch_text
+            )
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[prompt],
+                config={"temperature": 0.2}
+            )
+            if response and response.text:
+                lines = [l.strip() for l in response.text.split("\n") if l.strip()]
+                # Map back (Gemini có thể bỏ dòng trống)
+                j = 0
+                for i, t in enumerate(texts_to_translate):
+                    if t.strip() and j < len(lines):
+                        translations[i] = lines[j]
+                        j += 1
+                translated = True
+                log_func(f"Gemini dịch thành công {j} đoạn.")
+            else:
+                log_func("Gemini trả về rỗng.")
+        except Exception as e:
+            log_func(f"Gemini fallback thất bại: {str(e)[:100]}.")
+
+    # Cách 3: Giữ text gốc nếu tất cả đều thất bại
+    if not translated:
+        log_func("⚠️ KHÔNG dịch được. Dùng text gốc (tiếng Trung) làm phụ đề.")
+        for i, t in enumerate(texts_to_translate):
+            translations[i] = t  # SRT sẽ có text tiếng Trung
 
     result = []
     for i, seg in enumerate(ocr_segments):
+        translation_text = translations[i] if i < len(translations) else ""
         result.append({
             "start": seg.get("start", 0.0),
             "end": seg.get("end", 0.0),
             "text": seg.get("text", ""),
-            "translation": translations[i] if i < len(translations) else "",
+            "translation": translation_text,
             "speaker": "Speaker A",
         })
     log_func(f"Dịch hoàn tất: {len(result)} đoạn phụ đề.")
