@@ -99,11 +99,18 @@ def mix_audio_and_video(
     out_dir = os.path.dirname(output_video_path)
     os.makedirs(out_dir, exist_ok=True)
     
+    # Lấy độ dài video để làm mốc giới hạn âm thanh tĩnh
+    video_duration = _get_audio_duration_ffprobe(video_path)
+    if video_duration <= 0:
+        video_duration = _get_audio_duration_ffprobe(original_audio_path)
+    if video_duration <= 0:
+        video_duration = 30.0  # Fallback
+        
     # ============================================================
     # Pass 1: Mix tất cả TTS segments thành 1 file duy nhất
     # ============================================================
     tts_mixed_path = os.path.join(out_dir, "_tts_mixed.mp3")
-    actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path)
+    actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path, video_duration)
     
     # Ghi đè file SRT với timeline thực tế để khớp chính xác với audio
     if srt_path:
@@ -160,89 +167,86 @@ def mix_audio_and_video(
         raise e
 
 
-def _premix_tts_segments(tts_segments: list, output_path: str) -> list:
+def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float) -> list:
     """
-    Trộn tất cả TTS segments thành 1 file với timeline động.
-    
-    Thay vì ép TTS vào slot gốc (gây robot voice), ta:
-    1. Giữ TTS tốc độ tự nhiên
-    2. Thêm silence giữa các segment để align với nhịp gốc
-    3. Cross-fade 50ms giữa các segment
-    
-    Returns:
-        list actual_timeline: [{start, end, audio_path}, ...] với timestamp thực tế
+    Trộn tất cả các phân đoạn TTS vào một tệp âm thanh duy nhất bằng cách đặt chúng
+    chính xác tại mốc thời gian bắt đầu (start) của câu thoại gốc thông qua bộ lọc 'adelay' và 'amix'.
     """
-    logger.info(f"Pre-mixing {len(tts_segments)} TTS segments with dynamic timeline...")
+    logger.info(f"Pre-mixing {len(tts_segments)} TTS segments at exact absolute offsets...")
     import tempfile
 
-    # Bước 1: Tính timeline thực tế
+    # Bước 1: Tính timeline thực tế (đồng nhất thời gian với câu thoại gốc)
     actual_timeline = _compute_actual_timeline(tts_segments)
 
-    # Bước 2: Tạo concat list với silence động (không cross-fade để tránh bug lặp segment)
-    concat_parts = []
-    silence_files = []
-    accumulated_duration = 0.0
-
-    for i, seg in enumerate(actual_timeline):
-        audio_path = seg["audio_path"]
-        if not os.path.exists(audio_path):
-            continue
-
-        # Tính khoảng lặng dựa trên thời lượng tích lũy thực tế
-        gap = seg["actual_start"] - accumulated_duration
-        if gap > 0.03:
-            silence_file = os.path.join(tempfile.gettempdir(), f"_silence_{i}.mp3")
-            _generate_silence(silence_file, gap)
-            concat_parts.append(silence_file)
-            silence_files.append(silence_file)
-            accumulated_duration += gap
-
-        # Lưu lại thời gian bắt đầu thực tế trong audio ghép
-        seg["actual_start"] = round(accumulated_duration, 3)
-
-        concat_parts.append(audio_path)
-        accumulated_duration += seg["tts_duration"]
-
-        # Lưu lại thời gian kết thúc thực tế trong audio ghép
-        seg["actual_end"] = round(accumulated_duration, 3)
-
-    if not concat_parts:
-        _generate_silence(output_path, 1.0)
+    # Nếu không có phân đoạn nào, tạo file lặng rồi trả về
+    valid_segments = [seg for seg in actual_timeline if os.path.exists(seg["audio_path"])]
+    if not valid_segments:
+        _generate_silence(output_path, max(1.0, video_duration))
         return actual_timeline
 
-    # Ghi file list cho concat
-    list_file = os.path.join(tempfile.gettempdir(), "_tts_concat_list.txt")
-    with open(list_file, "w", encoding="utf-8") as f:
-        for p in concat_parts:
-            f.write(f"file '{p.replace(chr(92), '/')}'\n")
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0",
-        "-i", list_file,
-        "-c:a", "libmp3lame", "-q:a", "2",
-        output_path
-    ]
-
-    logger.info(f"Concat {len(actual_timeline)} TTS segments with dynamic timing...")
+    # Bước 2: Tạo danh sách đầu vào và xây dựng chuỗi bộ lọc phức hợp (filter_complex)
+    cmd = ["ffmpeg", "-y"]
+    
+    # Đầu vào 0: tạo luồng âm thanh lặng có độ dài bằng đúng video_duration làm nền
+    cmd.extend(["-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo"])
+    
+    # Thêm các file âm thanh TTS làm đầu vào tiếp theo (từ 1 đến N)
+    for seg in valid_segments:
+        cmd.extend(["-i", seg["audio_path"]])
+        
+    # Xây dựng filter_complex
+    # Cắt luồng âm lặng nền ở giây video_duration
+    filter_parts = [f"[0:a]atrim=end={video_duration:.3f}[bg]"]
+    mix_labels = ["[bg]"]
+    
+    for idx, seg in enumerate(valid_segments):
+        input_label = f"[{idx+1}:a]"
+        output_label = f"[delayed_{idx}]"
+        
+        # adelay yêu cầu độ trễ tính bằng mili-giây cho mỗi kênh (ở đây cấu hình stereo)
+        delay_ms = int(seg["actual_start"] * 1000)
+        # Giới hạn delay tối thiểu là 0ms
+        delay_ms = max(0, delay_ms)
+        
+        filter_parts.append(f"{input_label}adelay={delay_ms}|{delay_ms}{output_label}")
+        mix_labels.append(output_label)
+        
+    # Trộn tất cả luồng đã được delay với nền âm lặng
+    filter_parts.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:dropout_transition=0[out]")
+    
+    # Ghi filter_complex ra tệp script tạm thời để tránh giới hạn độ dài dòng lệnh trên Windows
+    filter_script_path = os.path.join(tempfile.gettempdir(), "_tts_filter_script.txt")
+    with open(filter_script_path, "w", encoding="utf-8") as f:
+        f.write(";\n".join(filter_parts))
+        
+    cmd.extend(["-filter_complex_script", filter_script_path])
+    cmd.extend(["-map", "[out]"])
+    cmd.extend(["-c:a", "libmp3lame", "-q:a", "2", output_path])
+    
     try:
+        logger.info(f"Running ffmpeg absolute offset mixing with filter script: {filter_script_path}")
         subprocess.run(cmd, capture_output=True, check=True, timeout=120)
-        logger.info("TTS pre-mix completed with natural timing.")
+        logger.info("TTS pre-mix at exact absolute offsets completed successfully.")
     except subprocess.CalledProcessError as e:
         logger.error(f"TTS pre-mix failed: {e.stderr.decode() if e.stderr else e}")
-        _generate_silence(output_path, 1.0)
+        # Fallback tạo file im lặng nếu lỗi
+        _generate_silence(output_path, max(1.0, video_duration))
     finally:
-        # Dọn file tạm
-        for f in silence_files:
+        # Dọn dẹp tệp filter script tạm
+        if os.path.exists(filter_script_path):
             try:
-                os.remove(f)
+                os.remove(filter_script_path)
             except OSError:
                 pass
-        try:
-            os.remove(list_file)
-        except OSError:
-            pass
-
+        # Dọn dẹp các tệp atempo tạm thời
+        for seg in actual_timeline:
+            temp_path = seg.get("temp_path")
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+                
     return actual_timeline
 
 
@@ -266,13 +270,14 @@ def _build_atempo_filter(speed_factor: float) -> str:
 
 def _compute_actual_timeline(segments: list) -> list:
     """
-    Tính timeline thực tế khớp khít 100% với thời lượng và mốc thời gian của câu gốc.
-    Bắt buộc actual_start = original_start, tự động tăng tốc giọng đọc Việt
-    để vừa khít thời lượng câu thoại gốc.
+    Tính timeline thực tế khớp khít 100% với mốc thời gian của câu gốc.
+    Bắt buộc actual_start = original_start, actual_end = original_end.
+    Áp dụng tăng tốc độ đọc nhẹ (tối đa 1.25x) để tránh giọng đọc bị méo, rời rạc hoặc bị cắt.
     """
     import tempfile
     
     timeline = []
+    MAX_SPEED_FACTOR = 1.25
  
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
@@ -287,13 +292,16 @@ def _compute_actual_timeline(segments: list) -> list:
  
         audio_path = sub.get("audio_path", "")
         speed_factor = 1.0
+        temp_path = None
         
-        # Bắt buộc tăng tốc độ đọc để giọng Việt vừa khít thời lượng câu thoại gốc
+        # Tăng tốc độ đọc nếu câu dịch dài hơn câu gốc, giới hạn tối đa 1.25x để giữ giọng đọc tự nhiên
         if tts_dur > original_dur and original_dur > 0.1:
             speed_factor = tts_dur / original_dur
+            if speed_factor > MAX_SPEED_FACTOR:
+                speed_factor = MAX_SPEED_FACTOR
             
             if speed_factor > 1.01 and audio_path and os.path.exists(audio_path):
-                logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f}")
+                logger.info(f"Segment {i} too long: {tts_dur:.2f}s vs {original_dur:.2f}s -> speedup atempo={speed_factor:.3f} (Capped at {MAX_SPEED_FACTOR})")
                 adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")
                 try:
                     atempo_filter = _build_atempo_filter(speed_factor)
@@ -305,13 +313,14 @@ def _compute_actual_timeline(segments: list) -> list:
                     ]
                     subprocess.run(cmd, capture_output=True, check=True, timeout=30)
                     audio_path = adjusted_path
+                    temp_path = adjusted_path
                     tts_dur = tts_dur / speed_factor
                 except Exception as e:
                     logger.warning(f"Segment {i} atempo failed: {e}")
-
+ 
         # Bắt buộc mốc thời gian trùng khít hoàn toàn với câu thoại gốc
         actual_start = original_start
-        actual_end = actual_start + tts_dur
+        actual_end = original_end
 
         timeline.append({
             "audio_path": audio_path,
@@ -323,8 +332,9 @@ def _compute_actual_timeline(segments: list) -> list:
             "speaker": sub.get("speaker", ""),
             "text": sub.get("text", ""),
             "translation": translation,
+            "temp_path": temp_path
         })
-
+ 
     return timeline
 
 
