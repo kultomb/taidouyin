@@ -14,6 +14,7 @@ from audio_processor import extract_audio, generate_srt, generate_srt_from_timel
 from translator import get_vertex_client, transcribe_and_translate_audio
 from tts_processor import generate_tts_for_subtitles
 from ocr_engine import extract_subtitle_segments
+from google.genai import types  # cho GenerateContentConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -49,6 +50,7 @@ class TranslateRequest(BaseModel):
     burn_subtitles: bool = False
     tts_provider: str = "edge"  # "edge" hoặc "google"
     asr_mode: str = "audio"  # "audio" hoặc "video"
+    translate_provider: str = "gemini"  # "gemini" hoặc "gist"
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -140,15 +142,12 @@ def run_pipeline_phase1(job_id: str, url: str):
         job["sub_step"] = "LỖI: Tải video gốc thất bại."
         log(f"LỖI HỆ THỐNG: {str(e)}")
 
-TRANSLATE_API_URL = "https://http-honyaku-kiban-production-80.schnworks.com/translation/language/translate/v2"
-
-def _translate_ocr_subtitles(ocr_segments: list, log_func) -> list:
+def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemini") -> list:
     """
     Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt).
-    Ưu tiên Gist API, fallback Gemini, cuối cùng giữ text gốc.
+    provider: "gemini" (Vertex AI) hoặc "gist" (Gist API miễn phí).
     Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
     """
-    import requests as req
     texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
     if not any(t.strip() for t in texts_to_translate):
         log_func("Không có văn bản OCR nào để dịch.")
@@ -157,76 +156,76 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func) -> list:
     translations = [""] * len(texts_to_translate)
     translated = False
 
-    # Cách 1: Gist API (nhanh, miễn phí)
-    log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gist API...")
-    try:
-        resp = req.post(
-            TRANSLATE_API_URL,
-            json={"texts": texts_to_translate, "targetLanguage": "vie"},
-            headers={"Content-Type": "application/json"},
-            timeout=15
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            gist_translations = data.get("translations", [])
-            if gist_translations and any(t.strip() for t in gist_translations):
-                translations = gist_translations
-                translated = True
-                log_func(f"Gist API dịch thành công {len(translations)} đoạn.")
+    if provider == "gist":
+        # Gist API miễn phí
+        import requests as req
+        GIST_URL = "https://http-honyaku-kiban-production-80.schnworks.com/translation/language/translate/v2"
+        log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gist API (miễn phí)...")
+        try:
+            resp = req.post(
+                GIST_URL,
+                json={"texts": texts_to_translate, "targetLanguage": "vie"},
+                headers={"Content-Type": "application/json"},
+                timeout=15
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                gist_t = data.get("translations", [])
+                if gist_t and any(t.strip() for t in gist_t):
+                    translations = gist_t
+                    translated = True
+                    log_func(f"Gist API dịch thành công {len(translations)} đoạn.")
+                else:
+                    log_func("Gist API trả về kết quả rỗng.")
             else:
-                log_func("Gist API trả về kết quả rỗng.")
-        else:
-            log_func(f"Gist API lỗi HTTP {resp.status_code}.")
-    except Exception as e:
-        log_func(f"Gist API không phản hồi: {str(e)[:100]}.")
+                log_func(f"Gist API lỗi HTTP {resp.status_code}.")
+        except Exception as e:
+            log_func(f"Gist API không phản hồi: {str(e)[:100]}.")
 
-    # Cách 2: Gemini fallback (nếu Gist thất bại)
     if not translated:
-        log_func("Đang dịch fallback qua Gemini 2.5 Flash...")
+        # Gemini Vertex (luôn sẵn sàng)
+        log_func(f"Đang dịch {len(texts_to_translate)} đoạn phụ đề qua Gemini Vertex...")
         try:
             client = get_vertex_client()
             batch_text = "\n---\n".join(
                 f"[{i+1}] {t}" for i, t in enumerate(texts_to_translate) if t.strip()
             )
             prompt = (
-                "Translate each Chinese text below into Vietnamese. "
-                "Return ONLY the translations, one per line, in the same order. "
-                "Keep the translations natural and suitable for dubbing.\n\n" + batch_text
+                "Translate each Chinese text below into natural, fluent Vietnamese suitable for spoken dubbing. "
+                "Return ONLY the translations, one per line, in the exact same order. "
+                "Do NOT add numbers or prefixes.\n\n" + batch_text
             )
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=[prompt],
-                config={"temperature": 0.2}
+                config=types.GenerateContentConfig(temperature=0.2)
             )
             if response and response.text:
                 lines = [l.strip() for l in response.text.split("\n") if l.strip()]
-                # Map back (Gemini có thể bỏ dòng trống)
                 j = 0
                 for i, t in enumerate(texts_to_translate):
                     if t.strip() and j < len(lines):
                         translations[i] = lines[j]
                         j += 1
                 translated = True
-                log_func(f"Gemini dịch thành công {j} đoạn.")
+                log_func(f"Gemini Vertex dịch thành công {j}/{len(texts_to_translate)} đoạn.")
             else:
-                log_func("Gemini trả về rỗng.")
+                log_func("Gemini Vertex trả về rỗng.")
         except Exception as e:
-            log_func(f"Gemini fallback thất bại: {str(e)[:100]}.")
+            log_func(f"Gemini Vertex lỗi: {str(e)[:100]}.")
 
-    # Cách 3: Giữ text gốc nếu tất cả đều thất bại
     if not translated:
         log_func("⚠️ KHÔNG dịch được. Dùng text gốc (tiếng Trung) làm phụ đề.")
         for i, t in enumerate(texts_to_translate):
-            translations[i] = t  # SRT sẽ có text tiếng Trung
+            translations[i] = t
 
     result = []
     for i, seg in enumerate(ocr_segments):
-        translation_text = translations[i] if i < len(translations) else ""
         result.append({
             "start": seg.get("start", 0.0),
             "end": seg.get("end", 0.0),
             "text": seg.get("text", ""),
-            "translation": translation_text,
+            "translation": translations[i] if i < len(translations) else "",
             "speaker": "Speaker A",
         })
     log_func(f"Dịch hoàn tất: {len(result)} đoạn phụ đề.")
@@ -359,8 +358,9 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             t_asr.join()
 
             if use_ocr and ocr_segments:
-                log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch qua Gist API...")
-                subtitles = _translate_ocr_subtitles(ocr_segments, log)
+                log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch...")
+                translate_provider = job.get("translate_provider", "gemini")
+                subtitles = _translate_ocr_subtitles(ocr_segments, log, provider=translate_provider)
 
                 if not subtitles:
                     log("Dịch thất bại hoặc không có phụ đề. Chuyển sang ASR fallback.")
@@ -550,6 +550,7 @@ def start_translation(request: TranslateRequest):
         "burn_subtitles": request.burn_subtitles,
         "tts_provider": request.tts_provider,
         "asr_mode": request.asr_mode,
+        "translate_provider": request.translate_provider,
         "_created": time.time(),
     }
     

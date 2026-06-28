@@ -5,11 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitBtn');
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
-    const ttsProviderSelect = document.getElementById('ttsProvider');
     const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn[data-tts]');
     const asrToggleBtns = document.querySelectorAll('.asr-toggle-btn');
+    const translateToggleBtns = document.querySelectorAll('.translate-toggle-btn');
     let selectedTtsProvider = 'edge';
     let selectedAsrMode = 'audio';
+    let selectedTranslateProvider = 'gemini';
 
     // TTS Toggle Buttons
     ttsToggleBtns.forEach(btn => {
@@ -26,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
             asrToggleBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedAsrMode = btn.dataset.asr;
+        });
+    });
+
+    // Translate Toggle Buttons
+    translateToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            translateToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTranslateProvider = btn.dataset.translate;
         });
     });
 
@@ -100,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const burnSubtitles = burnSubtitlesCheckbox.checked;
         const ttsProvider = selectedTtsProvider;
         const asrMode = selectedAsrMode;
+        const translateProvider = selectedTranslateProvider;
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -122,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider, asr_mode: asrMode })
+                body: JSON.stringify({ url, bg_volume: bgVolume, burn_subtitles: burnSubtitles, tts_provider: ttsProvider, asr_mode: asrMode, translate_provider: translateProvider })
             });
 
             if (!response.ok) {
