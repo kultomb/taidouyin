@@ -304,6 +304,7 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                             log("Đang tiến hành căn khớp chéo (Hybrid Snapping) mốc thời gian phụ đề OCR theo âm thanh ASR...")
                             asr_subs = asr_result[0].get("subtitles", [])
                             subtitles = align_ocr_with_asr_timestamps(subtitles, asr_subs, log)
+                            subtitles.sort(key=lambda x: x.get("start", 0.0))
                         else:
                             log("Không có dữ liệu ASR song song hoặc ASR bị lỗi. Giữ nguyên mốc thời gian OCR gốc.")
                 
