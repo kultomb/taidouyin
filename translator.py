@@ -87,6 +87,10 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
         prompt = (
             "You are an expert video transcriber, translator, and subtitler specialized in Vietnamese dubbing. "
             "Analyze the video and audio input together. Transcribe the speech exactly, then translate it into natural, fluent Vietnamese suitable for spoken dubbing.\n\n"
+            "CRITICAL DUBBING TRANSLATION RULES:\n"
+            "1. Keep similar speaking duration as the original.\n"
+            "2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
+            "3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
             "CRITICAL SEGMENTATION RULES:\n"
             "1. Divide text into short segments (1-2 sentences each, max 8 seconds per segment).\n"
             "2. NEVER split a segment in the middle of a visual action (gesture, scene change, object interaction).\n"
@@ -101,6 +105,10 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
         prompt = (
             "You are an expert audio transcriber, translator, and subtitler specialized in Vietnamese dubbing. "
             "Listen to the audio input and transcribe the speech exactly, then translate it into natural, fluent Vietnamese suitable for spoken dubbing.\n\n"
+            "CRITICAL DUBBING TRANSLATION RULES:\n"
+            "1. Keep similar speaking duration as the original.\n"
+            "2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
+            "3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
             "CRITICAL SEGMENTATION RULES:\n"
             "1. Divide text into short segments (1-2 sentences each, max 8 seconds per segment).\n"
             "2. NEVER split a segment in the middle of a natural speech pause or sentence boundary.\n"
@@ -205,6 +213,10 @@ def ocr_and_translate_video(client: genai.Client, video_path: str) -> dict:
         "For each subtitle segment:\n"
         "- Transcribe the native Chinese text exactly (fix typos if possible).\n"
         "- Translate into natural, fluent Vietnamese suitable for dubbing.\n"
+        "  CRITICAL DUBBING TRANSLATION RULES:\n"
+        "  1. Keep similar speaking duration as the original.\n"
+        "  2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
+        "  3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
         "- Identify the speaker if clear, or default to 'Speaker A'.\n\n"
         "Segments MUST be sorted chronologically by start time."
     )
@@ -273,14 +285,14 @@ def get_whisper_model() -> WhisperModel:
     """Lazy initializer and caching for the faster-whisper WhisperModel."""
     global _whisper_model
     if _whisper_model is None:
-        logger.info("Initializing Local Whisper model (base)...")
+        logger.info("Initializing Local Whisper model (large-v3)...")
         try:
-            _whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+            _whisper_model = WhisperModel("large-v3", device="cuda", compute_type="float16")
             logger.info("Loaded WhisperModel on GPU (CUDA)")
         except Exception as e:
             logger.warning(f"Failed to load WhisperModel on CUDA ({e}), falling back to CPU (int8)")
             try:
-                _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+                _whisper_model = WhisperModel("large-v3", device="cpu", compute_type="int8")
                 logger.info("Loaded WhisperModel on CPU (int8)")
             except Exception as cpu_e:
                 logger.error(f"Failed to load WhisperModel on CPU ({cpu_e})")
@@ -298,7 +310,14 @@ def transcribe_audio_local_whisper(audio_path: str) -> dict:
         
     try:
         model = get_whisper_model()
-        segments, info = model.transcribe(audio_path, language="zh", beam_size=5)
+        segments, info = model.transcribe(
+            audio_path,
+            language="zh",
+            beam_size=5,
+            word_timestamps=True,
+            vad_filter=True,
+            vad_parameters=dict(min_speech_duration_ms=250)
+        )
         
         subtitles = []
         for segment in segments:

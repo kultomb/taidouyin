@@ -377,14 +377,15 @@ def _compute_actual_timeline(segments: list) -> list:
                     f"mượn {needed_extra:.2f}s từ gap"
                 )
             else:
-                # Không đủ gap → tăng tốc
+                # Không đủ gap → tăng tốc để vừa khít slot khả dụng (tối đa cho phép tăng tốc lên 1.4x để tránh méo tiếng quá nặng)
                 total_available = effective_dur + borrowable
-                speed_factor = min(tts_dur / total_available, MAX_SPEEDUP) if total_available > 0.1 else MAX_SPEEDUP
+                raw_speed = tts_dur / total_available if total_available > 0.1 else 1.0
+                speed_factor = min(raw_speed, 1.4)
                 actual_end = min(effective_end + borrowable, effective_end + tts_dur / speed_factor)
                 tts_dur = tts_dur / speed_factor
                 logger.info(
                     f"Segment {i}: TTS quá dài ({tts_dur*speed_factor:.1f}s vs available {total_available:.1f}s), "
-                    f"tăng tốc {speed_factor:.3f}x → {tts_dur:.1f}s"
+                    f"tăng tốc {speed_factor:.3f}x (yêu cầu gốc {raw_speed:.2f}x) → {tts_dur:.1f}s"
                 )
         else:
             # TTS ~= slot gốc

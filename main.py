@@ -269,7 +269,11 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                 f"[{i+1}] {t}" for i, t in enumerate(texts_to_translate) if t.strip()
             )
             prompt = (
-                "Translate each Chinese text below into natural, fluent Vietnamese suitable for spoken dubbing. "
+                "Translate each Chinese text below into natural, fluent Vietnamese suitable for spoken dubbing.\n\n"
+                "CRITICAL DUBBING TRANSLATION RULES:\n"
+                "1. Keep similar speaking duration as the original.\n"
+                "2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
+                "3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
                 "Return ONLY the translations, one per line, in the exact same order. "
                 "Do NOT add numbers or prefixes.\n\n" + batch_text
             )
