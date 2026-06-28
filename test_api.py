@@ -38,12 +38,13 @@ def test_translate_api():
     for i, t in enumerate(test_texts):
         print(f"  [{i+1}] {t}")
     
+    translated = False
     try:
         resp = requests.post(
             TRANSLATE_API_URL,
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=15
+            timeout=5
         )
         print(f"\nStatus: {resp.status_code}")
         print(f"Response: {resp.text[:500]}")
@@ -51,15 +52,44 @@ def test_translate_api():
         if resp.status_code == 200:
             data = resp.json()
             translations = data.get("translations", [])
-            print(f"\n✅ Dịch thành công ({len(translations)} câu):")
+            print(f"\n✅ Dịch thành công bằng Gist API ({len(translations)} câu):")
             for i, t in enumerate(translations):
                 print(f"  [{i+1}] {t}")
+            translated = True
         else:
-            print(f"❌ Lỗi HTTP {resp.status_code}")
-    except requests.exceptions.Timeout:
-        print("❌ TIMEOUT - API không phản hồi sau 15s")
+            print(f"❌ Gist API lỗi HTTP {resp.status_code}")
     except Exception as e:
-        print(f"❌ Lỗi: {e}")
+        print(f"⚠️ Gist API lỗi kết nối (DNS/Network): {str(e)[:150]}")
+
+    if not translated:
+        print("\n🌐 Đang tự động thử dịch dự phòng bằng Google Translate Web API...")
+        try:
+            google_translations = []
+            for text in test_texts:
+                url = "https://translate.googleapis.com/translate_a/single"
+                params = {
+                    "client": "gtx",
+                    "sl": "zh-CN",
+                    "tl": "vi",
+                    "dt": "t",
+                    "q": text
+                }
+                r = requests.get(url, params=params, timeout=5)
+                if r.status_code == 200:
+                    data = r.json()
+                    translated_parts = [part[0] for part in data[0] if part and part[0]]
+                    google_translations.append("".join(translated_parts))
+                else:
+                    google_translations.append("")
+            
+            if any(t.strip() for t in google_translations):
+                print(f"✅ Dịch dự phòng Google Translate thành công:")
+                for i, t in enumerate(google_translations):
+                    print(f"  [{i+1}] {t}")
+            else:
+                print("❌ Dịch dự phòng Google Translate thất bại.")
+        except Exception as ge:
+            print(f"❌ Lỗi dịch dự phòng Google: {ge}")
 
 
 # ──────────────────────────────────────────────
