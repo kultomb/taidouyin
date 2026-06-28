@@ -96,6 +96,66 @@ def _ocr_region(region_bgr: np.ndarray) -> str:
         return ""
 
 
+def _normalize_for_comparison(text: str) -> str:
+    """Loại bỏ khoảng trắng và dấu câu thông dụng tiếng Trung/Anh để so khớp trùng lặp."""
+    import string
+    puncts = string.punctuation + "，。！？；：（）“”‘’~…—_ "
+    return "".join(ch for ch in text.lower() if ch not in puncts)
+
+
+def _is_similar(s1: str, s2: str) -> bool:
+    """Kiểm tra độ tương đồng giữa 2 chuỗi để gộp phụ đề OCR bị nhiễu/lặp."""
+    import difflib
+    norm1 = _normalize_for_comparison(s1)
+    norm2 = _normalize_for_comparison(s2)
+    
+    if norm1 == norm2:
+        return True
+        
+    if not norm1 or not norm2:
+        return False
+        
+    # 1. Đo độ tương đồng ratio
+    ratio = difflib.SequenceMatcher(None, norm1, norm2).ratio()
+    if ratio >= 0.7:
+        return True
+        
+    # 2. Kiểm tra xem một chuỗi có chứa chuỗi kia hay không (ví dụ: "看清楚了" và "看清楚了LG")
+    if (norm1 in norm2 or norm2 in norm1) and min(len(norm1), len(norm2)) >= 2:
+        return True
+        
+    # 3. Kiểm tra tiền tố / hậu tố chung chiếm đa số độ dài
+    min_len = min(len(norm1), len(norm2))
+    if min_len >= 3:
+        # Tiền tố chung
+        pref_len = 0
+        while pref_len < min_len and norm1[pref_len] == norm2[pref_len]:
+            pref_len += 1
+        # Hậu tố chung
+        suff_len = 0
+        while suff_len < min_len and norm1[len(norm1) - 1 - suff_len] == norm2[len(norm2) - 1 - suff_len]:
+            suff_len += 1
+            
+        if (pref_len / min_len) >= 0.6 or (suff_len / min_len) >= 0.6:
+            return True
+            
+    return False
+
+
+def _choose_better_text(t1: str, t2: str) -> str:
+    """Chọn chuỗi có tỷ lệ ký tự CJK (tiếng Trung) cao hơn để loại bỏ rác OCR Latin/số."""
+    if not t1:
+        return t2
+    if not t2:
+        return t1
+        
+    def score(t):
+        cjk = sum(1 for ch in t if '\u4e00' <= ch <= '\u9fff' or '\u3400' <= ch <= '\u4dbf')
+        return cjk / len(t)
+        
+    return t1 if score(t1) >= score(t2) else t2
+
+
 def extract_subtitle_segments(
     video_path: str,
     y_start_ratio: float,
@@ -192,7 +252,14 @@ def extract_subtitle_segments(
                 if new_text and len(new_text) < MIN_TEXT_LEN:
                     new_text = ""
 
-                if new_text != cur_text:
+                # Check similarity: nếu new_text tương đồng với cur_text, ta coi như cùng một phụ đề
+                is_same_sub = False
+                if cur_text and new_text and _is_similar(cur_text, new_text):
+                    is_same_sub = True
+                    # Cập nhật sang chuỗi tốt/sạch hơn
+                    cur_text = _choose_better_text(cur_text, new_text)
+
+                if new_text != cur_text and not is_same_sub:
                     # Đóng segment cũ
                     if cur_text and cur_start is not None:
                         dur = ts - cur_start
@@ -223,8 +290,26 @@ def extract_subtitle_segments(
         })
         _log(f"  [{cur_start:.2f}s–{seg_end:.2f}s] '{cur_text[:50]}'")
 
+    # Gộp các đoạn phụ đề trùng lặp liên tiếp có khoảng cách nhỏ (<= 1.5s)
+    merged_segments = []
+    if segments:
+        _log("Đang gộp các đoạn phụ đề OCR trùng lặp liên tiếp...")
+        prev = segments[0]
+        for cur in segments[1:]:
+            gap = cur["start"] - prev["end"]
+            norm_cur = _normalize_for_comparison(cur["text"])
+            norm_prev = _normalize_for_comparison(prev["text"])
+            if norm_cur == norm_prev and gap <= 1.5:
+                prev["end"] = max(prev["end"], cur["end"])
+                _log(f"  Gộp đoạn trùng lặp: '{prev['text'][:30]}' -> {prev['start']:.2f}s–{prev['end']:.2f}s")
+            else:
+                merged_segments.append(prev)
+                prev = cur
+        merged_segments.append(prev)
+        segments = merged_segments
+
     _log(
         f"✅ Quét xong: {frame_count} frames sampled | "
-        f"{ocr_count} lần OCR | {len(segments)} đoạn phụ đề tìm được."
+        f"{ocr_count} lần OCR | {len(segments)} đoạn phụ đề tìm được (sau khi gộp trùng lặp)."
     )
     return segments
