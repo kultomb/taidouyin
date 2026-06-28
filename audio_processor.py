@@ -187,17 +187,20 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
     # Bước 2: Tạo danh sách đầu vào và xây dựng chuỗi bộ lọc phức hợp (filter_complex)
     cmd = ["ffmpeg", "-y"]
     
-    # Đầu vào 0: tạo luồng âm thanh lặng có độ dài bằng đúng video_duration làm nền
-    cmd.extend(["-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo"])
+    # Tạo tệp tin âm lặng nền có độ dài bằng đúng video_duration để làm nền (tránh lavfi sync issues)
+    silence_base_path = os.path.join(tempfile.gettempdir(), "_silence_base.mp3")
+    _generate_silence(silence_base_path, video_duration)
+    
+    # Đầu vào 0: tệp âm lặng nền
+    cmd.extend(["-i", silence_base_path])
     
     # Thêm các file âm thanh TTS làm đầu vào tiếp theo (từ 1 đến N)
     for seg in valid_segments:
         cmd.extend(["-i", seg["audio_path"]])
         
     # Xây dựng filter_complex
-    # Cắt luồng âm lặng nền ở giây video_duration
-    filter_parts = [f"[0:a]atrim=end={video_duration:.3f}[bg]"]
-    mix_labels = ["[bg]"]
+    filter_parts = []
+    mix_labels = ["[0:a]"]
     
     for idx, seg in enumerate(valid_segments):
         input_label = f"[{idx+1}:a]"
@@ -211,8 +214,8 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
         filter_parts.append(f"{input_label}adelay={delay_ms}|{delay_ms}{output_label}")
         mix_labels.append(output_label)
         
-    # Trộn tất cả luồng đã được delay với nền âm lặng
-    filter_parts.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:dropout_transition=0[out]")
+    # Trộn tất cả luồng đã được delay với nền âm lặng (Sử dụng normalize=0 để giữ nguyên âm lượng gốc)
+    filter_parts.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:dropout_transition=0:normalize=0[out]")
     
     # Ghi filter_complex ra tệp script tạm thời để tránh giới hạn độ dài dòng lệnh trên Windows
     filter_script_path = os.path.join(tempfile.gettempdir(), "_tts_filter_script.txt")
@@ -232,6 +235,12 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
         # Fallback tạo file im lặng nếu lỗi
         _generate_silence(output_path, max(1.0, video_duration))
     finally:
+        # Dọn dẹp tệp base im lặng
+        if os.path.exists(silence_base_path):
+            try:
+                os.remove(silence_base_path)
+            except OSError:
+                pass
         # Dọn dẹp tệp filter script tạm
         if os.path.exists(filter_script_path):
             try:
