@@ -203,7 +203,7 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
     translated = False
 
     if provider == "gist":
-        # Gist API miễn phí — chỉ dùng Gist, không fallback Gemini
+        # Gist API miễn phí — chỉ dùng Gist, tự động fallback sang Google Translate Web nếu lỗi
         import requests as req
         GIST_URL = "https://http-honyaku-kiban-production-80.schnworks.com/translation/language/translate/v2"
         log_func(f"🌐 Gist API: Đang dịch {len(texts_to_translate)} đoạn (miễn phí)...")
@@ -222,13 +222,43 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                     translated = True
                     log_func(f"✅ Gist API dịch thành công {len(translations)} đoạn.")
                 else:
-                    log_func("⚠️ Gist API trả về kết quả rỗng. SRT sẽ có text gốc.")
-            elif resp.status_code == 404:
-                log_func("⚠️ Gist API endpoint không tồn tại (404). API có thể đã đổi URL.")
+                    log_func("⚠️ Gist API trả về kết quả rỗng.")
             else:
-                log_func(f"⚠️ Gist API lỗi HTTP {resp.status_code}. SRT sẽ có text gốc.")
+                log_func(f"⚠️ Gist API lỗi HTTP {resp.status_code}.")
         except Exception as e:
-            log_func(f"⚠️ Gist API không phản hồi: {str(e)[:100]}. SRT sẽ có text gốc.")
+            log_func(f"⚠️ Gist API lỗi kết nối: {str(e)[:100]}")
+
+        # Tự động fallback sang Google Translate Web API miễn phí nếu Gist thất bại
+        if not translated:
+            log_func("🌐 Gist API thất bại. Đang tự động chuyển sang dịch bằng Google Translate miễn phí...")
+            try:
+                google_translations = []
+                for text in texts_to_translate:
+                    if not text.strip():
+                        google_translations.append("")
+                        continue
+                    url = "https://translate.googleapis.com/translate_a/single"
+                    params = {
+                        "client": "gtx",
+                        "sl": "zh-CN",
+                        "tl": "vi",
+                        "dt": "t",
+                        "q": text
+                    }
+                    r = req.get(url, params=params, timeout=10)
+                    if r.status_code == 200:
+                        data = r.json()
+                        translated_parts = [part[0] for part in data[0] if part and part[0]]
+                        google_translations.append("".join(translated_parts))
+                    else:
+                        google_translations.append("")
+                
+                if any(t.strip() for t in google_translations):
+                    translations = google_translations
+                    translated = True
+                    log_func(f"✅ Google Translate dịch thành công {len(translations)} đoạn phụ đề.")
+            except Exception as ge:
+                log_func(f"⚠️ Google Translate lỗi: {str(ge)[:100]}")
 
     else:  # gemini
         # Gemini Vertex — chỉ dùng Gemini
