@@ -54,6 +54,8 @@ class ResumeRequest(BaseModel):
     use_ocr: bool
     y_start: float = 0.80
     y_end: float = 0.95
+    x_start: float = 0.0
+    x_end: float = 1.0
 
 def run_pipeline_phase1(job_id: str, url: str):
     job = jobs[job_id]
@@ -242,7 +244,7 @@ def align_ocr_with_asr_timestamps(ocr_subs: list, asr_subs: list, log_func) -> l
     return checked_subs
 
 
-def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float):
+def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float, x_start: float = 0.0, x_end: float = 1.0):
     job = jobs[job_id]
     job_folder = job["job_folder"]
     video_path = job["original_video"]
@@ -296,6 +298,8 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                     video_path=video_path,
                     y_start_ratio=y_start,
                     y_end_ratio=y_end,
+                    x_start_ratio=x_start,
+                    x_end_ratio=x_end,
                     log_func=log,
                 )
             except Exception as e:
@@ -530,7 +534,7 @@ def resume_translation(job_id: str, request: ResumeRequest):
     # Khởi chạy luồng xử lý Phase 2
     thread = threading.Thread(
         target=run_pipeline_phase2,
-        args=(job_id, request.use_ocr, request.y_start, request.y_end),
+        args=(job_id, request.use_ocr, request.y_start, request.y_end, request.x_start, request.x_end),
         daemon=True
     )
     thread.start()

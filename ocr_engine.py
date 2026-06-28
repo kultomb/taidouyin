@@ -87,6 +87,8 @@ def extract_subtitle_segments(
     video_path: str,
     y_start_ratio: float,
     y_end_ratio: float,
+    x_start_ratio: float = 0.0,
+    x_end_ratio: float = 1.0,
     sample_fps: float = SAMPLE_FPS,
     change_threshold: float = CHANGE_THRESH,
     log_func: Optional[Callable] = None,
@@ -98,6 +100,8 @@ def extract_subtitle_segments(
         video_path:       đường dẫn video
         y_start_ratio:    viền trên vùng phụ đề (0.0–1.0 chiều cao)
         y_end_ratio:      viền dưới vùng phụ đề (0.0–1.0 chiều cao)
+        x_start_ratio:    viền trái vùng phụ đề (0.0–1.0 chiều rộng)
+        x_end_ratio:      viền phải vùng phụ đề (0.0–1.0 chiều rộng)
         sample_fps:       số frame/giây sample
         change_threshold: mean pixel diff để trigger re-OCR
         log_func:         callback log
@@ -120,10 +124,12 @@ def extract_subtitle_segments(
     frame_step = max(1, int(round(native_fps / sample_fps)))
     y0 = max(0,     int(vid_h * y_start_ratio))
     y1 = min(vid_h, int(vid_h * y_end_ratio))
+    x0 = max(0,     int(vid_w * x_start_ratio))
+    x1 = min(vid_w, int(vid_w * x_end_ratio))
 
     _log(
         f"Video: {vid_w}×{vid_h} @ {native_fps:.1f}fps, {duration:.1f}s | "
-        f"Vùng phụ đề: y=[{y0}–{y1}px] | Sample mỗi {frame_step} frame (~{sample_fps}fps)"
+        f"Vùng phụ đề: x=[{x0}–{x1}px], y=[{y0}–{y1}px] | Sample mỗi {frame_step} frame (~{sample_fps}fps)"
     )
     _log("Khởi động RapidOCR (PaddleOCR ONNX)...")
     _get_ocr()  # warm-up
@@ -146,7 +152,7 @@ def extract_subtitle_segments(
 
         if frame_idx % frame_step == 0:
             ts     = frame_idx / native_fps
-            region = frame[y0:y1, 0:vid_w]
+            region = frame[y0:y1, x0:x1]
             gray   = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
             clean  = cv2.morphologyEx(gray, cv2.MORPH_OPEN, morph_k)
 

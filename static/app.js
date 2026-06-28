@@ -182,17 +182,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'awaiting_ocr_selection') {
                 clearInterval(pollInterval);
                 currentJobId = jobId;
-                
+
                 // Show OCR panel and load video
                 processingCard.classList.add('hidden');
                 ocrSelectionCard.classList.remove('hidden');
-                
+
                 const videoUrl = data.result.original_video_url;
                 ocrVideoPlayer.src = videoUrl;
                 ocrVideoPlayer.load();
-                
+
                 appendLogLine('Video gốc đã tải xong. Hãy kéo chỉnh dải màu sáng đè lên khu vực chạy chữ phụ đề của video và nhấn "Bắt đầu quét OCR phụ đề".', 'success');
-                
+
                 // Smooth scroll to OCR Selection Workspace và tính lại kích thước phủ hợp video
                 setTimeout(() => {
                     ocrSelectionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const width = videoEl.clientWidth;
         const height = videoEl.clientHeight;
         const elementRatio = width / height;
-        
+
         let renderedWidth, renderedHeight;
         if (elementRatio > videoRatio) {
             // Rendered video is limited by height (has letterboxes on left/right)
@@ -296,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderedWidth = width;
             renderedHeight = width / videoRatio;
         }
-        
+
         return {
             width: renderedWidth,
             height: renderedHeight,
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateOverlaySize() {
         if (!ocrVideoPlayer.videoWidth || !ocrVideoPlayer.videoHeight) return;
         const size = getRenderedVideoSize(ocrVideoPlayer);
-        
+
         ocrCropOverlay.style.width = `${size.width}px`;
         ocrCropOverlay.style.height = `${size.height}px`;
         ocrCropOverlay.style.top = `${size.top}px`;
@@ -324,52 +324,149 @@ document.addEventListener('DOMContentLoaded', () => {
     const ocrCropOverlay = document.getElementById('ocrCropOverlay');
     const ocrCropBox = document.getElementById('ocrCropBox');
     let isDragging = false;
-    let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom'
+    let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom', 'resize-left', 'resize-right', 'move-all'
+    let startX = 0;
     let startY = 0;
-    let startTop = 85;   // percentage
-    let startHeight = 8; // percentage
+    let startTop = 85;      // percentage
+    let startHeight = 8;    // percentage
+    let startLeft = 10;     // percentage
+    let startWidth = 80;    // percentage
+
+    // Init default X-axis
+    ocrCropBox.style.left = `${startLeft}%`;
+    ocrCropBox.style.width = `${startWidth}%`;
 
     ocrCropBox.addEventListener('mousedown', (e) => {
         isDragging = true;
+        startX = e.clientX;
         startY = e.clientY;
-        
+
         const rect = ocrCropBox.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
-        if (clickY <= 15) {
+
+        // Ưu tiên góc → resize 2 chiều
+        if (clickX <= 15 && clickY <= 15) {
+            dragType = 'resize-topleft';
+        } else if (clickX >= rect.width - 15 && clickY <= 15) {
+            dragType = 'resize-topright';
+        } else if (clickX <= 15 && clickY >= rect.height - 15) {
+            dragType = 'resize-bottomleft';
+        } else if (clickX >= rect.width - 15 && clickY >= rect.height - 15) {
+            dragType = 'resize-bottomright';
+        } else if (clickX <= 15) {
+            dragType = 'resize-left';
+        } else if (clickX >= rect.width - 15) {
+            dragType = 'resize-right';
+        } else if (clickY <= 15) {
             dragType = 'resize-top';
         } else if (clickY >= rect.height - 15) {
             dragType = 'resize-bottom';
         } else {
-            dragType = 'move';
+            dragType = 'move-all';
         }
-        
+
         startTop = parseFloat(ocrCropBox.style.top || '85');
         startHeight = parseFloat(ocrCropBox.style.height || '8');
-        
+        startLeft = parseFloat(ocrCropBox.style.left || '10');
+        startWidth = parseFloat(ocrCropBox.style.width || '80');
+
         e.preventDefault();
     });
 
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        
+
         const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaX = ((e.clientX - startX) / overlayRect.width) * 100;
         const deltaY = ((e.clientY - startY) / overlayRect.height) * 100;
-        
-        if (dragType === 'move') {
-            let newTop = startTop + deltaY;
-            newTop = Math.max(0, Math.min(100 - startHeight, newTop));
-            ocrCropBox.style.top = `${newTop}%`;
-        } else if (dragType === 'resize-top') {
-            let newTop = startTop + deltaY;
-            let newHeight = startHeight - deltaY;
-            if (newTop >= 0 && newHeight >= 5) {
+
+        switch (dragType) {
+            case 'move-all': {
+                let newTop = startTop + deltaY;
+                let newLeft = startLeft + deltaX;
+                newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+                newLeft = Math.max(0, Math.min(100 - startWidth, newLeft));
                 ocrCropBox.style.top = `${newTop}%`;
-                ocrCropBox.style.height = `${newHeight}%`;
+                ocrCropBox.style.left = `${newLeft}%`;
+                break;
             }
-        } else if (dragType === 'resize-bottom') {
-            let newHeight = startHeight + deltaY;
-            if (startTop + newHeight <= 100 && newHeight >= 5) {
-                ocrCropBox.style.height = `${newHeight}%`;
+            case 'resize-top': {
+                let newTop = startTop + deltaY;
+                let newHeight = startHeight - deltaY;
+                if (newTop >= 0 && newHeight >= 5) {
+                    ocrCropBox.style.top = `${newTop}%`;
+                    ocrCropBox.style.height = `${newHeight}%`;
+                }
+                break;
+            }
+            case 'resize-bottom': {
+                let newHeight = startHeight + deltaY;
+                if (startTop + newHeight <= 100 && newHeight >= 5) {
+                    ocrCropBox.style.height = `${newHeight}%`;
+                }
+                break;
+            }
+            case 'resize-left': {
+                let newLeft = startLeft + deltaX;
+                let newWidth = startWidth - deltaX;
+                if (newLeft >= 0 && newWidth >= 10) {
+                    ocrCropBox.style.left = `${newLeft}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            case 'resize-right': {
+                let newWidth = startWidth + deltaX;
+                if (startLeft + newWidth <= 100 && newWidth >= 10) {
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            // 4 góc — resize cả 2 chiều
+            case 'resize-topleft': {
+                let newTop = startTop + deltaY;
+                let newHeight = startHeight - deltaY;
+                let newLeft = startLeft + deltaX;
+                let newWidth = startWidth - deltaX;
+                if (newTop >= 0 && newHeight >= 5 && newLeft >= 0 && newWidth >= 10) {
+                    ocrCropBox.style.top = `${newTop}%`;
+                    ocrCropBox.style.height = `${newHeight}%`;
+                    ocrCropBox.style.left = `${newLeft}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            case 'resize-topright': {
+                let newTop = startTop + deltaY;
+                let newHeight = startHeight - deltaY;
+                let newWidth = startWidth + deltaX;
+                if (newTop >= 0 && newHeight >= 5 && startLeft + newWidth <= 100 && newWidth >= 10) {
+                    ocrCropBox.style.top = `${newTop}%`;
+                    ocrCropBox.style.height = `${newHeight}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            case 'resize-bottomleft': {
+                let newHeight = startHeight + deltaY;
+                let newLeft = startLeft + deltaX;
+                let newWidth = startWidth - deltaX;
+                if (startTop + newHeight <= 100 && newHeight >= 5 && newLeft >= 0 && newWidth >= 10) {
+                    ocrCropBox.style.height = `${newHeight}%`;
+                    ocrCropBox.style.left = `${newLeft}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            case 'resize-bottomright': {
+                let newHeight = startHeight + deltaY;
+                let newWidth = startWidth + deltaX;
+                if (startTop + newHeight <= 100 && newHeight >= 5 && startLeft + newWidth <= 100 && newWidth >= 10) {
+                    ocrCropBox.style.height = `${newHeight}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
             }
         }
     });
@@ -383,21 +480,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.touches.length !== 1) return;
         isDragging = true;
         const touch = e.touches[0];
+        startX = touch.clientX;
         startY = touch.clientY;
-        
+
         const rect = ocrCropBox.getBoundingClientRect();
+        const clickX = touch.clientX - rect.left;
         const clickY = touch.clientY - rect.top;
-        if (clickY <= 20) {
-            dragType = 'resize-top';
-        } else if (clickY >= rect.height - 20) {
-            dragType = 'resize-bottom';
-        } else {
-            dragType = 'move';
-        }
-        
+
+        if (clickX <= 20 && clickY <= 20) dragType = 'resize-topleft';
+        else if (clickX >= rect.width - 20 && clickY <= 20) dragType = 'resize-topright';
+        else if (clickX <= 20 && clickY >= rect.height - 20) dragType = 'resize-bottomleft';
+        else if (clickX >= rect.width - 20 && clickY >= rect.height - 20) dragType = 'resize-bottomright';
+        else if (clickX <= 20) dragType = 'resize-left';
+        else if (clickX >= rect.width - 20) dragType = 'resize-right';
+        else if (clickY <= 20) dragType = 'resize-top';
+        else if (clickY >= rect.height - 20) dragType = 'resize-bottom';
+        else dragType = 'move-all';
+
         startTop = parseFloat(ocrCropBox.style.top || '85');
         startHeight = parseFloat(ocrCropBox.style.height || '8');
-        
+        startLeft = parseFloat(ocrCropBox.style.left || '10');
+        startWidth = parseFloat(ocrCropBox.style.width || '80');
+
         e.preventDefault();
     });
 
@@ -405,23 +509,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDragging || e.touches.length !== 1) return;
         const touch = e.touches[0];
         const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaX = ((touch.clientX - startX) / overlayRect.width) * 100;
         const deltaY = ((touch.clientY - startY) / overlayRect.height) * 100;
-        
-        if (dragType === 'move') {
-            let newTop = startTop + deltaY;
-            newTop = Math.max(0, Math.min(100 - startHeight, newTop));
-            ocrCropBox.style.top = `${newTop}%`;
-        } else if (dragType === 'resize-top') {
-            let newTop = startTop + deltaY;
-            let newHeight = startHeight - deltaY;
-            if (newTop >= 0 && newHeight >= 5) {
+
+        switch (dragType) {
+            case 'move-all': {
+                let newTop = startTop + deltaY;
+                let newLeft = startLeft + deltaX;
+                newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+                newLeft = Math.max(0, Math.min(100 - startWidth, newLeft));
                 ocrCropBox.style.top = `${newTop}%`;
-                ocrCropBox.style.height = `${newHeight}%`;
+                ocrCropBox.style.left = `${newLeft}%`;
+                break;
             }
-        } else if (dragType === 'resize-bottom') {
-            let newHeight = startHeight + deltaY;
-            if (startTop + newHeight <= 100 && newHeight >= 5) {
-                ocrCropBox.style.height = `${newHeight}%`;
+            case 'resize-top': {
+                let newTop = startTop + deltaY;
+                let newHeight = startHeight - deltaY;
+                if (newTop >= 0 && newHeight >= 5) {
+                    ocrCropBox.style.top = `${newTop}%`;
+                    ocrCropBox.style.height = `${newHeight}%`;
+                }
+                break;
+            }
+            case 'resize-bottom': {
+                let newHeight = startHeight + deltaY;
+                if (startTop + newHeight <= 100 && newHeight >= 5) {
+                    ocrCropBox.style.height = `${newHeight}%`;
+                }
+                break;
+            }
+            case 'resize-left': {
+                let newLeft = startLeft + deltaX;
+                let newWidth = startWidth - deltaX;
+                if (newLeft >= 0 && newWidth >= 10) {
+                    ocrCropBox.style.left = `${newLeft}%`;
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
+            }
+            case 'resize-right': {
+                let newWidth = startWidth + deltaX;
+                if (startLeft + newWidth <= 100 && newWidth >= 10) {
+                    ocrCropBox.style.width = `${newWidth}%`;
+                }
+                break;
             }
         }
     });
@@ -434,13 +565,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function resumeJob(jobId, useOcr) {
         ocrSelectionCard.classList.add('hidden');
         processingCard.classList.remove('hidden');
-        
+
         const y_start = parseFloat(ocrCropBox.style.top || '85') / 100;
         const y_height = parseFloat(ocrCropBox.style.height || '8') / 100;
         const y_end = y_start + y_height;
-        
-        appendLogLine(`[GỬI CẤU HÌNH] Chạy quy trình tiếp tục: Dùng OCR = ${useOcr}, Y-axis = [${y_start.toFixed(2)}, ${y_end.toFixed(2)}]`, 'info');
-        
+        const x_start = parseFloat(ocrCropBox.style.left || '10') / 100;
+        const x_width = parseFloat(ocrCropBox.style.width || '80') / 100;
+        const x_end = x_start + x_width;
+
+        appendLogLine(`[GỬI CẤU HÌNH] OCR: X=[${x_start.toFixed(2)},${x_end.toFixed(2)}] Y=[${y_start.toFixed(2)},${y_end.toFixed(2)}]`, 'info');
+
         try {
             const response = await fetch(`/api/translate/resume/${jobId}`, {
                 method: 'POST',
@@ -448,19 +582,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     use_ocr: useOcr,
                     y_start: y_start,
-                    y_end: y_end
+                    y_end: y_end,
+                    x_start: x_start,
+                    x_end: x_end
                 })
             });
-            
+
             if (!response.ok) {
                 throw new Error('Lỗi phản hồi từ máy chủ.');
             }
-            
+
             // Re-start status polling
             displayedLogCount = 0; // reset logs display
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(() => pollJobStatus(jobId), 1200);
-            
+
         } catch (err) {
             appendLogLine(`Lỗi khi tiếp tục tiến trình: ${err.message}`, 'error');
             submitBtn.disabled = false;
