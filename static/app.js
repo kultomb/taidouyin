@@ -326,8 +326,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDragging = false;
     let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom'
     let startY = 0;
-    let startTop = 80;   // percentage
-    let startHeight = 15; // percentage
+    let startTop = 85;   // percentage
+    let startHeight = 8; // percentage
 
     ocrCropBox.addEventListener('mousedown', (e) => {
         isDragging = true;
@@ -343,8 +343,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dragType = 'move';
         }
         
-        startTop = parseFloat(ocrCropBox.style.top || '80');
-        startHeight = parseFloat(ocrCropBox.style.height || '15');
+        startTop = parseFloat(ocrCropBox.style.top || '85');
+        startHeight = parseFloat(ocrCropBox.style.height || '8');
         
         e.preventDefault();
     });
@@ -395,8 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dragType = 'move';
         }
         
-        startTop = parseFloat(ocrCropBox.style.top || '80');
-        startHeight = parseFloat(ocrCropBox.style.height || '15');
+        startTop = parseFloat(ocrCropBox.style.top || '85');
+        startHeight = parseFloat(ocrCropBox.style.height || '8');
         
         e.preventDefault();
     });
@@ -435,8 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ocrSelectionCard.classList.add('hidden');
         processingCard.classList.remove('hidden');
         
-        const y_start = parseFloat(ocrCropBox.style.top || '80') / 100;
-        const y_height = parseFloat(ocrCropBox.style.height || '15') / 100;
+        const y_start = parseFloat(ocrCropBox.style.top || '85') / 100;
+        const y_height = parseFloat(ocrCropBox.style.height || '8') / 100;
         const y_end = y_start + y_height;
         
         appendLogLine(`[GỬI CẤU HÌNH] Chạy quy trình tiếp tục: Dùng OCR = ${useOcr}, Y-axis = [${y_start.toFixed(2)}, ${y_end.toFixed(2)}]`, 'info');
