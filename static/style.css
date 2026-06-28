@@ -924,30 +924,29 @@ body {
     position: absolute;
     left: 0;
     width: 100%;
-    height: 10px;
+    height: 2px;
     background-color: var(--accent);
     cursor: ns-resize;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     transition: var(--transition);
 }
 
-.ocr-resize-handle::after {
+/* Tăng diện tích click/tập trung chuột mà không làm dày thanh hiển thị */
+.ocr-resize-handle::before {
     content: "";
-    display: block;
-    width: 36px;
-    height: 3px;
-    background-color: #fff;
-    border-radius: 2px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -10px;
+    bottom: -10px;
+    background: transparent;
 }
 
 .ocr-resize-handle.top {
-    top: -5px;
+    top: -1px;
 }
 
 .ocr-resize-handle.bottom {
-    bottom: -5px;
+    bottom: -1px;
 }
 
 .ocr-resize-label {
