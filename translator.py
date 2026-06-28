@@ -298,7 +298,13 @@ def transcribe_audio_local_whisper(audio_path: str) -> dict:
         
     try:
         model = get_whisper_model()
-        segments, info = model.transcribe(audio_path, language="zh", beam_size=5)
+        segments, info = model.transcribe(
+            audio_path,
+            language="zh",
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_speech_duration_ms=250)
+        )
         
         subtitles = []
         for segment in segments:
