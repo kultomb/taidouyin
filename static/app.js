@@ -193,10 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 appendLogLine('Video gốc đã tải xong. Hãy kéo chỉnh dải màu sáng đè lên khu vực chạy chữ phụ đề của video và nhấn "Bắt đầu quét OCR phụ đề".', 'success');
                 
-                // Smooth scroll to OCR Selection Workspace
+                // Smooth scroll to OCR Selection Workspace và tính lại kích thước phủ hợp video
                 setTimeout(() => {
                     ocrSelectionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (typeof updateOverlaySize === 'function') updateOverlaySize();
                 }, 300);
+                setTimeout(() => {
+                    if (typeof updateOverlaySize === 'function') updateOverlaySize();
+                }, 800);
 
             } else if (data.status === 'completed') {
                 clearInterval(pollInterval);
@@ -274,6 +278,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Dynamic overlay resizing to match actual rendered video dimensions (handling letterboxing)
+    function getRenderedVideoSize(videoEl) {
+        const videoRatio = videoEl.videoWidth / videoEl.videoHeight;
+        const width = videoEl.clientWidth;
+        const height = videoEl.clientHeight;
+        const elementRatio = width / height;
+        
+        let renderedWidth, renderedHeight;
+        if (elementRatio > videoRatio) {
+            // Rendered video is limited by height (has letterboxes on left/right)
+            renderedHeight = height;
+            renderedWidth = height * videoRatio;
+        } else {
+            // Rendered video is limited by width (has letterboxes on top/bottom)
+            renderedWidth = width;
+            renderedHeight = width / videoRatio;
+        }
+        
+        return {
+            width: renderedWidth,
+            height: renderedHeight,
+            top: (height - renderedHeight) / 2,
+            left: (width - renderedWidth) / 2
+        };
+    }
+
+    function updateOverlaySize() {
+        if (!ocrVideoPlayer.videoWidth || !ocrVideoPlayer.videoHeight) return;
+        const size = getRenderedVideoSize(ocrVideoPlayer);
+        
+        ocrCropOverlay.style.width = `${size.width}px`;
+        ocrCropOverlay.style.height = `${size.height}px`;
+        ocrCropOverlay.style.top = `${size.top}px`;
+        ocrCropOverlay.style.left = `${size.left}px`;
+    }
+
+    ocrVideoPlayer.addEventListener('loadedmetadata', updateOverlaySize);
+    ocrVideoPlayer.addEventListener('canplay', updateOverlaySize);
+    ocrVideoPlayer.addEventListener('play', updateOverlaySize);
+    window.addEventListener('resize', updateOverlaySize);
 
     // Crop selection box dragging/resizing logic
     const ocrCropOverlay = document.getElementById('ocrCropOverlay');
