@@ -35,13 +35,17 @@ def detect_speaker_gender(speaker_name: str) -> str:
         return "male"
     return "female"
 
-def get_edge_voice(speaker_name: str) -> str:
+def get_edge_voice(speaker_name: str, voice_map: dict = None) -> str:
     """Lấy giọng edge-tts theo speaker."""
+    if voice_map and speaker_name in voice_map:
+        return voice_map[speaker_name]
     gender = detect_speaker_gender(speaker_name)
     return EDGE_VOICES.get(gender, EDGE_VOICES["default"])
 
-def get_google_voice(speaker_name: str) -> str:
+def get_google_voice(speaker_name: str, voice_map: dict = None) -> str:
     """Lấy giọng Google Cloud TTS theo speaker."""
+    if voice_map and speaker_name in voice_map:
+        return voice_map[speaker_name]
     gender = detect_speaker_gender(speaker_name)
     return GOOGLE_VOICES.get(gender, GOOGLE_VOICES["default"])
 
@@ -126,8 +130,8 @@ class EdgeTTSProvider:
     """edge-tts: miễn phí, Microsoft Neural voices."""
     name = "edge"
 
-    def synthesize(self, text: str, speaker: str, output_path: str):
-        voice = get_edge_voice(speaker)
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None):
+        voice = get_edge_voice(speaker, voice_map)
         logger.info(f"[edge-tts] '{text[:30]}...' -> {voice}")
         async def _run():
             await edge_tts.Communicate(text, voice).save(output_path)
@@ -152,9 +156,9 @@ class GoogleTTSProvider:
             self._client = texttospeech.TextToSpeechClient()
         return self._client
 
-    def synthesize(self, text: str, speaker: str, output_path: str):
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None):
         from google.cloud import texttospeech
-        voice_name = get_google_voice(speaker)
+        voice_name = get_google_voice(speaker, voice_map)
         logger.info(f"[Google TTS] '{text[:30]}...' -> {voice_name}")
 
         synthesis_input = texttospeech.SynthesisInput(text=text)
@@ -184,16 +188,16 @@ class GoogleTTSProvider:
 # Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5 để tránh rate limit)
 TTS_CONCURRENCY = {"edge": 10, "google": 5}
 
-async def _synthesize_edge_async(text: str, speaker: str, output_path: str):
+async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None):
     """edge-tts async wrapper."""
-    voice = get_edge_voice(speaker)
+    voice = get_edge_voice(speaker, voice_map)
     await edge_tts.Communicate(text, voice).save(output_path)
 
-def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str):
+def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None):
     """Google TTS sync wrapper (dùng trong thread pool)."""
-    tts.synthesize(text, speaker, output_path)
+    tts.synthesize(text, speaker, output_path, voice_map)
 
-async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str) -> tuple:
+async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None) -> tuple:
     """
     Tạo TTS song song cho tất cả segment.
     Returns: (updated_subtitles, failure_count)
@@ -226,10 +230,10 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                 loop = asyncio.get_event_loop()
                 if provider == "google":
                     await loop.run_in_executor(
-                        None, _synthesize_google_sync, tts, text, speaker, file_path
+                        None, _synthesize_google_sync, tts, text, speaker, file_path, voice_map
                     )
                 else:
-                    await _synthesize_edge_async(text, speaker, file_path)
+                    await _synthesize_edge_async(text, speaker, file_path, voice_map)
                 
                 # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
                 trimmed_file_path = file_path + ".trimmed.mp3"
@@ -259,7 +263,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
 
 
 def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
-                                provider: str = "edge") -> list:
+                                provider: str = "edge", voice_map: dict = None) -> list:
     """
     Tạo file MP3 song song cho tất cả subtitle segment.
 
@@ -267,6 +271,7 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
         subtitles: list các segment có 'translation', 'speaker', 'start', 'end'
         output_dir: thư mục output
         provider: 'edge' (mặc định, miễn phí) hoặc 'google' (cao cấp)
+        voice_map: dict ánh xạ Speaker -> giọng đọc cụ thể (tùy chọn)
 
     Returns:
         list segment với thêm key 'audio_path', 'tts_duration'
@@ -280,7 +285,7 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     loop = asyncio.new_event_loop()
     try:
         updated_subtitles, google_failures = loop.run_until_complete(
-            _generate_tts_concurrent(subtitles, output_dir, provider)
+            _generate_tts_concurrent(subtitles, output_dir, provider, voice_map)
         )
     finally:
         loop.close()
@@ -293,7 +298,7 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
             f"Google Cloud TTS failed all {google_failures} segments! "
             f"Falling back to edge-tts..."
         )
-        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge")
+        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=voice_map)
     elif provider == "google" and google_failures > 0:
         logger.warning(f"Google Cloud TTS: {google_failures}/{len(subtitles)} segments failed.")
     
