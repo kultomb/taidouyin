@@ -335,6 +335,114 @@ body {
     margin-bottom: 12px;
 }
 
+/* TTS Selection Container & Cards */
+.tts-selection-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tts-option-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.tts-option-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tts-option-card.active {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.04);
+}
+
+.tts-option-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tts-radio-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--text-muted);
+    position: relative;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.tts-option-card.active .tts-radio-circle {
+    border-color: var(--accent);
+}
+
+.tts-option-card.active .tts-radio-circle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.tts-option-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.tts-option-info .tts-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.tts-option-info .tts-badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+}
+
+.tts-option-card.active .tts-option-info .tts-badge {
+    background: var(--accent);
+    color: #fff;
+}
+
+/* Voice Dropdown inside active card */
+.tts-voice-dropdown-wrapper {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.06);
+    display: none;
+    cursor: default;
+}
+
+.tts-option-card.active .tts-voice-dropdown-wrapper {
+    display: block;
+}
+
+.voice-mini-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
 /* Custom Select Dropdown Styling */
 .custom-select {
     position: relative;

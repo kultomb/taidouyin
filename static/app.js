@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitBtn');
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
-    const ttsToggleBtns = document.querySelectorAll('.tts-toggle-btn[data-tts]');
+    const ttsOptionCards = document.querySelectorAll('.tts-option-card');
     const asrToggleBtns = document.querySelectorAll('.asr-toggle-btn');
     const translateToggleBtns = document.querySelectorAll('.translate-toggle-btn');
     const processToggleBtns = document.querySelectorAll('.process-toggle-btn');
@@ -27,80 +27,94 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     };
 
-    const voiceTrigger = document.getElementById('voiceSelectTrigger');
-    const voiceOptionsContainer = document.getElementById('voiceOptionsContainer');
-    const voiceSelectedText = document.getElementById('voiceSelectedText');
-    const customSelect = document.getElementById('voiceCustomSelect');
-    let selectedVoice = '';
+    let selectedEdgeVoice = '';
+    let selectedGoogleVoice = '';
 
-    function updateVoiceOptions(provider) {
-        if (!voiceOptionsContainer) return;
-        voiceOptionsContainer.innerHTML = '';
-        const list = voices[provider] || [];
-        
-        list.forEach(v => {
+    const edgeSelect = document.getElementById('edgeVoiceSelect');
+    const edgeTrigger = document.getElementById('edgeVoiceTrigger');
+    const edgeOptionsContainer = document.getElementById('edgeVoiceOptions');
+    const edgeSelectedText = document.getElementById('edgeVoiceSelectedText');
+
+    const googleSelect = document.getElementById('googleVoiceSelect');
+    const googleTrigger = document.getElementById('googleVoiceTrigger');
+    const googleOptionsContainer = document.getElementById('googleVoiceOptions');
+    const googleSelectedText = document.getElementById('googleVoiceSelectedText');
+
+    function populateCustomSelect(container, triggerText, selectEl, optionsList, getVal, setVal) {
+        if (!container) return;
+        container.innerHTML = '';
+        optionsList.forEach(v => {
             const opt = document.createElement('div');
             opt.classList.add('custom-option');
-            if (v.value === selectedVoice) {
+            if (v.value === getVal()) {
                 opt.classList.add('selected');
-                voiceSelectedText.textContent = v.label;
+                triggerText.textContent = v.label;
             }
             opt.dataset.value = v.value;
             opt.textContent = v.label;
             
             opt.addEventListener('click', (e) => {
                 e.stopPropagation();
-                selectedVoice = v.value;
-                voiceSelectedText.textContent = v.label;
+                setVal(v.value);
+                triggerText.textContent = v.label;
                 
-                // Clear selected class from siblings
-                voiceOptionsContainer.querySelectorAll('.custom-option').forEach(child => {
-                    child.classList.remove('selected');
+                container.querySelectorAll('.custom-option').forEach(c => {
+                    c.classList.remove('selected');
                 });
                 opt.classList.add('selected');
-                
-                // Close select
-                customSelect.classList.remove('active');
+                selectEl.classList.remove('active');
             });
-            
-            voiceOptionsContainer.appendChild(opt);
+            container.appendChild(opt);
         });
-        
-        // Reset selected text if the voice does not belong to the new provider
-        const matchingVoice = list.find(v => v.value === selectedVoice);
-        if (!matchingVoice) {
-            selectedVoice = '';
-            const defaultVoice = list[0] || { label: "Tự động phân vai (Đa giọng Nam/Nữ)" };
-            voiceSelectedText.textContent = defaultVoice.label;
-            if (voiceOptionsContainer.firstChild) {
-                voiceOptionsContainer.firstChild.classList.add('selected');
-            }
-        }
     }
 
-    // Toggle dropdown
-    if (voiceTrigger && customSelect) {
-        voiceTrigger.addEventListener('click', (e) => {
+    populateCustomSelect(
+        edgeOptionsContainer,
+        edgeSelectedText,
+        edgeSelect,
+        voices.edge,
+        () => selectedEdgeVoice,
+        (val) => { selectedEdgeVoice = val; }
+    );
+
+    populateCustomSelect(
+        googleOptionsContainer,
+        googleSelectedText,
+        googleSelect,
+        voices.google,
+        () => selectedGoogleVoice,
+        (val) => { selectedGoogleVoice = val; }
+    );
+
+    if (edgeTrigger && edgeSelect) {
+        edgeTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
-            customSelect.classList.toggle('active');
-        });
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', () => {
-            customSelect.classList.remove('active');
+            if (googleSelect) googleSelect.classList.remove('active');
+            edgeSelect.classList.toggle('active');
         });
     }
 
-    // Initialize voice dropdown
-    updateVoiceOptions('edge');
+    if (googleTrigger && googleSelect) {
+        googleTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (edgeSelect) edgeSelect.classList.remove('active');
+            googleSelect.classList.toggle('active');
+        });
+    }
 
-    // TTS Toggle Buttons
-    ttsToggleBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            ttsToggleBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            selectedTtsProvider = btn.dataset.tts;
-            updateVoiceOptions(selectedTtsProvider);
+    document.addEventListener('click', () => {
+        if (edgeSelect) edgeSelect.classList.remove('active');
+        if (googleSelect) googleSelect.classList.remove('active');
+    });
+
+    ttsOptionCards.forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.custom-select')) {
+                return;
+            }
+            ttsOptionCards.forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            selectedTtsProvider = card.dataset.tts;
         });
     });
 
@@ -204,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const asrMode = selectedAsrMode;
         const translateProvider = selectedTranslateProvider;
         const processMode = selectedProcessMode;
-        const voiceName = selectedVoice;
+        const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : selectedGoogleVoice;
 
         // Reset UI States
         submitBtn.disabled = true;
