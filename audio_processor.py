@@ -144,12 +144,15 @@ def mix_audio_and_video(
     cmd.extend(["-c:v", "copy"])
     cmd.extend(["-c:a", "aac", "-b:a", "192k"])
     
-    # Burn subtitles nếu cần
+    # Burn subtitles nếu cần (hỗ trợ cả SRT và ASS)
     if burn_subtitles and srt_path and os.path.exists(srt_path):
         idx_copy = cmd.index("copy")
         cmd[idx_copy] = "libx264"
-        escaped_srt_path = srt_path.replace("\\", "/").replace(":", "\\:")
-        cmd.extend(["-vf", f"subtitles='{escaped_srt_path}'"])
+        escaped_sub_path = srt_path.replace("\\", "/").replace(":", "\\:")
+        if srt_path.endswith(".ass"):
+            cmd.extend(["-vf", f"ass='{escaped_sub_path}'"])
+        else:
+            cmd.extend(["-vf", f"subtitles='{escaped_sub_path}'"])
     
     cmd.extend(["-movflags", "+faststart"])
     cmd.append(output_video_path)

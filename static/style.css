@@ -723,6 +723,7 @@ body {
     transition: var(--transition);
     vertical-align: middle;
 }
+
 .btn-mini-toggle.active {
     background: var(--accent);
     color: #fff;

@@ -653,20 +653,17 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         # Ghi cả 2 file phụ đề tiếng Việt và tiếng Trung khớp 100% hành động video gốc
         sub_style = job.get("subtitle_style")
         if sub_style and burn_subtitles:
-            # Dùng ASS có style
             from audio_processor import generate_ass
             ass_path = srt_path.replace(".srt", ".ass")
-            ass_style = {
+            generate_ass(subtitles, ass_path, {
                 "font": sub_style.get("font", "Montserrat"),
                 "fontsize": sub_style.get("fontsize", 20),
                 "color": sub_style.get("color", "&H00FFFFFF"),
                 "alignment": sub_style.get("position", 2),
-            }
-            generate_ass(subtitles, ass_path, ass_style)
-            generate_srt(subtitles, srt_original_path, use_original=True)
-        else:
-            generate_srt(subtitles, srt_path, use_original=False)
-            generate_srt(subtitles, srt_original_path, use_original=True)
+            })
+            srt_path = ass_path  # mix_audio_and_video sẽ dùng ASS thay SRT
+        generate_srt(subtitles, srt_path if not srt_path.endswith(".ass") else srt_path.replace(".ass", ".srt"), use_original=False)
+        generate_srt(subtitles, srt_original_path, use_original=True)
         
         # Step 8: Xuất video cuối
         job["step"] = 8
