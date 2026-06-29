@@ -660,10 +660,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     - Edge/Google: dùng concurrent per-segment
     Returns: (updated_subtitles, failure_count)
     """
-    # Gemini → batch mode
-    if provider == "gemini":
-        return await _generate_tts_batch_gemini(subtitles, output_dir, voice_map, voice_name, tts_speed)
-
+    # Gemini → per-segment nhưng vẫn giữ temperature=0.1 (đã có trong synthesize)
     # Edge/Google → concurrent per-segment (giữ nguyên logic cũ)
     import concurrent.futures
     
@@ -673,7 +670,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     failures = 0
     lock = asyncio.Lock()
     
-    if provider == "google":
+    if provider == "gemini":
+        tts = GeminiTTSProvider()
+    elif provider == "google":
         tts = GoogleTTSProvider()
     else:
         tts = None  # edge-tts doesn't need persistent client

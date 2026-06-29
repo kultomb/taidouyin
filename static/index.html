@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@600;700&family=Roboto:wght@600;700&family=Nunito:wght@600;700&family=Quicksand:wght@600;700&family=Lora:wght@600;700&family=Oswald:wght@600;700&family=Playfair+Display:wght@600;700&family=Be+Vietnam+Pro:wght@600;700&family=Open+Sans:wght@600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=1.4">
 </head>
@@ -351,6 +351,64 @@
                                     <span class="tts-name">Whisper Offline</span>
                                     <span class="tts-badge">Ngoại tuyến</span>
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- Subtitle Style Panel -->
+                        <div class="setting-panel">
+                            <label class="setting-label">
+                                🎨 Kiểu phụ đề
+                                <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
+                            </label>
+                            <div id="subStyleCompact" class="sub-style-compact" style="display:none;">
+                                <!-- Preview -->
+                                <div class="sub-preview-box">
+                                    <div class="sub-preview-controls">
+                                        <button type="button" class="aspect-btn active" data-aspect="9:16">📱
+                                            Dọc</button>
+                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 Ngang</button>
+                                    </div>
+                                    <div class="sub-preview-area" id="subPreviewArea">
+                                        <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
+                                    </div>
+                                </div>
+                                <!-- Font -->
+                                <div class="sub-section">
+                                    <label class="sub-section-label">🔤 Font chữ</label>
+                                    <div class="font-grid" id="fontGrid"></div>
+                                </div>
+                                <!-- Color -->
+                                <div class="sub-section">
+                                    <label class="sub-section-label">🎨 Màu chữ</label>
+                                    <div class="color-swatch-grid" id="colorSwatchGrid"></div>
+                                </div>
+                                <!-- Size -->
+                                <div class="sub-section">
+                                    <label class="sub-section-label">📏 Cỡ chữ: <span
+                                            id="fontSizeLabel">20px</span></label>
+                                    <div class="slider-wrapper">
+                                        <input type="range" id="subFontSize" min="14" max="36" step="1" value="20">
+                                    </div>
+                                </div>
+                                <!-- Position -->
+                                <div class="sub-section">
+                                    <label class="sub-section-label">📍 Vị trí</label>
+                                    <div class="position-grid" id="positionGrid"></div>
+                                </div>
+                                <!-- Outline & BG -->
+                                <div class="sub-section">
+                                    <label class="sub-section-label">✨ Viền & Nền</label>
+                                    <div class="outline-bg-row">
+                                        <div class="outline-bg-item">
+                                            <label class="mini-label">Viền chữ</label>
+                                            <div class="outline-options" id="outlineOptions"></div>
+                                        </div>
+                                        <div class="outline-bg-item">
+                                            <label class="mini-label">Nền mờ</label>
+                                            <div class="outline-options" id="bgOptions"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
