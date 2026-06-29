@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@600;700&family=Roboto:wght@600;700&family=Nunito:wght@600;700&family=Quicksand:wght@600;700&family=Lora:wght@600;700&family=Oswald:wght@600;700&family=Playfair+Display:wght@600;700&family=Be+Vietnam+Pro:wght@600;700&family=Open+Sans:wght@600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=1.4">
 </head>
@@ -47,8 +47,12 @@
             <form id="translateForm">
                 <!-- Top: URL + Context (Full Width) -->
                 <div class="url-input-container">
-                    <div class="input-group" style="margin-bottom: 10px;">
-                        <label for="videoUrl" class="input-label">Đường dẫn chia sẻ video Douyin</label>
+                    <div class="input-group" style="margin-bottom: 0;">
+                        <label for="videoUrl" class="input-label">
+                            Đường dẫn chia sẻ video Douyin
+                            <button type="button" id="btnToggleContext" class="btn-mini-toggle"
+                                title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
+                        </label>
                         <div class="input-wrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
@@ -59,9 +63,7 @@
                                 placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
                         </div>
                     </div>
-                    <div class="input-group" style="margin-bottom: 0;">
-                        <label for="videoContext" class="input-label">Bối cảnh video (không bắt buộc) - Giúp AI hiểu nội
-                            dung để dịch chuẩn</label>
+                    <div class="input-group" id="contextGroup" style="display:none; margin-top: 8px;">
                         <div class="input-wrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
@@ -72,6 +74,9 @@
                                 placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
                         </div>
                     </div>
+                </div>
+                </div>
+                </div>
                 </div>
 
                 <!-- Middle: Balanced 2-Column Settings Grid -->
@@ -354,60 +359,77 @@
                             </div>
                         </div>
 
-                        <!-- Subtitle Style Panel -->
+                        <!-- Subtitle Style -->
                         <div class="setting-panel">
                             <label class="setting-label">
                                 🎨 Kiểu phụ đề
                                 <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
                             </label>
-                            <div id="subStyleCompact" class="sub-style-compact" style="display:none;">
-                                <!-- Preview -->
-                                <div class="sub-preview-box">
+                            <div id="subStyleCompact" style="display:none;">
+                                <!-- Preview box -->
+                                <div class="sub-preview-box" id="subPreview">
                                     <div class="sub-preview-controls">
                                         <button type="button" class="aspect-btn active" data-aspect="9:16">📱
-                                            Dọc</button>
-                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 Ngang</button>
+                                            9:16</button>
+                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 16:9</button>
                                     </div>
                                     <div class="sub-preview-area" id="subPreviewArea">
                                         <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
                                     </div>
                                 </div>
-                                <!-- Font -->
-                                <div class="sub-section">
-                                    <label class="sub-section-label">🔤 Font chữ</label>
-                                    <div class="font-grid" id="fontGrid"></div>
+                                <!-- Controls -->
+                                <div class="sub-row">
+                                    <select id="subFont" class="mini-select">
+                                        <option value="Montserrat">Montserrat</option>
+                                        <option value="Roboto">Roboto</option>
+                                        <option value="Inter">Inter</option>
+                                        <option value="OpenSans">OpenSans</option>
+                                        <option value="Nunito">Nunito</option>
+                                        <option value="Quicksand">Quicksand</option>
+                                        <option value="Lora">Lora</option>
+                                        <option value="Oswald">Oswald</option>
+                                        <option value="PlayfairDisplay">Playfair</option>
+                                        <option value="BeVietnamPro">BeVietnamPro</option>
+                                    </select>
+                                    <select id="subFontSize" class="mini-select">
+                                        <option value="16">16px</option>
+                                        <option value="18">18px</option>
+                                        <option value="20" selected>20px</option>
+                                        <option value="22">22px</option>
+                                        <option value="24">24px</option>
+                                        <option value="28">28px</option>
+                                        <option value="32">32px</option>
+                                    </select>
+                                    <select id="subColor" class="mini-select">
+                                        <option value="&H00FFFFFF">⬜ Trắng</option>
+                                        <option value="&H0000FFFF">🟨 Vàng</option>
+                                        <option value="&H0000FF00">🟩 Xanh lá</option>
+                                        <option value="&H00FF0000">🟦 Xanh dương</option>
+                                        <option value="&H000000FF">🟥 Đỏ</option>
+                                        <option value="&H00FF80FF">🩷 Hồng</option>
+                                    </select>
                                 </div>
-                                <!-- Color -->
-                                <div class="sub-section">
-                                    <label class="sub-section-label">🎨 Màu chữ</label>
-                                    <div class="color-swatch-grid" id="colorSwatchGrid"></div>
-                                </div>
-                                <!-- Size -->
-                                <div class="sub-section">
-                                    <label class="sub-section-label">📏 Cỡ chữ: <span
-                                            id="fontSizeLabel">20px</span></label>
-                                    <div class="slider-wrapper">
-                                        <input type="range" id="subFontSize" min="14" max="36" step="1" value="20">
-                                    </div>
-                                </div>
-                                <!-- Position -->
-                                <div class="sub-section">
-                                    <label class="sub-section-label">📍 Vị trí</label>
-                                    <div class="position-grid" id="positionGrid"></div>
-                                </div>
-                                <!-- Outline & BG -->
-                                <div class="sub-section">
-                                    <label class="sub-section-label">✨ Viền & Nền</label>
-                                    <div class="outline-bg-row">
-                                        <div class="outline-bg-item">
-                                            <label class="mini-label">Viền chữ</label>
-                                            <div class="outline-options" id="outlineOptions"></div>
-                                        </div>
-                                        <div class="outline-bg-item">
-                                            <label class="mini-label">Nền mờ</label>
-                                            <div class="outline-options" id="bgOptions"></div>
-                                        </div>
-                                    </div>
+                                <div class="sub-row">
+                                    <select id="subPosition" class="mini-select">
+                                        <option value="2" selected>📍 Dưới Giữa</option>
+                                        <option value="1">📍 Dưới Trái</option>
+                                        <option value="3">📍 Dưới Phải</option>
+                                        <option value="8">📍 Trên Giữa</option>
+                                        <option value="5">📍 Giữa Màn</option>
+                                    </select>
+                                    <select id="subOutline" class="mini-select">
+                                        <option value="0">◽ Viền: Không</option>
+                                        <option value="1">◾ Viền: Mỏng</option>
+                                        <option value="1.5" selected>◾ Viền: Vừa</option>
+                                        <option value="2.5">◾ Viền: Dày</option>
+                                    </select>
+                                    <select id="subBgAlpha" class="mini-select">
+                                        <option value="00">Nền: Trong suốt</option>
+                                        <option value="40">Nền: Mờ 25%</option>
+                                        <option value="80" selected>Nền: Mờ 50%</option>
+                                        <option value="C0">Nền: Mờ 75%</option>
+                                        <option value="FF">Nền: Đặc</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -593,7 +615,7 @@
         <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
-    <script src="app.js?v=1.5"></script>
+    <script src="app.js?v=1.8"></script>
 </body>
 
 </html>

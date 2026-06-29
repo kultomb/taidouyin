@@ -317,205 +317,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ============================================
-    // SUBTITLE STYLE PANEL
-    // ============================================
-    let _subFont = 'Montserrat';
-    let _subColor = '&H00FFFFFF';
-    let _subPosition = '2';
-    let _subOutline = '1.5';
-    let _subBgAlpha = '80';
-
-    const FONTS = [
-        { val: 'Montserrat', name: 'Montserrat' },
-        { val: 'Roboto', name: 'Roboto' },
-        { val: 'Inter', name: 'Inter' },
-        { val: 'OpenSans', name: 'Open Sans' },
-        { val: 'Nunito', name: 'Nunito' },
-        { val: 'Quicksand', name: 'Quicksand' },
-        { val: 'Lora', name: 'Lora' },
-        { val: 'Oswald', name: 'Oswald' },
-        { val: 'PlayfairDisplay', name: 'Playfair' },
-        { val: 'BeVietnamPro', name: 'BeVietnam' }
-    ];
-
-    const COLORS = [
-        { val: '&H00FFFFFF', bg: '#FFFFFF', label: 'Trắng' },
-        { val: '&H0000FFFF', bg: '#FFFF00', label: 'Vàng' },
-        { val: '&H0000FF00', bg: '#00FF00', label: 'Xanh lá' },
-        { val: '&H00FF0000', bg: '#0066FF', label: 'Xanh dương' },
-        { val: '&H000000FF', bg: '#FF0000', label: 'Đỏ' },
-        { val: '&H00FF80FF', bg: '#FF80FF', label: 'Hồng' },
-        { val: '&H0000AAFF', bg: '#FF8C00', label: 'Cam' },
-        { val: '&H00AA00FF', bg: '#9944FF', label: 'Tím' }
-    ];
-
-    const POSITIONS = [
-        { val: '8', icon: '↖' }, { val: '8', icon: '↑' }, { val: '8', icon: '↗' },
-        { val: '5', icon: '←' }, { val: '5', icon: '⊙' }, { val: '5', icon: '→' },
-        { val: '2', icon: '↙' }, { val: '2', icon: '↓' }, { val: '2', icon: '↘' }
-    ];
-
-    // Render font grid
-    const fontGrid = document.getElementById('fontGrid');
-    if (fontGrid) {
-        FONTS.forEach(f => {
-            const card = document.createElement('div');
-            card.className = 'font-card' + (f.val === _subFont ? ' active' : '');
-            card.dataset.font = f.val;
-            const sample = document.createElement('span');
-            sample.className = 'font-sample';
-            sample.style.fontFamily = f.val;
-            sample.textContent = 'Ag';
-            const name = document.createElement('span');
-            name.className = 'font-name';
-            name.textContent = f.name;
-            card.append(sample, name);
-            card.addEventListener('click', () => {
-                fontGrid.querySelectorAll('.font-card').forEach(c => c.classList.remove('active'));
-                card.classList.add('active');
-                _subFont = f.val;
-                updateSubPreview();
-            });
-            fontGrid.appendChild(card);
-        });
-    }
-
-    // Render color swatches
-    const colorSwatchGrid = document.getElementById('colorSwatchGrid');
-    if (colorSwatchGrid) {
-        COLORS.forEach(c => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'color-swatch' + (c.val === _subColor ? ' active' : '');
-            btn.dataset.color = c.val;
-            btn.style.background = c.bg;
-            btn.title = c.label;
-            btn.addEventListener('click', () => {
-                colorSwatchGrid.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-                btn.classList.add('active');
-                _subColor = c.val;
-                updateSubPreview();
-            });
-            colorSwatchGrid.appendChild(btn);
-        });
-    }
-
-    // Render position grid
-    const positionGrid = document.getElementById('positionGrid');
-    if (positionGrid) {
-        POSITIONS.forEach(p => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'pos-cell' + (p.val === _subPosition ? ' active' : '');
-            btn.dataset.pos = p.val;
-            btn.textContent = p.icon;
-            btn.title = p.val === '8' ? 'Trên' : (p.val === '5' ? 'Giữa' : 'Dưới');
-            btn.addEventListener('click', () => {
-                const pos = p.val;
-                positionGrid.querySelectorAll('.pos-cell').forEach(c => c.classList.remove('active'));
-                positionGrid.querySelectorAll(`.pos-cell[data-pos="${pos}"]`).forEach(c => c.classList.add('active'));
-                _subPosition = pos;
-                updateSubPreview();
-            });
-            positionGrid.appendChild(btn);
-        });
-    }
-
-    // Render outline buttons
-    const outlineOptions = document.getElementById('outlineOptions');
-    if (outlineOptions) {
-        [{ v: '0', l: 'Không' }, { v: '1', l: 'Mỏng' }, { v: '1.5', l: 'Vừa' }, { v: '2.5', l: 'Dày' }].forEach(o => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'outline-btn' + (o.v === _subOutline ? ' active' : '');
-            btn.dataset.outline = o.v;
-            btn.textContent = o.l;
-            btn.addEventListener('click', () => {
-                outlineOptions.querySelectorAll('.outline-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                _subOutline = o.v;
-                updateSubPreview();
-            });
-            outlineOptions.appendChild(btn);
-        });
-    }
-
-    // Render bg alpha buttons
-    const bgOptions = document.getElementById('bgOptions');
-    if (bgOptions) {
-        [{ v: '00', l: '0%' }, { v: '40', l: '25%' }, { v: '80', l: '50%' }, { v: 'C0', l: '75%' }, { v: 'FF', l: '100%' }].forEach(o => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'outline-btn' + (o.v === _subBgAlpha ? ' active' : '');
-            btn.dataset.bg = o.v;
-            btn.textContent = o.l;
-            btn.addEventListener('click', () => {
-                bgOptions.querySelectorAll('.outline-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                _subBgAlpha = o.v;
-                updateSubPreview();
-            });
-            bgOptions.appendChild(btn);
-        });
-    }
-
-    // Toggle panel
-    const btnToggleSubStyle = document.getElementById('btnToggleSubStyle');
-    const subStyleCompact = document.getElementById('subStyleCompact');
-    const subPreviewArea = document.getElementById('subPreviewArea');
-    const subPreviewText = document.getElementById('subPreviewText');
-    const subFontSizeInput = document.getElementById('subFontSize');
-    const fontSizeLabel = document.getElementById('fontSizeLabel');
-
-    if (btnToggleSubStyle && subStyleCompact) {
-        btnToggleSubStyle.addEventListener('click', () => {
-            const vis = subStyleCompact.style.display !== 'none';
-            subStyleCompact.style.display = vis ? 'none' : 'block';
-            btnToggleSubStyle.textContent = vis ? '+ Mở' : '− Đóng';
-            btnToggleSubStyle.classList.toggle('active', !vis);
-        });
-    }
-
-    // Aspect ratio
-    document.querySelectorAll('.aspect-btn').forEach(b => {
-        b.addEventListener('click', () => {
-            document.querySelectorAll('.aspect-btn').forEach(x => x.classList.remove('active'));
-            b.classList.add('active');
-            if (subPreviewArea) subPreviewArea.className = 'sub-preview-area aspect-' + b.dataset.aspect.replace(':', '-');
-        });
-    });
-
-    // Font size
-    if (subFontSizeInput && fontSizeLabel) {
-        subFontSizeInput.addEventListener('input', () => {
-            fontSizeLabel.textContent = subFontSizeInput.value + 'px';
-            updateSubPreview();
-        });
-    }
-
-    function updateSubPreview() {
-        if (!subPreviewText || !subPreviewArea) return;
-        const font = _subFont;
-        const size = subFontSizeInput?.value || '20';
-        const outline = _subOutline;
-        const bgAlpha = _subBgAlpha;
-
-        subPreviewText.style.fontFamily = font + ', sans-serif';
-        subPreviewText.style.fontSize = size + 'px';
-        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline) * 2}px #000`;
-
-        const cmap = { '&H00FFFFFF': '#FFF', '&H0000FFFF': '#FF0', '&H0000FF00': '#0F0', '&H00FF0000': '#06F', '&H000000FF': '#F00', '&H00FF80FF': '#F8F', '&H0000AAFF': '#F80', '&H00AA00FF': '#94F' };
-        subPreviewText.style.color = cmap[_subColor] || '#FFF';
-
-        const a = parseInt(bgAlpha, 16);
-        subPreviewText.style.background = a > 0 ? `rgba(0,0,0,${a / 255})` : 'transparent';
-
-        const pm = { '2': 'flex-end', '5': 'center', '8': 'flex-start' };
-        subPreviewArea.style.alignItems = pm[_subPosition] || 'flex-end';
-        subPreviewArea.style.justifyContent = 'center';
-    }
-
     const btnGetCookie = document.getElementById('btnGetCookie');
 
     const processingCard = document.getElementById('processingCard');
@@ -538,6 +339,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let pollInterval = null;
     let displayedLogCount = 0;
+
+    // Handle burnSubtitles checkbox -> toggle sub style panel
+    const subStylePanel = document.getElementById('subStylePanel');
+    if (burnSubtitlesCheckbox && subStylePanel) {
+        burnSubtitlesCheckbox.addEventListener('change', () => {
+            subStylePanel.style.display = burnSubtitlesCheckbox.checked ? 'block' : 'none';
+        });
+    }
+
+    // Handle context toggle button
+    const btnToggleContext = document.getElementById('btnToggleContext');
+    const contextGroup = document.getElementById('contextGroup');
+    if (btnToggleContext && contextGroup) {
+        btnToggleContext.addEventListener('click', () => {
+            const isVisible = contextGroup.style.display !== 'none';
+            contextGroup.style.display = isVisible ? 'none' : 'block';
+            btnToggleContext.textContent = isVisible ? '+ Bối cảnh' : '− Bối cảnh';
+            btnToggleContext.classList.toggle('active', !isVisible);
+        });
+    }
+
+    // Handle subtitle style toggle button
+    const btnToggleSubStyle = document.getElementById('btnToggleSubStyle');
+    const subStyleCompact = document.getElementById('subStyleCompact');
+    const subPreviewArea = document.getElementById('subPreviewArea');
+    const subPreviewText = document.getElementById('subPreviewText');
+    
+    if (btnToggleSubStyle && subStyleCompact) {
+        btnToggleSubStyle.addEventListener('click', () => {
+            const isVisible = subStyleCompact.style.display !== 'none';
+            subStyleCompact.style.display = isVisible ? 'none' : 'block';
+            btnToggleSubStyle.textContent = isVisible ? '+ Mở' : '− Đóng';
+            btnToggleSubStyle.classList.toggle('active', !isVisible);
+        });
+    }
+
+    // Aspect ratio buttons
+    document.querySelectorAll('.aspect-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const aspect = btn.dataset.aspect;
+            if (subPreviewArea) {
+                subPreviewArea.className = 'sub-preview-area aspect-' + aspect.replace(':', '-');
+            }
+        });
+    });
+
+    // Live preview update
+    function updateSubPreview() {
+        if (!subPreviewText || !subPreviewArea) return;
+        const font = document.getElementById('subFont')?.value || 'Montserrat';
+        const size = document.getElementById('subFontSize')?.value || '20';
+        const colorEl = document.getElementById('subColor');
+        const pos = document.getElementById('subPosition')?.value || '2';
+        const outline = document.getElementById('subOutline')?.value || '1.5';
+        const bgAlpha = document.getElementById('subBgAlpha')?.value || '80';
+        
+        subPreviewText.style.fontFamily = font + ', sans-serif';
+        subPreviewText.style.fontSize = size + 'px';
+        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline)*2}px #000`;
+        
+        // Map color
+        const colorMap = {'&H00FFFFFF':'#FFFFFF','&H0000FFFF':'#FFFF00','&H0000FF00':'#00FF00','&H00FF0000':'#0066FF','&H000000FF':'#FF0000','&H00FF80FF':'#FF80FF'};
+        subPreviewText.style.color = colorMap[colorEl?.value] || '#FFFFFF';
+        
+        // Background
+        const alpha = parseInt(bgAlpha, 16);
+        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha/255})` : 'transparent';
+        
+        // Position
+        const posMap = {'2':'flex-end','1':'flex-end','3':'flex-end','8':'flex-start','5':'center'};
+        const justifyMap = {'2':'center','1':'flex-start','3':'flex-end','8':'center','5':'center'};
+        subPreviewArea.style.alignItems = posMap[pos] || 'flex-end';
+        subPreviewArea.style.justifyContent = justifyMap[pos] || 'center';
+    }
+    
+    document.querySelectorAll('#subStyleCompact select').forEach(sel => {
+        sel.addEventListener('change', updateSubPreview);
+    });
 
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {
@@ -650,7 +531,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_male: voiceMale || null,
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle,
-                    context: context || null
+                    context: context || null,
+                    subtitle_style: burnSubtitlesCheckbox.checked ? {
+                        font: (document.getElementById('subFont') || {}).value || 'Montserrat',
+                        fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,
+                        color: (document.getElementById('subColor') || {}).value || '&H00FFFFFF',
+                        position: parseInt((document.getElementById('subPosition') || {}).value) || 2
+                    } : null
                 })
             });
 
