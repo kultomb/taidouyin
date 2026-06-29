@@ -46,9 +46,24 @@ def verify_system_requirements():
         logger.info(f"[REQUIREMENT] Tìm thấy ffprobe tại: {ffprobe_path}")
 
 # Serve UI static files
-# Ensure static directory exists
-os.makedirs("static", exist_ok=True)
-os.makedirs("output", exist_ok=True)
+# Resolve base paths for PyInstaller compatibility
+import sys
+from pathlib import Path
+
+if getattr(sys, 'frozen', False):
+    base_dir = Path(sys._MEIPASS)
+    # Output is created relative to the EXE location, not inside temporary folder
+    exe_dir = Path(sys.executable).resolve().parent
+else:
+    base_dir = Path(__file__).resolve().parent
+    exe_dir = base_dir
+
+static_dir = base_dir / "static"
+output_dir = exe_dir / "output"
+
+os.makedirs(static_dir, exist_ok=True)
+os.makedirs(output_dir, exist_ok=True)
+
 
 # Memory store for jobs (with TTL: tự động xóa sau 2 giờ)
 JOBS_TTL_SECONDS = 7200  # 2 giờ
@@ -850,18 +865,37 @@ def download_file(job_id: str, file_type: str):
     return FileResponse(path, media_type=media_type, filename=os.path.basename(path))
 
 # Serve Output files statically for video range streaming support
-app.mount("/output", StaticFiles(directory="output"), name="output")
+app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
 # Serve Frontend static files directly
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8001,
-        reload=True,
-        reload_dirs=[".", "utils"],
-        reload_excludes=["output/*", "*.mp4", "*.mp3", "*.srt"],
-    )
+    if getattr(sys, 'frozen', False):
+        # Automatically launch web browser on startup when running as compiled EXE
+        import webbrowser
+        
+        # Start browser after 1.5s delay to ensure uvicorn server has started
+        def open_browser():
+            time.sleep(1.5)
+            webbrowser.open("http://localhost:8001")
+            
+        threading.Thread(target=open_browser, daemon=True).start()
+        
+        # Use app object directly when frozen, disable reload
+        uvicorn.run(
+            app,
+            host="127.0.0.1",
+            port=8001
+        )
+    else:
+        uvicorn.run(
+            "main:app",
+            host="0.0.0.0",
+            port=8001,
+            reload=True,
+            reload_dirs=[".", "utils"],
+            reload_excludes=["output/*", "*.mp4", "*.mp3", "*.srt"],
+        )
+
