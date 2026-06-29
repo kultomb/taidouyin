@@ -575,7 +575,8 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                 else:
                     job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
                     log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
-                    subtitles_data = transcribe_and_translate_audio(client, original_audio_path)
+                    asr_client = get_vertex_client()
+                    subtitles_data = transcribe_and_translate_audio(asr_client, original_audio_path)
                     subtitles = subtitles_data.get("subtitles", [])
                 
                 subtitles.sort(key=lambda x: x.get("start", 0.0))
