@@ -26,7 +26,7 @@ from typing import Optional, Dict
 from downloader import download_douyin_video, load_cookies_txt
 from audio_processor import extract_audio, generate_srt, generate_srt_from_timeline, mix_audio_and_video
 from translator import get_vertex_client, transcribe_and_translate_audio
-from tts_processor import generate_tts_for_subtitles
+from tts_processor import generate_tts_for_subtitles, detect_speaker_gender
 from ocr_engine import extract_subtitle_segments
 from google.genai import types  # cho GenerateContentConfig
 
@@ -644,7 +644,7 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                 spk = sub.get("speaker", "default")
                 if spk not in seen_speakers:
                     seen_speakers.add(spk)
-                    gender = sub.get("gender", "female")
+                    gender = detect_speaker_gender(spk)
                     if gender == "male" and voice_male:
                         voice_map[spk] = voice_male
                     elif gender == "female" and voice_female:
