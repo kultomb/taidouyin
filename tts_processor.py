@@ -130,29 +130,39 @@ def adjust_tts_speed(input_path: str, output_path: str, target_duration: float) 
     actual_duration = get_audio_duration(input_path)
     if actual_duration <= 0 or target_duration <= 0:
         return input_path
-
     ratio = actual_duration / target_duration
     if 0.9 <= ratio <= 1.1:
         return input_path
-
     atempo = ratio
-    logger.info(f"Adjusting TTS speed: {actual_duration:.2f}s -> {target_duration:.2f}s (atempo={atempo:.3f})")
+    return _apply_atempo(input_path, output_path, atempo, f"Adjust speed to fit {target_duration:.1f}s")
 
+def speed_up_tts(input_path: str, speed: float = 1.2) -> str:
+    """Tăng tốc file TTS lên speed X (mặc định 1.2x). Giữ nguyên pitch."""
+    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+        return input_path
+    if speed <= 0.5 or speed >= 2.0:
+        logger.warning(f"speed_up_tts: speed={speed} outside 0.5-2.0 range, skip")
+        return input_path
+    return _apply_atempo(input_path, input_path, speed, f"Spped up TTS {speed:.1f}x")
+
+def _apply_atempo(input_path: str, output_path: str, atempo: float, log_msg: str) -> str:
+    """Dùng FFmpeg atempo filter để thay đổi tốc độ audio (giữ nguyên pitch)."""
+    if 0.98 <= atempo <= 1.02:
+        return input_path
+    if atempo < 0.5:
+        atempo_filter = f"atempo={atempo * 2:.4f},atempo=0.5"
+    elif atempo > 2.0:
+        atempo_filter = f"atempo={atempo / 2:.4f},atempo=2.0"
+    else:
+        atempo_filter = f"atempo={atempo:.4f}"
+    logger.info(f"{log_msg} | filter={atempo_filter}")
     try:
-        if atempo < 0.5:
-            atempo_filter = f"atempo={atempo * 2:.4f},atempo=0.5"
-        elif atempo > 2.0:
-            atempo_filter = f"atempo={atempo / 2:.4f},atempo=2.0"
-        else:
-            atempo_filter = f"atempo={atempo:.4f}"
-
-        subprocess.run([
-            "ffmpeg", "-y", "-i", input_path,
-            "-filter:a", atempo_filter, "-q:a", "2", output_path
-        ], capture_output=True, check=True, timeout=30)
+        subprocess.run(["ffmpeg", "-y", "-i", input_path,
+            "-filter:a", atempo_filter, "-q:a", "2", output_path],
+            capture_output=True, check=True, timeout=30)
         return output_path
     except Exception as e:
-        logger.warning(f"Failed to adjust TTS speed: {e}, using original")
+        logger.warning(f"Failed to apply atempo: {e}, using original")
         return input_path
 
 
@@ -500,6 +510,10 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     )
                     if success_trim and os.path.exists(trimmed_file_path):
                         os.replace(trimmed_file_path, file_path)
+
+                    # Tăng tốc giọng đọc 1.2x cho Gemini/Google TTS (nghe nhanh, tự nhiên hơn)
+                    if provider in ("gemini", "google"):
+                        await loop.run_in_executor(None, speed_up_tts, file_path, 1.2)
                     
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                     
