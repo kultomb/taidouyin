@@ -403,8 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
         const ttsSpeedEl = document.getElementById('ttsSpeed');
         const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.2;
-        const glossaryEl = document.getElementById('videoGlossary');
-        const glossary = glossaryEl ? glossaryEl.value.trim() : '';
+        const contextEl = document.getElementById('videoContext');
+        const context = contextEl ? contextEl.value.trim() : '';
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_male: voiceMale || null,
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle,
-                    glossary: glossary || null
+                    context: context || null
                 })
             });
 

@@ -45,9 +45,9 @@
         <!-- Input and Settings Form -->
         <section class="card form-card">
             <form id="translateForm">
-                <!-- Top: URL input (Full Width) -->
+                <!-- Top: URL + Context (Full Width) -->
                 <div class="url-input-container">
-                    <div class="input-group" style="margin-bottom: 0;">
+                    <div class="input-group" style="margin-bottom: 10px;">
                         <label for="videoUrl" class="input-label">Đường dẫn chia sẻ video Douyin</label>
                         <div class="input-wrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -57,6 +57,17 @@
                             </svg>
                             <input type="text" id="videoUrl"
                                 placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
+                        </div>
+                    </div>
+                    <div class="input-group" style="margin-bottom: 0;">
+                        <label for="videoContext" class="input-label">Bối cảnh video (không bắt buộc) - Giúp AI hiểu nội dung để dịch chuẩn</label>
+                        <div class="input-wrapper">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
+                            <input type="text" id="videoContext"
+                                placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
                         </div>
                     </div>
                 </div>
@@ -320,11 +331,7 @@
                                     <span class="tts-badge">Sửa chữa</span>
                                 </button>
                             </div>
-                            <div class="glossary-input-row">
-                                <input type="text" id="videoGlossary"
-                                    placeholder="Từ điển thuật ngữ (vd: Natra=Ngao Quảng, 老广=Ngao Quảng, MOSFET=MOSFET...)"
-                                    style="width:100%;padding:8px 12px;margin-top:8px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:0.8rem;">
-                            </div>
+
                         </div>
 
                         <div class="setting-panel">
