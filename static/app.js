@@ -348,6 +348,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Handle context toggle button
+    const btnToggleContext = document.getElementById('btnToggleContext');
+    const contextGroup = document.getElementById('contextGroup');
+    if (btnToggleContext && contextGroup) {
+        btnToggleContext.addEventListener('click', () => {
+            const isVisible = contextGroup.style.display !== 'none';
+            contextGroup.style.display = isVisible ? 'none' : 'block';
+            btnToggleContext.textContent = isVisible ? '+ Bối cảnh' : '− Bối cảnh';
+            btnToggleContext.classList.toggle('active', !isVisible);
+        });
+    }
+
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {
         const val = Math.round(e.target.value * 100);

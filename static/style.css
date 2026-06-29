@@ -710,6 +710,24 @@ body {
     box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
 }
 
+.btn-mini-toggle {
+    font-size: 0.7rem;
+    padding: 2px 10px;
+    margin-left: 8px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: var(--transition);
+    vertical-align: middle;
+}
+.btn-mini-toggle.active {
+    background: var(--accent);
+    color: #fff;
+}
+
 /* Checkbox item styling */
 .checkbox-item {
     display: flex;
