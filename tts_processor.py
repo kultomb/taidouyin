@@ -345,6 +345,97 @@ class GeminiTTSProvider:
             )
         return self._client
 
+    def synthesize_batch(self, segments: list, voice_name_actual: str, output_path: str):
+        """
+        Merge toàn bộ text của 1 speaker -> 1 lần Gemini TTS -> offsets split.
+        """
+        from google.genai import types
+
+        merged_parts = []
+        offsets = []
+        current = 0
+        for i, seg in enumerate(segments):
+            text = seg.get("translation", "").replace("[", "").replace("]", "").strip()
+            if not text:
+                merged_parts.append(" ")
+                offsets.append((i, current, current + 1))
+                current += 1
+                continue
+            start = current
+            merged_parts.append(text)
+            current += len(text)
+            offsets.append((i, start, current))
+            merged_parts.append("\n")
+            current += 1
+
+        full_text = "".join(merged_parts)
+        logger.info(f"[Gemini TTS Batch] {len(segments)} segs -> {len(full_text)} chars, voice={voice_name_actual}")
+
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            temperature=0.1,
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name_actual)
+                )
+            )
+        )
+
+        client = self._get_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-preview-tts",
+            contents=[full_text],
+            config=config
+        )
+
+        if not response or not response.candidates:
+            raise Exception("Gemini TTS batch empty response")
+
+        content = response.candidates[0].content
+        if not content or not content.parts:
+            raise Exception("Gemini TTS batch no content")
+
+        audio_found = False
+        for part in content.parts:
+            if part.inline_data and part.inline_data.mime_type and part.inline_data.mime_type.lower().startswith("audio/"):
+                mime = part.inline_data.mime_type.lower()
+                if "pcm" in mime or "l16" in mime:
+                    rate = 24000
+                    if "rate=" in mime:
+                        try:
+                            rate = int(mime.split("rate=")[-1].split(";")[0].split(",")[0].strip())
+                        except Exception:
+                            pass
+                    import tempfile
+                    fd, tmp_path = tempfile.mkstemp(suffix=".pcm")
+                    try:
+                        with os.fdopen(fd, "wb") as tmp_f:
+                            tmp_f.write(part.inline_data.data)
+                        subprocess.run([
+                            "ffmpeg", "-y",
+                            "-f", "s16le", "-ar", str(rate), "-ac", "1",
+                            "-i", tmp_path,
+                            "-c:a", "libmp3lame", "-q:a", "2",
+                            output_path
+                        ], capture_output=True, check=True)
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                else:
+                    with open(output_path, "wb") as f:
+                        f.write(part.inline_data.data)
+                audio_found = True
+                break
+
+        if not audio_found or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            raise Exception("Gemini TTS batch failed to generate audio")
+
+        return offsets
+
+    def synthesize_legacy(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+        # CHÚ Ý: Đây là bản sao của synthesize cũ, dùng làm fallback. Sau khi batch mode hoạt động ổn định thì xóa.
+        return self.synthesize(text, speaker, output_path, voice_map, voice_name)
+
     def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
         from google.genai import types
 
@@ -514,10 +605,8 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
 
         time_cursor = 0.0
         for _seq_index, (idx, sub) in enumerate(group_items):
-            text = sub.get("translation", "").strip()
-            speaker_label = sub.get("speaker", "default")
-            text_len = len(text)
-            segment_ratio = text_len / total_text_len if total_text_len > 0 else 0
+            text_len = len(sub.get("translation", "").strip())
+            segment_ratio = text_len / total_text_len
             segment_duration = merged_duration * segment_ratio
             
             file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
@@ -550,19 +639,6 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
 
             except Exception as e:
                 logger.error(f"[Gemini Batch] FAILED split seg {idx}: {e}")
-                # Fallback: thử Edge TTS cho segment này
-                try:
-                    logger.info(f"[Gemini Batch] Fallback Edge TTS for seg {idx}...")
-                    await _synthesize_edge_async(text, speaker_label, file_path, None, None)
-                    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-                        if tts_speed != 1.0:
-                            speed_up_tts(file_path, tts_speed)
-                        actual_duration = get_audio_duration(file_path)
-                        updated[idx] = dict(sub, audio_path=os.path.abspath(file_path), tts_duration=actual_duration)
-                        logger.info(f"[Gemini Batch] ✓ seg {idx} (Edge fallback) '{text[:30]}...' ({actual_duration:.1f}s)")
-                        continue
-                except Exception as fe:
-                    logger.error(f"[Gemini Batch] Edge fallback also FAILED seg {idx}: {fe}")
                 updated[idx] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
                 failures += 1
 
