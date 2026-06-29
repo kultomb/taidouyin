@@ -401,8 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : (selectedTtsProvider === 'gemini' ? selectedGeminiVoice : selectedGoogleVoice);
         const voiceFemale = (selectedTtsProvider === 'edge') ? selectedEdgeFemale : (selectedTtsProvider === 'gemini' ? selectedGeminiFemale : selectedGoogleFemale);
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
-        const topicEl = document.getElementById('videoTopic');
-        const topic = topicEl ? topicEl.value.trim() : '';
         const ttsSpeedEl = document.getElementById('ttsSpeed');
         const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.2;
 
@@ -449,7 +447,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_name: voiceName ? voiceName : null,
                     voice_female: voiceFemale || null,
                     voice_male: voiceMale || null,
-                    topic: topic || null,
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle
                 })
