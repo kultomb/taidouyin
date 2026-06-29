@@ -381,6 +381,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : (selectedTtsProvider === 'gemini' ? selectedGeminiVoice : selectedGoogleVoice);
         const voiceFemale = (selectedTtsProvider === 'edge') ? selectedEdgeFemale : (selectedTtsProvider === 'gemini' ? selectedGeminiFemale : selectedGoogleFemale);
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
+        const topicEl = document.getElementById('videoTopic');
+        const topic = topicEl ? topicEl.value.trim() : '';
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -424,7 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     process_mode: processMode,
                     voice_name: voiceName ? voiceName : null,
                     voice_female: voiceFemale || null,
-                    voice_male: voiceMale || null
+                    voice_male: voiceMale || null,
+                    topic: topic || null
                 })
             });
 
