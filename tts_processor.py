@@ -514,8 +514,9 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
 
         time_cursor = 0.0
         for _seq_index, (idx, sub) in enumerate(group_items):
-            text_len = len(sub.get("translation", "").strip())
-            segment_ratio = text_len / total_text_len
+            text = sub.get("translation", "").strip()
+            text_len = len(text)
+            segment_ratio = text_len / total_text_len if total_text_len > 0 else 0
             segment_duration = merged_duration * segment_ratio
             
             file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
