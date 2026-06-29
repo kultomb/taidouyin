@@ -340,86 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let pollInterval = null;
     let displayedLogCount = 0;
 
-    // Handle burnSubtitles checkbox -> toggle sub style panel
-    const subStylePanel = document.getElementById('subStylePanel');
-    if (burnSubtitlesCheckbox && subStylePanel) {
-        burnSubtitlesCheckbox.addEventListener('change', () => {
-            subStylePanel.style.display = burnSubtitlesCheckbox.checked ? 'block' : 'none';
-        });
-    }
-
-    // Handle context toggle button
-    const btnToggleContext = document.getElementById('btnToggleContext');
-    const contextGroup = document.getElementById('contextGroup');
-    if (btnToggleContext && contextGroup) {
-        btnToggleContext.addEventListener('click', () => {
-            const isVisible = contextGroup.style.display !== 'none';
-            contextGroup.style.display = isVisible ? 'none' : 'block';
-            btnToggleContext.textContent = isVisible ? '+ Bối cảnh' : '− Bối cảnh';
-            btnToggleContext.classList.toggle('active', !isVisible);
-        });
-    }
-
-    // Handle subtitle style toggle button
-    const btnToggleSubStyle = document.getElementById('btnToggleSubStyle');
-    const subStyleCompact = document.getElementById('subStyleCompact');
-    const subPreviewArea = document.getElementById('subPreviewArea');
-    const subPreviewText = document.getElementById('subPreviewText');
-    
-    if (btnToggleSubStyle && subStyleCompact) {
-        btnToggleSubStyle.addEventListener('click', () => {
-            const isVisible = subStyleCompact.style.display !== 'none';
-            subStyleCompact.style.display = isVisible ? 'none' : 'block';
-            btnToggleSubStyle.textContent = isVisible ? '+ Mở' : '− Đóng';
-            btnToggleSubStyle.classList.toggle('active', !isVisible);
-        });
-    }
-
-    // Aspect ratio buttons
-    document.querySelectorAll('.aspect-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            const aspect = btn.dataset.aspect;
-            if (subPreviewArea) {
-                subPreviewArea.className = 'sub-preview-area aspect-' + aspect.replace(':', '-');
-            }
-        });
-    });
-
-    // Live preview update
-    function updateSubPreview() {
-        if (!subPreviewText || !subPreviewArea) return;
-        const font = document.getElementById('subFont')?.value || 'Montserrat';
-        const size = document.getElementById('subFontSize')?.value || '20';
-        const colorEl = document.getElementById('subColor');
-        const pos = document.getElementById('subPosition')?.value || '2';
-        const outline = document.getElementById('subOutline')?.value || '1.5';
-        const bgAlpha = document.getElementById('subBgAlpha')?.value || '80';
-        
-        subPreviewText.style.fontFamily = font + ', sans-serif';
-        subPreviewText.style.fontSize = size + 'px';
-        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline)*2}px #000`;
-        
-        // Map color
-        const colorMap = {'&H00FFFFFF':'#FFFFFF','&H0000FFFF':'#FFFF00','&H0000FF00':'#00FF00','&H00FF0000':'#0066FF','&H000000FF':'#FF0000','&H00FF80FF':'#FF80FF'};
-        subPreviewText.style.color = colorMap[colorEl?.value] || '#FFFFFF';
-        
-        // Background
-        const alpha = parseInt(bgAlpha, 16);
-        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha/255})` : 'transparent';
-        
-        // Position
-        const posMap = {'2':'flex-end','1':'flex-end','3':'flex-end','8':'flex-start','5':'center'};
-        const justifyMap = {'2':'center','1':'flex-start','3':'flex-end','8':'center','5':'center'};
-        subPreviewArea.style.alignItems = posMap[pos] || 'flex-end';
-        subPreviewArea.style.justifyContent = justifyMap[pos] || 'center';
-    }
-    
-    document.querySelectorAll('#subStyleCompact select').forEach(sel => {
-        sel.addEventListener('change', updateSubPreview);
-    });
-
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {
         const val = Math.round(e.target.value * 100);
@@ -531,13 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_male: voiceMale || null,
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle,
-                    context: context || null,
-                    subtitle_style: burnSubtitlesCheckbox.checked ? {
-                        font: (document.getElementById('subFont') || {}).value || 'Montserrat',
-                        fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,
-                        color: (document.getElementById('subColor') || {}).value || '&H00FFFFFF',
-                        position: parseInt((document.getElementById('subPosition') || {}).value) || 2
-                    } : null
+                    context: context || null
                 })
             });
 

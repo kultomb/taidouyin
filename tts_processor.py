@@ -353,6 +353,7 @@ class GeminiTTSProvider:
 
         config = types.GenerateContentConfig(
             response_modalities=["AUDIO"],
+            temperature=0.1,  # Giữ giọng nhất quán, không sáng tạo ngẫu nhiên
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name_actual)

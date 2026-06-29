@@ -47,12 +47,8 @@
             <form id="translateForm">
                 <!-- Top: URL + Context (Full Width) -->
                 <div class="url-input-container">
-                    <div class="input-group" style="margin-bottom: 0;">
-                        <label for="videoUrl" class="input-label">
-                            Đường dẫn chia sẻ video Douyin
-                            <button type="button" id="btnToggleContext" class="btn-mini-toggle"
-                                title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
-                        </label>
+                    <div class="input-group" style="margin-bottom: 10px;">
+                        <label for="videoUrl" class="input-label">Đường dẫn chia sẻ video Douyin</label>
                         <div class="input-wrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
@@ -63,7 +59,9 @@
                                 placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
                         </div>
                     </div>
-                    <div class="input-group" id="contextGroup" style="display:none; margin-top: 8px;">
+                    <div class="input-group" style="margin-bottom: 0;">
+                        <label for="videoContext" class="input-label">Bối cảnh video (không bắt buộc) - Giúp AI hiểu nội
+                            dung để dịch chuẩn</label>
                         <div class="input-wrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
@@ -74,9 +72,6 @@
                                 placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
                         </div>
                     </div>
-                </div>
-                </div>
-                </div>
                 </div>
 
                 <!-- Middle: Balanced 2-Column Settings Grid -->
@@ -358,81 +353,6 @@
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Subtitle Style -->
-                        <div class="setting-panel">
-                            <label class="setting-label">
-                                🎨 Kiểu phụ đề
-                                <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
-                            </label>
-                            <div id="subStyleCompact" style="display:none;">
-                                <!-- Preview box -->
-                                <div class="sub-preview-box" id="subPreview">
-                                    <div class="sub-preview-controls">
-                                        <button type="button" class="aspect-btn active" data-aspect="9:16">📱
-                                            9:16</button>
-                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 16:9</button>
-                                    </div>
-                                    <div class="sub-preview-area" id="subPreviewArea">
-                                        <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
-                                    </div>
-                                </div>
-                                <!-- Controls -->
-                                <div class="sub-row">
-                                    <select id="subFont" class="mini-select">
-                                        <option value="Montserrat">Montserrat</option>
-                                        <option value="Roboto">Roboto</option>
-                                        <option value="Inter">Inter</option>
-                                        <option value="OpenSans">OpenSans</option>
-                                        <option value="Nunito">Nunito</option>
-                                        <option value="Quicksand">Quicksand</option>
-                                        <option value="Lora">Lora</option>
-                                        <option value="Oswald">Oswald</option>
-                                        <option value="PlayfairDisplay">Playfair</option>
-                                        <option value="BeVietnamPro">BeVietnamPro</option>
-                                    </select>
-                                    <select id="subFontSize" class="mini-select">
-                                        <option value="16">16px</option>
-                                        <option value="18">18px</option>
-                                        <option value="20" selected>20px</option>
-                                        <option value="22">22px</option>
-                                        <option value="24">24px</option>
-                                        <option value="28">28px</option>
-                                        <option value="32">32px</option>
-                                    </select>
-                                    <select id="subColor" class="mini-select">
-                                        <option value="&H00FFFFFF">⬜ Trắng</option>
-                                        <option value="&H0000FFFF">🟨 Vàng</option>
-                                        <option value="&H0000FF00">🟩 Xanh lá</option>
-                                        <option value="&H00FF0000">🟦 Xanh dương</option>
-                                        <option value="&H000000FF">🟥 Đỏ</option>
-                                        <option value="&H00FF80FF">🩷 Hồng</option>
-                                    </select>
-                                </div>
-                                <div class="sub-row">
-                                    <select id="subPosition" class="mini-select">
-                                        <option value="2" selected>📍 Dưới Giữa</option>
-                                        <option value="1">📍 Dưới Trái</option>
-                                        <option value="3">📍 Dưới Phải</option>
-                                        <option value="8">📍 Trên Giữa</option>
-                                        <option value="5">📍 Giữa Màn</option>
-                                    </select>
-                                    <select id="subOutline" class="mini-select">
-                                        <option value="0">◽ Viền: Không</option>
-                                        <option value="1">◾ Viền: Mỏng</option>
-                                        <option value="1.5" selected>◾ Viền: Vừa</option>
-                                        <option value="2.5">◾ Viền: Dày</option>
-                                    </select>
-                                    <select id="subBgAlpha" class="mini-select">
-                                        <option value="00">Nền: Trong suốt</option>
-                                        <option value="40">Nền: Mờ 25%</option>
-                                        <option value="80" selected>Nền: Mờ 50%</option>
-                                        <option value="C0">Nền: Mờ 75%</option>
-                                        <option value="FF">Nền: Đặc</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -615,7 +535,7 @@
         <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
-    <script src="app.js?v=1.8"></script>
+    <script src="app.js?v=1.5"></script>
 </body>
 
 </html>
