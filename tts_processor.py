@@ -341,8 +341,16 @@ class GeminiTTSProvider:
             config=config
         )
 
-        for part in response.candidates[0].content.parts:
-            if part.inline_data and part.inline_data.mime_type.startswith("audio/"):
+        if not response or not response.candidates:
+            raise Exception("Gemini TTS returned an empty response (no candidates).")
+
+        content = response.candidates[0].content
+        if not content or not content.parts:
+            raise Exception("Gemini TTS response candidate has no content or parts.")
+
+        audio_found = False
+        for part in content.parts:
+            if part.inline_data and part.inline_data.mime_type and part.inline_data.mime_type.lower().startswith("audio/"):
                 mime = part.inline_data.mime_type.lower()
                 if "pcm" in mime or "l16" in mime:
                     rate = 24000
@@ -372,7 +380,12 @@ class GeminiTTSProvider:
                 else:
                     with open(output_path, "wb") as f:
                         f.write(part.inline_data.data)
-                return
+                audio_found = True
+                break
+
+        if not audio_found or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            raise Exception("Gemini TTS failed to generate a valid audio file.")
+
 
 
 # ============================================================
@@ -439,14 +452,22 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     )
                 else:
                     await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name)
-                success_segment = True
+                
+                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                    success_segment = True
+                else:
+                    raise Exception("Output file was not generated or is empty.")
             except Exception as e:
                 logger.error(f"[{provider}] Failed segment {idx}: {e}")
                 if provider in ("gemini", "google"):
                     logger.info(f"[{provider}] Falling back to edge-tts for segment {idx}...")
                     try:
-                        await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name=None)
-                        success_segment = True
+                        # Pass voice_map=None and voice_name=None to fallback to standard Edge voices
+                        await _synthesize_edge_async(text, speaker, file_path, voice_map=None, voice_name=None)
+                        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                            success_segment = True
+                        else:
+                            raise Exception("Fallback edge-tts output file was not generated or is empty.")
                     except Exception as fe:
                         logger.error(f"[Fallback edge-tts] Failed segment {idx}: {fe}")
 
@@ -471,9 +492,19 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     logger.error(f"Failed processing audio for segment {idx}: {post_e}")
                     async with lock:
                         failures += 1
+                        # Fallback: keep the segment in SRT even if post-processing failed
+                        sub_copy = dict(sub)
+                        sub_copy["audio_path"] = ""
+                        sub_copy["tts_duration"] = max(0.1, sub.get("end", 0) - sub.get("start", 0))
+                        updated[idx] = sub_copy
             else:
                 async with lock:
                     failures += 1
+                    # Fallback: keep the segment in SRT even if synthesis failed
+                    sub_copy = dict(sub)
+                    sub_copy["audio_path"] = ""
+                    sub_copy["tts_duration"] = max(0.1, sub.get("end", 0) - sub.get("start", 0))
+                    updated[idx] = sub_copy
     
     tasks = [process_one(i, sub) for i, sub in enumerate(subtitles)]
     await asyncio.gather(*tasks)
