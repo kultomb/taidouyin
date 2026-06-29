@@ -116,7 +116,8 @@ class TranslateRequest(BaseModel):
     voice_name: Optional[str] = None  # Giọng đọc đồng nhất áp dụng cho toàn bộ video (tắt phân vai)
     voice_female: Optional[str] = None  # Giọng Nữ khi chọn tự động phân vai
     voice_male: Optional[str] = None    # Giọng Nam khi chọn tự động phân vai
-    topic: Optional[str] = None  # Chủ đề video (vd: sửa điện thoại, tây du ký, review...) để dịch đúng thuật ngữ chuyên ngành
+    topic: Optional[str] = None  # Chủ đề video (vd: sửa điện thoại, tây du ký, review...)
+    tts_speed: float = 1.20  # Tốc độ giọng đọc (1.0 = bình thường, 1.2 = nhanh 20%) để dịch đúng thuật ngữ chuyên ngành
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -652,9 +653,11 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             if voice_map:
                 log(f"Phân vai giọng đọc: Nữ={voice_female}, Nam={voice_male} ({len(voice_map)} speakers)")
 
+        tts_speed = job.get("tts_speed", 1.2)
+
         subtitles_with_tts = generate_tts_for_subtitles(
             subtitles, tts_dir, provider=tts_provider,
-            voice_map=voice_map, voice_name=voice_name
+            voice_map=voice_map, voice_name=voice_name, tts_speed=tts_speed
         )
         log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
         
@@ -785,6 +788,7 @@ def start_translation(request: TranslateRequest):
         "voice_female": request.voice_female,
         "voice_male": request.voice_male,
         "topic": request.topic,
+        "tts_speed": request.tts_speed,
         "_created": time.time(),
     }
     

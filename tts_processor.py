@@ -449,7 +449,7 @@ def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, out
                 logger.error(f"[Gemini] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
                 raise
 
-async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None) -> tuple:
+async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
     """
     Tạo TTS song song cho tất cả segment.
     Returns: (updated_subtitles, failure_count)
@@ -511,9 +511,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     if success_trim and os.path.exists(trimmed_file_path):
                         os.replace(trimmed_file_path, file_path)
 
-                    # Tăng tốc giọng đọc 1.2x cho Gemini/Google TTS (nghe nhanh, tự nhiên hơn)
-                    if provider in ("gemini", "google"):
-                        await loop.run_in_executor(None, speed_up_tts, file_path, 1.2)
+                    # Tăng tốc giọng đọc theo tts_speed (mặc định 1.2x)
+                    if provider in ("gemini", "google") and tts_speed != 1.0:
+                        await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
                     
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                     
@@ -549,7 +549,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
 
 def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
                                 provider: str = "edge", voice_map: dict = None,
-                                voice_name: str = None) -> list:
+                                voice_name: str = None, tts_speed: float = 1.2) -> list:
     """
     Tạo file MP3 song song cho tất cả subtitle segment.
 
@@ -565,15 +565,15 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     """
     provider_label = "Gemini TTS" if provider == "gemini" else ("Google Cloud TTS" if provider == "google" else "edge-tts")
     concurrency = TTS_CONCURRENCY.get(provider, 5)
-    logger.info(f"Generating TTS for {len(subtitles)} segments [{provider_label}] ({concurrency} concurrent)...")
-    logger.info(f"DEBUG: provider={provider}, voice_map={voice_map}, voice_name={voice_name}")
+    logger.info(f"Generating TTS for {len(subtitles)} segments [{provider_label}] ({concurrency} concurrent, speed={tts_speed}x)...")
+    logger.info(f"DEBUG: provider={provider}, voice_map={voice_map}, voice_name={voice_name}, tts_speed={tts_speed}")
     os.makedirs(output_dir, exist_ok=True)
     
     # Chạy async event loop
     loop = asyncio.new_event_loop()
     try:
         updated_subtitles, google_failures = loop.run_until_complete(
-            _generate_tts_concurrent(subtitles, output_dir, provider, voice_map, voice_name)
+            _generate_tts_concurrent(subtitles, output_dir, provider, voice_map, voice_name, tts_speed)
         )
     finally:
         loop.close()

@@ -334,6 +334,14 @@ document.addEventListener('DOMContentLoaded', () => {
         volumeValue.textContent = `${val}%`;
     });
 
+    const ttsSpeedSlider = document.getElementById('ttsSpeed');
+    const speedValue = document.getElementById('speedValue');
+    if (ttsSpeedSlider) {
+        ttsSpeedSlider.addEventListener('input', (e) => {
+            speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+        });
+    }
+
     // Handle Douyin cookie login button
     btnGetCookie.addEventListener('click', async () => {
         btnGetCookie.disabled = true;
@@ -383,6 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
         const topicEl = document.getElementById('videoTopic');
         const topic = topicEl ? topicEl.value.trim() : '';
+        const ttsSpeedEl = document.getElementById('ttsSpeed');
+        const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.2;
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -427,7 +437,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_name: voiceName ? voiceName : null,
                     voice_female: voiceFemale || null,
                     voice_male: voiceMale || null,
-                    topic: topic || null
+                    topic: topic || null,
+                    tts_speed: ttsSpeed
                 })
             });
 
