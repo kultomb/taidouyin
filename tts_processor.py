@@ -421,9 +421,9 @@ def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, out
     tts.synthesize(text, speaker, output_path, voice_map, voice_name)
 
 def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
-    """Gemini TTS sync wrapper với retry khi rate limit."""
+    """Gemini TTS sync wrapper với retry mạnh - KHÔNG đổi giọng, KHÔNG bỏ cuộc dễ."""
     import time as _time
-    max_retries = 3
+    max_retries = 5
     for attempt in range(max_retries):
         try:
             tts.synthesize(text, speaker, output_path, voice_map, voice_name)
@@ -431,13 +431,12 @@ def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, out
                 return
             raise Exception("Output file empty")
         except Exception as e:
-            err_str = str(e).lower()
-            is_rate_limit = any(kw in err_str for kw in ["429", "resource_exhausted", "rate limit", "quota"])
-            if is_rate_limit and attempt < max_retries - 1:
-                delay = (attempt + 1) * 3
-                logger.warning(f"[Gemini] Rate limit segment '{speaker}', retry in {delay}s (attempt {attempt+2}/{max_retries})")
+            if attempt < max_retries - 1:
+                delay = (attempt + 1) * 5  # 5s, 10s, 15s, 20s
+                logger.warning(f"[Gemini] Retry {attempt+1}/{max_retries} after {delay}s for speaker='{speaker}': {e}")
                 _time.sleep(delay)
             else:
+                logger.error(f"[Gemini] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
                 raise
 
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None) -> tuple:
