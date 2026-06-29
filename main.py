@@ -117,7 +117,8 @@ class TranslateRequest(BaseModel):
     voice_female: Optional[str] = None  # Giọng Nữ khi chọn tự động phân vai
     voice_male: Optional[str] = None    # Giọng Nam khi chọn tự động phân vai
     topic: Optional[str] = None  # Chủ đề video (vd: sửa điện thoại, tây du ký, review...)
-    tts_speed: float = 1.20  # Tốc độ giọng đọc (1.0 = bình thường, 1.2 = nhanh 20%) để dịch đúng thuật ngữ chuyên ngành
+    tts_speed: float = 1.20  # Tốc độ giọng đọc (1.0 = bình thường, 1.2 = nhanh 20%)
+    translate_style: str = "default"  # Phong cách dịch: default, dialogue, review, tutorial
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -222,12 +223,13 @@ def run_pipeline_phase1(job_id: str, url: str):
         job["sub_step"] = "LỖI: Tải video gốc thất bại."
         log(f"LỖI HỆ THỐNG: {str(e)}")
 
-def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemini", voice_name: str = None, topic: str = None) -> list:
+def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemini", voice_name: str = None, topic: str = None, translate_style: str = "default") -> list:
     """
     Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt).
     provider: "gemini" (Vertex AI) hoặc "gist" (Gist API miễn phí).
     KHÔNG fallback chéo: chọn gì dùng đó.
-    topic: chủ đề video để dịch đúng thuật ngữ chuyên ngành (vd: sửa điện thoại, tây du ký, review...)
+    topic: chủ đề video để dịch đúng thuật ngữ chuyên ngành
+    translate_style: default, dialogue, review, tutorial
     Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
     """
     texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
@@ -297,25 +299,14 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                 log_func(f"⚠️ Google Translate lỗi: {str(ge)[:100]}")
 
     else:  # gemini
+        style = translate_style or "default"
         if voice_name:
-            # Chế độ làm video hàng loạt: Dịch phẳng, không phân vai để tiết kiệm token & tăng tốc
-            log_func(f"🤖 Gemini Vertex (Hàng loạt): Đang dịch {len(texts_to_translate)} đoạn...")
+            # Chế độ làm video hàng loạt: Dịch phẳng, không phân vai
+            log_func(f"🤖 Gemini Vertex ({style}): Đang dịch {len(texts_to_translate)} đoạn...")
             try:
+                from prompts import build_batch_prompt
                 client = get_vertex_client()
-                batch_text = "\n---\n".join(
-                    f"[{i+1}] {t}" for i, t in enumerate(texts_to_translate) if t.strip()
-                )
-                topic_hint = f"\nVIDEO TOPIC/CONTEXT: {topic}. Use specialized terminology appropriate for this topic.\n" if topic else ""
-                prompt = (
-                    "Translate each Chinese text below into natural, fluent Vietnamese suitable for spoken dubbing.\n"
-                    "Return ONLY the translations, one per line, in the exact same order. Do NOT add numbers, prefixes or other comments.\n\n"
-                    + topic_hint +
-                    "CRITICAL DUBBING TRANSLATION RULES:\n"
-                    "1. Keep similar speaking duration as the original.\n"
-                    "2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
-                    "3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
-                    + batch_text
-                )
+                prompt = build_batch_prompt(texts_to_translate, style=style, topic=topic)
                 response = client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[prompt],
@@ -336,24 +327,11 @@ def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemi
                 log_func(f"⚠️ Gemini Vertex lỗi: {str(e)[:100]}. SRT sẽ có text gốc.")
         else:
             # Chế độ tự động phân vai bằng AI
-            log_func(f"🤖 Gemini Vertex: Đang dịch và phân vai {len(texts_to_translate)} đoạn...")
+            log_func(f"🤖 Gemini Vertex ({style}): Đang dịch và phân vai {len(texts_to_translate)} đoạn...")
             try:
+                from prompts import build_roleplay_prompt
                 client = get_vertex_client()
-                batch_text = "\n---\n".join(
-                    f"[{i+1}] {t}" for i, t in enumerate(texts_to_translate) if t.strip()
-                )
-                topic_hint2 = f"\nVIDEO TOPIC/CONTEXT: {topic}. Use specialized terminology appropriate for this topic.\n" if topic else ""
-                prompt = (
-                    "Translate each Chinese text below into natural, fluent Vietnamese suitable for spoken dubbing. "
-                    "Analyze the context of the conversation to predict different speakers (e.g. Speaker A for female/default, Speaker B for male/others). "
-                    "Ensure correct order of translation matching the input order.\n\n"
-                    + topic_hint2 +
-                    "CRITICAL DUBBING TRANSLATION RULES:\n"
-                    "1. Keep similar speaking duration as the original.\n"
-                    "2. The Vietnamese translation length must not exceed the original by more than 10% in syllable count.\n"
-                    "3. Prefer short, natural, spoken Vietnamese over literal translation. Do not use overly formal or literary terms.\n\n"
-                    + batch_text
-                )
+                prompt = build_roleplay_prompt(texts_to_translate, style=style, topic=topic)
                 schema = {
                     "type": "OBJECT",
                     "properties": {
@@ -546,7 +524,7 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             if use_ocr and ocr_segments:
                 log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch...")
                 translate_provider = job.get("translate_provider", "gemini")
-                subtitles = _translate_ocr_subtitles(ocr_segments, log, provider=translate_provider, voice_name=job.get("voice_name"), topic=job.get("topic"))
+                subtitles = _translate_ocr_subtitles(ocr_segments, log, provider=translate_provider, voice_name=job.get("voice_name"), topic=job.get("topic"), translate_style=job.get("translate_style", "default"))
 
                 if not subtitles:
                     log("Dịch thất bại hoặc không có phụ đề. Chuyển sang ASR fallback.")
@@ -592,7 +570,7 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                     whisper_subs = whisper_result.get("subtitles", [])
                     log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Whisper. Đang gửi sang bộ dịch...")
                     translate_provider = job.get("translate_provider", "gemini")
-                    subtitles = _translate_ocr_subtitles(whisper_subs, log, provider=translate_provider, voice_name=job.get("voice_name"), topic=job.get("topic"))
+                    subtitles = _translate_ocr_subtitles(whisper_subs, log, provider=translate_provider, voice_name=job.get("voice_name"), topic=job.get("topic"), translate_style=job.get("translate_style", "default"))
                 else:
                     job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
                     log("Gửi tệp âm thanh trực tiếp qua Google GenAI SDK để phân tích và nhận diện giọng nói (ASR)...")
@@ -789,6 +767,7 @@ def start_translation(request: TranslateRequest):
         "voice_male": request.voice_male,
         "topic": request.topic,
         "tts_speed": request.tts_speed,
+        "translate_style": request.translate_style,
         "_created": time.time(),
     }
     

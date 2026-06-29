@@ -305,6 +305,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Style Toggle Buttons
+    styleToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTranslateStyle = btn.dataset.style;
+        });
+    });
+
+    const styleToggleBtns = document.querySelectorAll('.style-toggle-btn');
+    let selectedTranslateStyle = 'default';
+
     const btnGetCookie = document.getElementById('btnGetCookie');
 
     const processingCard = document.getElementById('processingCard');
@@ -438,7 +450,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_female: voiceFemale || null,
                     voice_male: voiceMale || null,
                     topic: topic || null,
-                    tts_speed: ttsSpeed
+                    tts_speed: ttsSpeed,
+                    translate_style: selectedTranslateStyle
                 })
             });
 
