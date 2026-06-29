@@ -250,13 +250,17 @@ GEMINI_VOICES = [
     "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"
 ]
 
-# Phân loại giới tính gần đúng dựa trên tên
-_GEMINI_FEMALE = {"Zephyr", "Kore", "Leda", "Aoede", "Callirrhoe", "Autonoe",
-                   "Despina", "Erinome", "Laomedeia", "Pulcherrima", "Achird",
-                   "Vindemiatrix", "Sadachbia", "Sulafat"}
-_GEMINI_MALE = {"Puck", "Charon", "Fenrir", "Orus", "Enceladus", "Iapetus",
-                 "Umbriel", "Algieba", "Algenib", "Rasalgethi", "Achernar",
-                 "Alnilam", "Schedar", "Gacrux", "Zubenelgenubi", "Sadaltager"}
+# Phân loại giới tính chính xác dựa trên tài liệu API Gemini TTS
+_GEMINI_FEMALE = {
+    "Zephyr", "Achernar", "Aoede", "Autonoe", "Despina", "Algieba",
+    "Callirrhoe", "Umbriel", "Erinome", "Gacrux", "Kore", "Leda",
+    "Laomedeia", "Pulcherrima", "Sulafat", "Vindemiatrix"
+}
+_GEMINI_MALE = {
+    "Charon", "Enceladus", "Fenrir", "Puck", "Achird", "Algenib",
+    "Alnilam", "Orus", "Iapetus", "Rasalgethi", "Schedar",
+    "Sadachbia", "Sadaltager", "Zubenelgenubi"
+}
 
 GEMINI_VOICE_GENDER = {}
 for v in GEMINI_VOICES:
