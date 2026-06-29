@@ -34,7 +34,31 @@ def _load_prompt(style: str) -> str:
     return content
 
 
-def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = None) -> str:
+def _build_glossary_table(glossary: str) -> str:
+    """Chuyển glossary text thành bảng Markdown cho prompt.
+    Format input: Natra=Ngao Quảng, MOSFET=MOSFET, 老广=Ngao Quảng
+    Format output: | Natra | Ngao Quảng | (Markdown table)
+    """
+    if not glossary or not glossary.strip():
+        return ""
+    pairs = []
+    for part in glossary.split(","):
+        part = part.strip()
+        if "=" in part:
+            k, v = part.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if k and v:
+                pairs.append((k, v))
+    if not pairs:
+        return ""
+    table = "\n# GLOSSARY (STRICT: use these exact translations for the terms below)\n"
+    table += "| Term | Translation |\n|------|-------------|\n"
+    for k, v in pairs:
+        table += f"| {k} | {v} |\n"
+    return table + "\n"
+
+
+def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = None, glossary: str = None) -> str:
     """
     Build prompt cho chế độ dịch hàng loạt (không phân vai).
     Dùng prompt gốc từ file nhưng rút gọn + ép output text-only.
@@ -45,9 +69,7 @@ def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = Non
         f"[{i+1}] {t}" for i, t in enumerate(ocr_texts) if t.strip()
     )
 
-    topic_line = ""
-    if topic and topic.strip():
-        topic_line = f"\n\n# VIDEO TOPIC\nThis video is about: {topic.strip()}. Use appropriate specialized terminology.\n"
+    glossary_table = _build_glossary_table(glossary) if glossary else ""
 
     return (
         "You are an expert subtitle translator. Translate each Chinese segment below into natural spoken Vietnamese.\n"
@@ -60,7 +82,7 @@ def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = Non
         "2. Keep translations concise — similar speaking duration as original.\n"
         "3. Vietnamese length must not exceed original by more than 10%.\n"
         "4. Prefer short, natural, spoken Vietnamese over literal translation.\n"
-        + topic_line +
+        + glossary_table +
         "\n# TEXT TO TRANSLATE:\n" + batch_text
     )
 
@@ -83,7 +105,7 @@ def _extract_style_rules(prompt: str) -> str:
     return "\n".join(lines) if lines else "- Translate naturally, as if speaking in a conversation."
 
 
-def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = None) -> str:
+def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = None, glossary: str = None) -> str:
     """
     Build prompt cho chế độ dịch + phân vai (có speaker prediction).
     Dùng prompt gốc từ file + thêm instruction phân vai.
@@ -94,16 +116,11 @@ def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = 
         f"[{i+1}] {t}" for i, t in enumerate(ocr_texts) if t.strip()
     )
 
-    topic_line = ""
-    if topic and topic.strip():
-        topic_line = f"\n\n# VIDEO TOPIC\nThis video is about: {topic.strip()}. Use appropriate specialized terminology.\n"
-
-    # Lấy style rules ngắn gọn
-    style_rules = _extract_style_rules(prompt)
+    glossary_table = _build_glossary_table(glossary) if glossary else ""
 
     return (
         prompt
-        + topic_line +
+        + glossary_table +
         "\n\n# ADDITIONAL INSTRUCTION: Predict speakers (Speaker A for female/default, Speaker B for male/others). Return JSON with 'translation' and 'speaker' for each block.\n"
         + "\n# TEXT TO TRANSLATE:\n" + batch_text
     )
