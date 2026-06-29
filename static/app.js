@@ -360,6 +360,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Handle subtitle style toggle button
+    const btnToggleSubStyle = document.getElementById('btnToggleSubStyle');
+    const subStyleCompact = document.getElementById('subStyleCompact');
+    if (btnToggleSubStyle && subStyleCompact) {
+        btnToggleSubStyle.addEventListener('click', () => {
+            const isVisible = subStyleCompact.style.display !== 'none';
+            subStyleCompact.style.display = isVisible ? 'none' : 'block';
+            btnToggleSubStyle.textContent = isVisible ? '+ Mở' : '− Đóng';
+            btnToggleSubStyle.classList.toggle('active', !isVisible);
+        });
+    }
+
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {
         const val = Math.round(e.target.value * 100);
