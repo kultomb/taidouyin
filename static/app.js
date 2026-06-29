@@ -305,6 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    const styleToggleBtns = document.querySelectorAll('.style-toggle-btn');
+    let selectedTranslateStyle = 'default';
+
     // Style Toggle Buttons
     styleToggleBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -313,9 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedTranslateStyle = btn.dataset.style;
         });
     });
-
-    const styleToggleBtns = document.querySelectorAll('.style-toggle-btn');
-    let selectedTranslateStyle = 'default';
 
     const btnGetCookie = document.getElementById('btnGetCookie');
 
