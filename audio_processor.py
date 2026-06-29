@@ -286,8 +286,8 @@ def _compute_actual_timeline(segments: list) -> list:
     timeline = []
     MAX_SPEEDUP_LIMIT = 1.4     # Tăng tốc tối đa để tránh méo tiếng
     MAX_SLOWDOWN = 0.85         # Giãn chậm tối đa
-    MIN_GAP = 0.12              # Khoảng nghỉ tối thiểu giữa các câu
-    TARGET_FILL_RATIO = 0.96    # Mục tiêu lấp đầy 96% slot gốc
+    MIN_GAP = 0.04              # Khoảng nghỉ tối thiểu giữa các câu (giảm từ 0.12)
+    TARGET_FILL_RATIO = 0.92    # Mục tiêu lấp đầy slot gốc (giảm từ 0.96)
     
     last_actual_end = 0.0
  
