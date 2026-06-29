@@ -515,6 +515,7 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
         time_cursor = 0.0
         for _seq_index, (idx, sub) in enumerate(group_items):
             text = sub.get("translation", "").strip()
+            speaker_label = sub.get("speaker", "default")
             text_len = len(text)
             segment_ratio = text_len / total_text_len if total_text_len > 0 else 0
             segment_duration = merged_duration * segment_ratio
@@ -552,7 +553,7 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
                 # Fallback: thử Edge TTS cho segment này
                 try:
                     logger.info(f"[Gemini Batch] Fallback Edge TTS for seg {idx}...")
-                    await _synthesize_edge_async(text, speaker, file_path, None, None)
+                    await _synthesize_edge_async(text, speaker_label, file_path, None, None)
                     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                         if tts_speed != 1.0:
                             speed_up_tts(file_path, tts_speed)
