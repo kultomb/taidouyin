@@ -450,11 +450,130 @@ def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, out
                 logger.error(f"[Gemini] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
                 raise
 
+async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
+    """
+    Gemini TTS: Group by speaker → merge text → 1 API call/speaker → split ffmpeg.
+    Giữ giọng nhất quán trong cùng 1 speaker.
+    Returns: (updated_subtitles, failure_count)
+    """
+    import time as _time
+    
+    tts = GeminiTTSProvider()
+    updated = [None] * len(subtitles)
+    failures = 0
+
+    # 1. Group segments by speakerName (nếu có voice_name đồng nhất thì gộp tất cả)
+    groups = {}  # {speaker_name: [(idx, sub), ...]}
+    for i, sub in enumerate(subtitles):
+        text = sub.get("translation", "").replace("[", "").replace("]", "").strip()
+        if not text:
+            updated[i] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
+            continue
+        # Nếu có voice_name đồng nhất → tất cả chung 1 speaker
+        speaker_key = "__all__" if voice_name else sub.get("speaker", "default")
+        groups.setdefault(speaker_key, []).append((i, sub))
+
+    if not groups:
+        return [s for s in updated if s is not None], 0
+
+    logger.info(f"[Gemini Batch] {len(subtitles)} segments → {len(groups)} speaker groups")
+
+    # 2. For each speaker: merge text → synthesize 1 lần → split
+    for speaker, group_items in groups.items():
+        voice = pick_gemini_voice(speaker, voice_map, voice_name)
+        logger.info(f"[Gemini Batch] Speaker '{speaker}' ({len(group_items)} segments) → voice={voice}")
+
+        merged_path = os.path.join(output_dir, f"tts_merged_{speaker.replace(' ','_')}.mp3")
+        
+        try:
+            offsets = tts.synthesize_batch(
+                [sub for _, sub in group_items],
+                voice_name_actual=voice,
+                output_path=merged_path
+            )
+        except Exception as e:
+            logger.error(f"[Gemini Batch] FAILED speaker '{speaker}': {e}")
+            for idx, sub in group_items:
+                updated[idx] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
+            failures += len(group_items)
+            continue
+
+        # 3. Split merged audio → từng segment bằng ffmpeg dựa trên timestamp
+        merged_duration = get_audio_duration(merged_path)
+        if merged_duration <= 0:
+            logger.error(f"[Gemini Batch] Merged audio duration=0 for speaker '{speaker}'")
+            for idx, sub in group_items:
+                updated[idx] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
+            failures += len(group_items)
+            continue
+
+        # Tính tổng độ dài text để phân bổ thời gian
+        total_text_len = sum(len(sub.get("translation", "").strip()) for _, sub in group_items)
+        if total_text_len == 0:
+            total_text_len = 1
+
+        time_cursor = 0.0
+        for _seq_index, (idx, sub) in enumerate(group_items):
+            text_len = len(sub.get("translation", "").strip())
+            segment_ratio = text_len / total_text_len
+            segment_duration = merged_duration * segment_ratio
+            
+            file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
+            
+            try:
+                # Cắt từ merged audio: ffmpeg -ss {start} -t {duration} -i input -c copy output
+                subprocess.run([
+                    "ffmpeg", "-y",
+                    "-ss", f"{time_cursor:.3f}",
+                    "-t", f"{segment_duration:.3f}",
+                    "-i", merged_path,
+                    "-c:a", "libmp3lame", "-q:a", "2",
+                    file_path
+                ], capture_output=True, check=True, timeout=15)
+                
+                time_cursor += segment_duration
+
+                # Trim silence
+                trimmed = file_path + ".trimmed.mp3"
+                if trim_silence(file_path, trimmed) and os.path.exists(trimmed):
+                    os.replace(trimmed, file_path)
+
+                # Speed up
+                if tts_speed != 1.0:
+                    speed_up_tts(file_path, tts_speed)
+
+                actual_duration = get_audio_duration(file_path)
+                updated[idx] = dict(sub, audio_path=os.path.abspath(file_path), tts_duration=actual_duration)
+                logger.info(f"[Gemini Batch] ✓ seg {idx} '{text[:30]}...' ({actual_duration:.1f}s)")
+
+            except Exception as e:
+                logger.error(f"[Gemini Batch] FAILED split seg {idx}: {e}")
+                updated[idx] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
+                failures += 1
+
+        # Xóa merged file sau khi split xong
+        try:
+            if os.path.exists(merged_path):
+                os.remove(merged_path)
+        except Exception:
+            pass
+
+    filtered = [s for s in updated if s is not None]
+    return filtered, failures
+
+
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
     """
     Tạo TTS song song cho tất cả segment.
+    - Gemini: dùng batch merge (group by speaker)
+    - Edge/Google: dùng concurrent per-segment
     Returns: (updated_subtitles, failure_count)
     """
+    # Gemini → batch mode
+    if provider == "gemini":
+        return await _generate_tts_batch_gemini(subtitles, output_dir, voice_map, voice_name, tts_speed)
+
+    # Edge/Google → concurrent per-segment (giữ nguyên logic cũ)
     import concurrent.futures
     
     concurrency = TTS_CONCURRENCY.get(provider, 5)
@@ -463,9 +582,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     failures = 0
     lock = asyncio.Lock()
     
-    if provider == "gemini":
-        tts = GeminiTTSProvider()
-    elif provider == "google":
+    if provider == "google":
         tts = GoogleTTSProvider()
     else:
         tts = None  # edge-tts doesn't need persistent client
