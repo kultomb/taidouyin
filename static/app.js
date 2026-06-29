@@ -363,6 +363,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle subtitle style toggle button
     const btnToggleSubStyle = document.getElementById('btnToggleSubStyle');
     const subStyleCompact = document.getElementById('subStyleCompact');
+    const subPreviewArea = document.getElementById('subPreviewArea');
+    const subPreviewText = document.getElementById('subPreviewText');
+    
     if (btnToggleSubStyle && subStyleCompact) {
         btnToggleSubStyle.addEventListener('click', () => {
             const isVisible = subStyleCompact.style.display !== 'none';
@@ -371,6 +374,51 @@ document.addEventListener('DOMContentLoaded', () => {
             btnToggleSubStyle.classList.toggle('active', !isVisible);
         });
     }
+
+    // Aspect ratio buttons
+    document.querySelectorAll('.aspect-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const aspect = btn.dataset.aspect;
+            if (subPreviewArea) {
+                subPreviewArea.className = 'sub-preview-area aspect-' + aspect.replace(':', '-');
+            }
+        });
+    });
+
+    // Live preview update
+    function updateSubPreview() {
+        if (!subPreviewText || !subPreviewArea) return;
+        const font = document.getElementById('subFont')?.value || 'Montserrat';
+        const size = document.getElementById('subFontSize')?.value || '20';
+        const colorEl = document.getElementById('subColor');
+        const pos = document.getElementById('subPosition')?.value || '2';
+        const outline = document.getElementById('subOutline')?.value || '1.5';
+        const bgAlpha = document.getElementById('subBgAlpha')?.value || '80';
+        
+        subPreviewText.style.fontFamily = font + ', sans-serif';
+        subPreviewText.style.fontSize = size + 'px';
+        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline)*2}px #000`;
+        
+        // Map color
+        const colorMap = {'&H00FFFFFF':'#FFFFFF','&H0000FFFF':'#FFFF00','&H0000FF00':'#00FF00','&H00FF0000':'#0066FF','&H000000FF':'#FF0000','&H00FF80FF':'#FF80FF'};
+        subPreviewText.style.color = colorMap[colorEl?.value] || '#FFFFFF';
+        
+        // Background
+        const alpha = parseInt(bgAlpha, 16);
+        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha/255})` : 'transparent';
+        
+        // Position
+        const posMap = {'2':'flex-end','1':'flex-end','3':'flex-end','8':'flex-start','5':'center'};
+        const justifyMap = {'2':'center','1':'flex-start','3':'flex-end','8':'center','5':'center'};
+        subPreviewArea.style.alignItems = posMap[pos] || 'flex-end';
+        subPreviewArea.style.justifyContent = justifyMap[pos] || 'center';
+    }
+    
+    document.querySelectorAll('#subStyleCompact select').forEach(sel => {
+        sel.addEventListener('change', updateSubPreview);
+    });
 
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {

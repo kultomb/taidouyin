@@ -362,10 +362,22 @@
                         <!-- Subtitle Style -->
                         <div class="setting-panel">
                             <label class="setting-label">
-                                Kiểu phụ đề
+                                🎨 Kiểu phụ đề
                                 <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
                             </label>
-                            <div class="sub-style-compact" id="subStyleCompact" style="display:none;">
+                            <div id="subStyleCompact" style="display:none;">
+                                <!-- Preview box -->
+                                <div class="sub-preview-box" id="subPreview">
+                                    <div class="sub-preview-controls">
+                                        <button type="button" class="aspect-btn active" data-aspect="9:16">📱
+                                            9:16</button>
+                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 16:9</button>
+                                    </div>
+                                    <div class="sub-preview-area" id="subPreviewArea">
+                                        <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
+                                    </div>
+                                </div>
+                                <!-- Controls -->
                                 <div class="sub-row">
                                     <select id="subFont" class="mini-select">
                                         <option value="Montserrat">Montserrat</option>
@@ -380,6 +392,7 @@
                                         <option value="BeVietnamPro">BeVietnamPro</option>
                                     </select>
                                     <select id="subFontSize" class="mini-select">
+                                        <option value="16">16px</option>
                                         <option value="18">18px</option>
                                         <option value="20" selected>20px</option>
                                         <option value="22">22px</option>
@@ -387,22 +400,35 @@
                                         <option value="28">28px</option>
                                         <option value="32">32px</option>
                                     </select>
+                                    <select id="subColor" class="mini-select">
+                                        <option value="&H00FFFFFF">⬜ Trắng</option>
+                                        <option value="&H0000FFFF">🟨 Vàng</option>
+                                        <option value="&H0000FF00">🟩 Xanh lá</option>
+                                        <option value="&H00FF0000">🟦 Xanh dương</option>
+                                        <option value="&H000000FF">🟥 Đỏ</option>
+                                        <option value="&H00FF80FF">🩷 Hồng</option>
+                                    </select>
                                 </div>
                                 <div class="sub-row">
-                                    <select id="subColor" class="mini-select">
-                                        <option value="&H00FFFFFF">Trắng</option>
-                                        <option value="&H0000FFFF">Vàng</option>
-                                        <option value="&H0000FF00">Xanh lá</option>
-                                        <option value="&H00FF0000">Xanh dương</option>
-                                        <option value="&H000000FF">Đỏ</option>
-                                        <option value="&H00FF80FF">Hồng</option>
-                                    </select>
                                     <select id="subPosition" class="mini-select">
-                                        <option value="2" selected>Dưới Giữa</option>
-                                        <option value="1">Dưới Trái</option>
-                                        <option value="3">Dưới Phải</option>
-                                        <option value="8">Trên Giữa</option>
-                                        <option value="5">Giữa Màn</option>
+                                        <option value="2" selected>📍 Dưới Giữa</option>
+                                        <option value="1">📍 Dưới Trái</option>
+                                        <option value="3">📍 Dưới Phải</option>
+                                        <option value="8">📍 Trên Giữa</option>
+                                        <option value="5">📍 Giữa Màn</option>
+                                    </select>
+                                    <select id="subOutline" class="mini-select">
+                                        <option value="0">◽ Viền: Không</option>
+                                        <option value="1">◾ Viền: Mỏng</option>
+                                        <option value="1.5" selected>◾ Viền: Vừa</option>
+                                        <option value="2.5">◾ Viền: Dày</option>
+                                    </select>
+                                    <select id="subBgAlpha" class="mini-select">
+                                        <option value="00">Nền: Trong suốt</option>
+                                        <option value="40">Nền: Mờ 25%</option>
+                                        <option value="80" selected>Nền: Mờ 50%</option>
+                                        <option value="C0">Nền: Mờ 75%</option>
+                                        <option value="FF">Nền: Đặc</option>
                                     </select>
                                 </div>
                             </div>
@@ -589,7 +615,7 @@
         <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
-    <script src="app.js?v=1.7"></script>
+    <script src="app.js?v=1.8"></script>
 </body>
 
 </html>
