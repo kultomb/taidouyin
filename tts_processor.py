@@ -549,6 +549,19 @@ async def _generate_tts_batch_gemini(subtitles: list, output_dir: str, voice_map
 
             except Exception as e:
                 logger.error(f"[Gemini Batch] FAILED split seg {idx}: {e}")
+                # Fallback: thử Edge TTS cho segment này
+                try:
+                    logger.info(f"[Gemini Batch] Fallback Edge TTS for seg {idx}...")
+                    await _synthesize_edge_async(text, speaker, file_path, None, None)
+                    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                        if tts_speed != 1.0:
+                            speed_up_tts(file_path, tts_speed)
+                        actual_duration = get_audio_duration(file_path)
+                        updated[idx] = dict(sub, audio_path=os.path.abspath(file_path), tts_duration=actual_duration)
+                        logger.info(f"[Gemini Batch] ✓ seg {idx} (Edge fallback) '{text[:30]}...' ({actual_duration:.1f}s)")
+                        continue
+                except Exception as fe:
+                    logger.error(f"[Gemini Batch] Edge fallback also FAILED seg {idx}: {fe}")
                 updated[idx] = dict(sub, audio_path="", tts_duration=max(0.1, sub.get("end", 0) - sub.get("start", 0)))
                 failures += 1
 
