@@ -120,6 +120,7 @@ class TranslateRequest(BaseModel):
     tts_speed: float = 1.20  # Tốc độ giọng đọc (1.0 = bình thường, 1.2 = nhanh 20%)
     translate_style: str = "default"  # Phong cách dịch: default, dialogue, review, tutorial
     context: Optional[str] = None  # Bối cảnh video để AI hiểu nội dung (vd: phim Tây Du Ký, có Natra...)
+    subtitle_style: Optional[Dict] = None  # Style ASS subtitle {font, fontsize, color, position}
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -650,8 +651,22 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         job["srt_original"] = srt_original_path
         
         # Ghi cả 2 file phụ đề tiếng Việt và tiếng Trung khớp 100% hành động video gốc
-        generate_srt(subtitles, srt_path, use_original=False)
-        generate_srt(subtitles, srt_original_path, use_original=True)
+        sub_style = job.get("subtitle_style")
+        if sub_style and burn_subtitles:
+            # Dùng ASS có style
+            from audio_processor import generate_ass
+            ass_path = srt_path.replace(".srt", ".ass")
+            ass_style = {
+                "font": sub_style.get("font", "Montserrat"),
+                "fontsize": sub_style.get("fontsize", 20),
+                "color": sub_style.get("color", "&H00FFFFFF"),
+                "alignment": sub_style.get("position", 2),
+            }
+            generate_ass(subtitles, ass_path, ass_style)
+            generate_srt(subtitles, srt_original_path, use_original=True)
+        else:
+            generate_srt(subtitles, srt_path, use_original=False)
+            generate_srt(subtitles, srt_original_path, use_original=True)
         
         # Step 8: Xuất video cuối
         job["step"] = 8
@@ -771,6 +786,7 @@ def start_translation(request: TranslateRequest):
         "tts_speed": request.tts_speed,
         "translate_style": request.translate_style,
         "context": request.context,
+        "subtitle_style": request.subtitle_style,
         "_created": time.time(),
     }
     

@@ -340,6 +340,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let pollInterval = null;
     let displayedLogCount = 0;
 
+    // Handle burnSubtitles checkbox -> toggle sub style panel
+    const subStylePanel = document.getElementById('subStylePanel');
+    if (burnSubtitlesCheckbox && subStylePanel) {
+        burnSubtitlesCheckbox.addEventListener('change', () => {
+            subStylePanel.style.display = burnSubtitlesCheckbox.checked ? 'block' : 'none';
+        });
+    }
+
     // Handle range slider updates
     volumeSlider.addEventListener('input', (e) => {
         const val = Math.round(e.target.value * 100);
@@ -451,7 +459,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     voice_male: voiceMale || null,
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle,
-                    context: context || null
+                    context: context || null,
+                    subtitle_style: burnSubtitlesCheckbox.checked ? {
+                        font: (document.getElementById('subFont') || {}).value || 'Montserrat',
+                        fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,
+                        color: (document.getElementById('subColor') || {}).value || '&H00FFFFFF',
+                        position: parseInt((document.getElementById('subPosition') || {}).value) || 2
+                    } : null
                 })
             });
 

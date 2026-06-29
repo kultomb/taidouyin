@@ -293,6 +293,60 @@
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Subtitle Style (chỉ hiện khi chọn Burn Subtitles) -->
+                        <div class="setting-panel" id="subStylePanel" style="display:none;">
+                            <label class="setting-label">Kiểu phụ đề (Subtitle Style)</label>
+                            <div class="sub-style-grid">
+                                <div class="sub-style-item">
+                                    <label class="style-mini-label">Font</label>
+                                    <select id="subFont" class="mini-select">
+                                        <option value="Montserrat">Montserrat</option>
+                                        <option value="Roboto">Roboto</option>
+                                        <option value="Inter">Inter</option>
+                                        <option value="OpenSans">OpenSans</option>
+                                        <option value="Nunito">Nunito</option>
+                                        <option value="Quicksand">Quicksand</option>
+                                        <option value="Lora">Lora</option>
+                                        <option value="Oswald">Oswald</option>
+                                        <option value="PlayfairDisplay">Playfair</option>
+                                        <option value="BeVietnamPro">BeVietnamPro</option>
+                                    </select>
+                                </div>
+                                <div class="sub-style-item">
+                                    <label class="style-mini-label">Cỡ chữ</label>
+                                    <select id="subFontSize" class="mini-select">
+                                        <option value="18">18px</option>
+                                        <option value="20" selected>20px</option>
+                                        <option value="22">22px</option>
+                                        <option value="24">24px</option>
+                                        <option value="28">28px</option>
+                                        <option value="32">32px</option>
+                                    </select>
+                                </div>
+                                <div class="sub-style-item">
+                                    <label class="style-mini-label">Màu chữ</label>
+                                    <select id="subColor" class="mini-select">
+                                        <option value="&H00FFFFFF">Trắng</option>
+                                        <option value="&H0000FFFF">Vàng</option>
+                                        <option value="&H0000FF00">Xanh lá</option>
+                                        <option value="&H00FF0000">Xanh dương</option>
+                                        <option value="&H000000FF">Đỏ</option>
+                                        <option value="&H00FF80FF">Hồng</option>
+                                    </select>
+                                </div>
+                                <div class="sub-style-item">
+                                    <label class="style-mini-label">Vị trí</label>
+                                    <select id="subPosition" class="mini-select">
+                                        <option value="2" selected>Dưới Giữa</option>
+                                        <option value="1">Dưới Trái</option>
+                                        <option value="3">Dưới Phải</option>
+                                        <option value="8">Trên Giữa</option>
+                                        <option value="5">Giữa Màn</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Column 2: AI Translation & ASR Settings -->

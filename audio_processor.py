@@ -420,3 +420,115 @@ def _generate_silence(output_path: str, duration_sec: float):
         output_path
     ]
     subprocess.run(cmd, capture_output=True, timeout=30)
+
+
+# ============================================================
+# ASS Subtitle Generator (karaoke-style)
+# ============================================================
+
+ASS_DEFAULT_STYLE = {
+    "font": "Montserrat",
+    "fontsize": 22,
+    "color": "&H00FFFFFF",       # Trắng (AABBGGRR format)
+    "bg_color": "&H80000000",    # Đen 50% trong suốt
+    "outline": 1.5,
+    "shadow": 1,
+    "alignment": 2,              # 2 = bottom-center
+    "margin_l": 30,
+    "margin_r": 30,
+    "margin_v": 50,
+}
+
+# Available fonts in fonts/ directory
+AVAILABLE_FONTS = [
+    "BeVietnamPro", "Inter", "Lora", "Montserrat", "Nunito",
+    "OpenSans", "Oswald", "PlayfairDisplay", "Quicksand", "Roboto"
+]
+
+# Available colors
+AVAILABLE_COLORS = {
+    "Trắng": "&H00FFFFFF",
+    "Vàng": "&H0000FFFF",
+    "Xanh lá": "&H0000FF00",
+    "Xanh dương": "&H00FF0000",
+    "Đỏ": "&H000000FF",
+    "Hồng": "&H00FF80FF",
+    "Cam": "&H0000A5FF",
+    "Tím": "&H00FF0080",
+}
+
+
+def generate_ass(subtitles: list, output_ass_path: str, style: dict = None):
+    """Tạo ASS subtitle với style tùy chỉnh (font, màu, kích thước, vị trí...).
+    
+    Args:
+        subtitles: list segment có 'start', 'end', 'translation'
+        output_ass_path: đường dẫn output .ass
+        style: dict style config {font, fontsize, color, bg_color, outline, shadow, alignment, margin_l, margin_r, margin_v}
+    """
+    s = {**ASS_DEFAULT_STYLE, **(style or {})}
+    
+    font = s.get("font", "Montserrat")
+    fontsize = int(s.get("fontsize", 22))
+    color = s.get("color", "&H00FFFFFF")
+    bg_color = s.get("bg_color", "&H80000000")
+    outline = float(s.get("outline", 1.5))
+    shadow = int(s.get("shadow", 1))
+    alignment = int(s.get("alignment", 2))
+    margin_l = int(s.get("margin_l", 30))
+    margin_r = int(s.get("margin_r", 30))
+    margin_v = int(s.get("margin_v", 50))
+    
+    os.makedirs(os.path.dirname(output_ass_path) if os.path.dirname(output_ass_path) else ".", exist_ok=True)
+    
+    with open(output_ass_path, "w", encoding="utf-8-sig") as f:
+        # Script Header
+        f.write("[Script Info]\n")
+        f.write("Title: DouyinTranslate\n")
+        f.write("ScriptType: v4.00+\n")
+        f.write("WrapStyle: 0\n")
+        f.write("ScaledBorderAndShadow: yes\n")
+        f.write("PlayResX: 1920\n")
+        f.write("PlayResY: 1080\n\n")
+        
+        # Style
+        f.write("[V4+ Styles]\n")
+        f.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+                "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
+                "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
+        f.write(f"Style: Default,{font},{fontsize},{color},&H00000000,&H00000000,{bg_color},"
+                f"0,0,0,0,100,100,0,0,1,{outline},{shadow},{alignment},"
+                f"{margin_l},{margin_r},{margin_v},1\n\n")
+        
+        # Events
+        f.write("[Events]\n")
+        f.write("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+        
+        for i, sub in enumerate(subtitles):
+            if "actual_start" in sub:
+                start = _sec_to_ass_time(sub["actual_start"])
+                end = _sec_to_ass_time(sub["actual_end"])
+            else:
+                start = _sec_to_ass_time(sub.get("start", 0))
+                end = _sec_to_ass_time(sub.get("end", 0))
+            text = sub.get("translation", sub.get("text", "")).strip()
+            if not text:
+                continue
+            text = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+            f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
+    
+    logger.info(f"ASS subtitle written: {output_ass_path}")
+
+
+def generate_ass_from_timeline(timeline: list, output_ass_path: str, style: dict = None):
+    """Tạo ASS từ actual timeline (khớp chính xác với audio TTS)."""
+    generate_ass(timeline, output_ass_path, style)
+
+
+def _sec_to_ass_time(seconds: float) -> str:
+    """Convert seconds to ASS time format H:MM:SS.cc"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int((seconds - int(seconds)) * 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"

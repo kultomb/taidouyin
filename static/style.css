@@ -674,6 +674,42 @@ body {
     transition: var(--transition);
 }
 
+/* Subtitle Style Panel */
+.sub-style-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.sub-style-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.style-mini-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.mini-select {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.mini-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
+}
+
 /* Checkbox item styling */
 .checkbox-item {
     display: flex;
