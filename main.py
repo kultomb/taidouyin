@@ -1,8 +1,15 @@
 import os
+import sys
 import uuid
 import time
 import logging
 import threading
+
+# If running in PyInstaller bundle, add MEIPASS directory to PATH
+# so that subprocesses and shutil.which can find ffmpeg and ffprobe automatically
+if getattr(sys, 'frozen', False):
+    os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
+
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles

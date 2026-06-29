@@ -25,8 +25,35 @@ for pkg in packages_to_collect:
     binaries.extend(tmp_binaries)
     hiddenimports.extend(tmp_hiddenimports)
 
+# Find and include ffmpeg & ffprobe binaries inside the EXE
+import shutil
+def find_ffmpeg_binaries():
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    
+    # Check common Chocolatey path if default path check is a shim
+    choco_path = r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin"
+    if os.path.exists(os.path.join(choco_path, "ffmpeg.exe")):
+        return os.path.join(choco_path, "ffmpeg.exe"), os.path.join(choco_path, "ffprobe.exe")
+        
+    return ffmpeg, ffprobe
+
+ffmpeg_exe, ffprobe_exe = find_ffmpeg_binaries()
+if ffmpeg_exe and os.path.exists(ffmpeg_exe):
+    print(f"Bundling ffmpeg: {ffmpeg_exe}")
+    datas.append((ffmpeg_exe, '.'))
+else:
+    print("WARNING: ffmpeg.exe not found! Bundled app might fail to run correctly if not installed on target system.")
+
+if ffprobe_exe and os.path.exists(ffprobe_exe):
+    print(f"Bundling ffprobe: {ffprobe_exe}")
+    datas.append((ffprobe_exe, '.'))
+else:
+    print("WARNING: ffprobe.exe not found! Bundled app might fail to run correctly if not installed on target system.")
+
 # Add static files folder so that HTML/JS/CSS are bundled inside the EXE
 datas.append(('static', 'static'))
+
 
 a = Analysis(
     ['main.py'],
