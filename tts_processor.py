@@ -273,6 +273,16 @@ for v in GEMINI_VOICES:
 
 _gemini_speaker_index = {}
 
+def _gemini_voice_to_edge_fallback(voice_name: str) -> str:
+    """
+    Ánh xạ giọng Gemini → giọng Edge tương ứng theo giới tính.
+    Dùng khi Gemini TTS lỗi, fallback về edge-tts nhưng vẫn giữ đúng giới tính.
+    """
+    if not voice_name:
+        return EDGE_VOICES["default"]
+    gender = GEMINI_VOICE_GENDER.get(voice_name, "female")
+    return EDGE_VOICES.get(gender, EDGE_VOICES["default"])
+
 def pick_gemini_voice(speaker_name: str, voice_map: dict = None, voice_name: str = None) -> str:
     """
     Chọn giọng Gemini TTS cho speaker.
@@ -466,8 +476,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                 if provider in ("gemini", "google"):
                     logger.info(f"[{provider}] Falling back to edge-tts for segment {idx}...")
                     try:
-                        # Pass voice_map=None and voice_name=None to fallback to standard Edge voices
-                        await _synthesize_edge_async(text, speaker, file_path, voice_map=None, voice_name=None)
+                        # Giữ đúng giọng: nếu có voice_name → map sang Edge tương ứng, nếu không → dùng voice_map
+                        fallback_edge_voice = _gemini_voice_to_edge_fallback(voice_name) if voice_name else None
+                        await _synthesize_edge_async(text, speaker, file_path, voice_map=voice_map if not voice_name else None, voice_name=fallback_edge_voice)
                         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                             success_segment = True
                         else:
@@ -556,8 +567,10 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
             f"{provider_label} failed all {google_failures} segments! "
             f"Falling back to edge-tts..."
         )
-        fallback_voice_name = voice_name if voice_name in EDGE_VOICES.values() else None
-        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=voice_map, voice_name=fallback_voice_name)
+        # Map Gemini voice → Edge voice theo giới tính để giữ đúng giọng người dùng chọn
+        fallback_voice_name = _gemini_voice_to_edge_fallback(voice_name) if voice_name else None
+        # Khi fallback edge-tts, xóa voice_map để tránh phân vai (dùng 1 giọng duy nhất)
+        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=None if fallback_voice_name else voice_map, voice_name=fallback_voice_name)
     elif provider in ("google", "gemini") and google_failures > 0:
         logger.warning(f"{provider_label}: {google_failures}/{len(subtitles)} segments failed.")
     
