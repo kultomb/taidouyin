@@ -6,9 +6,15 @@ import logging
 import threading
 
 # If running in PyInstaller bundle, add MEIPASS directory to PATH
-# so that subprocesses and shutil.which can find ffmpeg and ffprobe automatically
+# so that subprocesses and shutil.which can find ffmpeg and ffprobe automatically.
+# Also redirect stdout/stderr to os.devnull to prevent Uvicorn console crashes in windowed mode.
 if getattr(sys, 'frozen', False):
     os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
