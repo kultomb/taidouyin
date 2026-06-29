@@ -250,16 +250,18 @@ GEMINI_VOICES = [
     "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"
 ]
 
-# Phân loại giới tính chính xác dựa trên tài liệu API Gemini TTS
+# Phân loại giới tính chính xác dựa trên danh sách chính thức Google Gemini TTS
+# Nguồn: https://cloud.google.com/text-to-speech/docs/voices
 _GEMINI_FEMALE = {
-    "Zephyr", "Achernar", "Aoede", "Autonoe", "Despina", "Algieba",
-    "Callirrhoe", "Umbriel", "Erinome", "Gacrux", "Kore", "Leda",
+    "Zephyr", "Achernar", "Aoede", "Autonoe", "Despina",
+    "Callirrhoe", "Erinome", "Gacrux", "Kore", "Leda",
     "Laomedeia", "Pulcherrima", "Sulafat", "Vindemiatrix"
 }
 _GEMINI_MALE = {
-    "Charon", "Enceladus", "Fenrir", "Puck", "Achird", "Algenib",
-    "Alnilam", "Orus", "Iapetus", "Rasalgethi", "Schedar",
-    "Sadachbia", "Sadaltager", "Zubenelgenubi"
+    "Charon", "Enceladus", "Fenrir", "Puck", "Achird",
+    "Algenib", "Algieba", "Alnilam", "Orus", "Iapetus",
+    "Rasalgethi", "Schedar", "Sadachbia", "Sadaltager",
+    "Umbriel", "Zubenelgenubi"
 }
 
 GEMINI_VOICE_GENDER = {}
@@ -406,8 +408,8 @@ class GeminiTTSProvider:
 # Main TTS generator
 # ============================================================
 
-# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5, Gemini: 3 để tránh rate limit)
-TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 3}
+# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5, Gemini: 1 để tránh rate limit)
+TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 1}
 
 async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
     """edge-tts async wrapper."""
@@ -419,8 +421,24 @@ def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, out
     tts.synthesize(text, speaker, output_path, voice_map, voice_name)
 
 def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
-    """Gemini TTS sync wrapper (dùng trong thread pool)."""
-    tts.synthesize(text, speaker, output_path, voice_map, voice_name)
+    """Gemini TTS sync wrapper với retry khi rate limit."""
+    import time as _time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            tts.synthesize(text, speaker, output_path, voice_map, voice_name)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return
+            raise Exception("Output file empty")
+        except Exception as e:
+            err_str = str(e).lower()
+            is_rate_limit = any(kw in err_str for kw in ["429", "resource_exhausted", "rate limit", "quota"])
+            if is_rate_limit and attempt < max_retries - 1:
+                delay = (attempt + 1) * 3
+                logger.warning(f"[Gemini] Rate limit segment '{speaker}', retry in {delay}s (attempt {attempt+2}/{max_retries})")
+                _time.sleep(delay)
+            else:
+                raise
 
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None) -> tuple:
     """
@@ -472,19 +490,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                 else:
                     raise Exception("Output file was not generated or is empty.")
             except Exception as e:
-                logger.error(f"[{provider}] Failed segment {idx}: {e}")
-                if provider in ("gemini", "google"):
-                    logger.info(f"[{provider}] Falling back to edge-tts for segment {idx}...")
-                    try:
-                        # Giữ đúng giọng: nếu có voice_name → map sang Edge tương ứng, nếu không → dùng voice_map
-                        fallback_edge_voice = _gemini_voice_to_edge_fallback(voice_name) if voice_name else None
-                        await _synthesize_edge_async(text, speaker, file_path, voice_map=voice_map if not voice_name else None, voice_name=fallback_edge_voice)
-                        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-                            success_segment = True
-                        else:
-                            raise Exception("Fallback edge-tts output file was not generated or is empty.")
-                    except Exception as fe:
-                        logger.error(f"[Fallback edge-tts] Failed segment {idx}: {fe}")
+                logger.error(f"[{provider}] FAILED segment {idx} (speaker='{speaker}', text='{text[:40]}...'): {e}")
 
             if success_segment:
                 try:
@@ -561,17 +567,7 @@ def generate_tts_for_subtitles(subtitles: list, output_dir: str = "output/tts",
     
     logger.info(f"TTS done: {len(updated_subtitles)}/{len(subtitles)} segments, {google_failures} failed")
     
-    # Nếu Google/Gemini TTS thất bại toàn bộ → tự động fallback edge-tts
-    if provider in ("google", "gemini") and google_failures > 0 and len(updated_subtitles) == 0:
-        logger.error(
-            f"{provider_label} failed all {google_failures} segments! "
-            f"Falling back to edge-tts..."
-        )
-        # Map Gemini voice → Edge voice theo giới tính để giữ đúng giọng người dùng chọn
-        fallback_voice_name = _gemini_voice_to_edge_fallback(voice_name) if voice_name else None
-        # Khi fallback edge-tts, xóa voice_map để tránh phân vai (dùng 1 giọng duy nhất)
-        return generate_tts_for_subtitles(subtitles, output_dir, provider="edge", voice_map=None if fallback_voice_name else voice_map, voice_name=fallback_voice_name)
-    elif provider in ("google", "gemini") and google_failures > 0:
-        logger.warning(f"{provider_label}: {google_failures}/{len(subtitles)} segments failed.")
+    if provider in ("google", "gemini") and google_failures > 0:
+        logger.error(f"{provider_label}: {google_failures}/{len(subtitles)} segments FAILED. NO FALLBACK.")
     
     return updated_subtitles
