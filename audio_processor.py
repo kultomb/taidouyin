@@ -286,8 +286,9 @@ def _compute_actual_timeline(segments: list) -> list:
     timeline = []
     MAX_SPEEDUP_LIMIT = 1.4     # Tăng tốc tối đa để tránh méo tiếng
     MAX_SLOWDOWN = 0.85         # Giãn chậm tối đa
-    MIN_GAP = 0.04              # Khoảng nghỉ tối thiểu giữa các câu (giảm từ 0.12)
-    TARGET_FILL_RATIO = 0.92    # Mục tiêu lấp đầy slot gốc (giảm từ 0.96)
+    MIN_GAP = 0.04              # Khoảng nghỉ tối thiểu giữa các câu
+    TARGET_FILL_RATIO = 0.92    # Mục tiêu lấp đầy slot gốc
+    USE_NATURAL_GAP = True      # Dùng gap thực từ timestamp gốc thay vì MIN_GAP cố định
     
     last_actual_end = 0.0
  
@@ -310,7 +311,10 @@ def _compute_actual_timeline(segments: list) -> list:
         if i == 0:
             actual_start = original_start
         else:
-            actual_start = max(original_start, last_actual_end + MIN_GAP)
+            # Nếu USE_NATURAL_GAP, dùng gap thực từ original_start
+            natural_gap = original_start - segments[i-1]["end"] if USE_NATURAL_GAP else MIN_GAP
+            min_gap_used = max(MIN_GAP, natural_gap) if USE_NATURAL_GAP else MIN_GAP
+            actual_start = max(original_start, last_actual_end + min_gap_used)
         
         # Xác định mốc bắt đầu của câu tiếp theo để tính gap khả dụng
         next_start = segments[i + 1]["start"] if (i + 1) < len(segments) else None
