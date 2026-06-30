@@ -30,6 +30,33 @@ def _load_prompt(style: str) -> str:
     content = filepath.read_text(encoding="utf-8-sig", errors="ignore")
     # Thay placeholder {lang} = Vietnamese
     content = content.replace("{lang}", "Vietnamese")
+    
+    # Load và chèn glossary
+    glossary_content = ""
+    glossary_file = Path(__file__).parent / "glossary.txt"
+    if glossary_file.exists():
+        raw_glossary = glossary_file.read_text(encoding="utf-8-sig", errors="ignore").strip()
+        if raw_glossary:
+            # Chuyển đổi thành bảng Markdown
+            glossary_lines = []
+            for line in raw_glossary.split("\n"):
+                line = line.strip()
+                if not line or "=" not in line:
+                    continue
+                parts = line.split("=", 1)
+                glossary_lines.append(f"| {parts[0].strip()} | {parts[1].strip()} |")
+            
+            if glossary_lines:
+                table = "\n".join(glossary_lines)
+                glossary_content = (
+                    "\n\n# Glossary of terms\n"
+                    "Translations must strictly follow this glossary. If an English/source term appears, you MUST translate it as specified:\n"
+                    "| English | Vietnamese |\n"
+                    "| ------- | ---------- |\n"
+                    f"{table}\n\n"
+                )
+    content = content.replace("{GLOSSARY_DICT}", glossary_content)
+    
     _cache[style] = content
     return content
 
