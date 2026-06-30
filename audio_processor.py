@@ -329,23 +329,15 @@ def _compute_actual_timeline(segments: list, tts_speed: float = 1.2) -> list:
         speed_factor_relative = 1.0
         
         # ===============================================
-        # CASE 1: TTS ngắn hơn slot lý tưởng → GIÃN CHẬM
+        # CASE 1: TTS ngắn hơn slot lý tưởng → Giữ nguyên tốc độ tự nhiên (Không giãn chậm)
         # ===============================================
         if natural_tts_dur <= effective_dur:
-            desired_dur = effective_dur * TARGET_FILL_RATIO
-            slowdown_factor = natural_tts_dur / desired_dur if desired_dur > 0.1 else 1.0
-            
-            if slowdown_factor < MAX_SLOWDOWN:
-                speed_factor_relative = MAX_SLOWDOWN
-            else:
-                speed_factor_relative = slowdown_factor
-                
-            speed_factor_relative = min(speed_factor_relative, 1.0)
-            actual_end = actual_start + (natural_tts_dur / speed_factor_relative)
-            tts_dur = natural_tts_dur / speed_factor_relative
+            speed_factor_relative = 1.0
+            actual_end = actual_start + natural_tts_dur
+            tts_dur = natural_tts_dur
             logger.info(
                 f"Segment {i} (Short): natural_dur={natural_tts_dur:.2f}s, slot={effective_dur:.2f}s -> "
-                f"slowdown_rel={speed_factor_relative:.3f}x -> new_dur={tts_dur:.2f}s"
+                f"keep natural speed_rel=1.0x"
             )
             
         # ===============================================
