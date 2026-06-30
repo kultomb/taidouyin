@@ -34,6 +34,42 @@
         </nav>
     </header>
 
+    <!-- ========================================== -->
+    <!-- SUBTITLE REVIEW POPUP -->
+    <!-- ========================================== -->
+    <div id="subtitleReviewOverlay" class="review-overlay hidden">
+        <div class="review-modal">
+            <div class="review-header">
+                <h2 class="review-title">Kiểm tra phụ đề trước khi lồng tiếng</h2>
+                <div class="review-countdown" id="reviewCountdown">
+                    <span class="countdown-ring">
+                        <svg viewBox="0 0 36 36">
+                            <circle class="countdown-bg" cx="18" cy="18" r="15.5"></circle>
+                            <circle class="countdown-fill" id="countdownCircle" cx="18" cy="18" r="15.5"></circle>
+                        </svg>
+                    </span>
+                    <span id="countdownText" class="countdown-text">30s</span>
+                </div>
+                <span class="review-hint">Tự động tiếp tục sau khi hết giờ</span>
+            </div>
+            <div class="review-body">
+                <div class="review-video-panel">
+                    <video id="reviewVideoPlayer" class="video-player" controls muted></video>
+                </div>
+                <div class="review-srt-panel">
+                    <div class="srt-toolbar">
+                        <button type="button" id="btnEditSrt" class="btn-primary btn-sm">⏸ Chỉnh sửa</button>
+                        <button type="button" id="btnContinueSrt" class="btn-primary btn-sm btn-green">▶ Tiếp tục lồng
+                            tiếng</button>
+                    </div>
+                    <div class="srt-list" id="srtList">
+                        <!-- populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <main class="app-container">
         <!-- Hero Section -->
         <section class="hero-section">
@@ -48,19 +84,32 @@
                 <!-- Top: URL + Context (Full Width) -->
                 <div class="url-input-container">
                     <div class="input-group" style="margin-bottom: 0;">
-                        <label for="videoUrl" class="input-label">
-                            Đường dẫn chia sẻ video Douyin
-                            <button type="button" id="btnToggleContext" class="btn-mini-toggle"
-                                title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
-                        </label>
-                        <div class="input-wrapper">
+                        <label for="videoUrl" class="input-label">Nhập link Douyin hoặc chọn file video</label>
+                        <div class="input-wrapper" id="mainInputWrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
                                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                             </svg>
-                            <input type="text" id="videoUrl"
-                                placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)" required>
+                            <input type="text" id="videoUrl" placeholder="Dán liên kết Douyin hoặc chọn file video..."
+                                required>
+                            <button type="button" id="btnImportFile" class="btn-import-file"
+                                title="Chọn file video từ máy tính">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    style="width:18px;height:18px;">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </button>
+                            <input type="file" id="videoFileInput"
+                                accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/x-flv,video/x-ms-wmv"
+                                hidden>
+                        </div>
+                        <div id="fileSelectedBadge" class="file-selected-badge hidden">
+                            <span class="file-badge-name" id="selectedFileName"></span>
+                            <button type="button" class="file-badge-remove" id="fileRemoveBtn"
+                                title="Xoá file">&times;</button>
                         </div>
                     </div>
                     <div class="input-group" id="contextGroup" style="display:none; margin-top: 8px;">

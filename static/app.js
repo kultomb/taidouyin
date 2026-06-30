@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subStyleCompact = document.getElementById('subStyleCompact');
     const subPreviewArea = document.getElementById('subPreviewArea');
     const subPreviewText = document.getElementById('subPreviewText');
-    
+
     if (btnToggleSubStyle && subStyleCompact) {
         btnToggleSubStyle.addEventListener('click', () => {
             const isVisible = subStyleCompact.style.display !== 'none';
@@ -396,26 +396,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const pos = document.getElementById('subPosition')?.value || '2';
         const outline = document.getElementById('subOutline')?.value || '1.5';
         const bgAlpha = document.getElementById('subBgAlpha')?.value || '80';
-        
+
         subPreviewText.style.fontFamily = font + ', sans-serif';
         subPreviewText.style.fontSize = size + 'px';
-        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline)*2}px #000`;
-        
+        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline) * 2}px #000`;
+
         // Map color
-        const colorMap = {'&H00FFFFFF':'#FFFFFF','&H0000FFFF':'#FFFF00','&H0000FF00':'#00FF00','&H00FF0000':'#0066FF','&H000000FF':'#FF0000','&H00FF80FF':'#FF80FF'};
+        const colorMap = { '&H00FFFFFF': '#FFFFFF', '&H0000FFFF': '#FFFF00', '&H0000FF00': '#00FF00', '&H00FF0000': '#0066FF', '&H000000FF': '#FF0000', '&H00FF80FF': '#FF80FF' };
         subPreviewText.style.color = colorMap[colorEl?.value] || '#FFFFFF';
-        
+
         // Background
         const alpha = parseInt(bgAlpha, 16);
-        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha/255})` : 'transparent';
-        
+        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha / 255})` : 'transparent';
+
         // Position
-        const posMap = {'2':'flex-end','1':'flex-end','3':'flex-end','8':'flex-start','5':'center'};
-        const justifyMap = {'2':'center','1':'flex-start','3':'flex-end','8':'center','5':'center'};
+        const posMap = { '2': 'flex-end', '1': 'flex-end', '3': 'flex-end', '8': 'flex-start', '5': 'center' };
+        const justifyMap = { '2': 'center', '1': 'flex-start', '3': 'flex-end', '8': 'center', '5': 'center' };
         subPreviewArea.style.alignItems = posMap[pos] || 'flex-end';
         subPreviewArea.style.justifyContent = justifyMap[pos] || 'center';
     }
-    
+
     document.querySelectorAll('#subStyleCompact select').forEach(sel => {
         sel.addEventListener('change', updateSubPreview);
     });
@@ -597,7 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStepProgressUI(currentStep);
 
             // 4. Handle Completion/Failure / OCR Selection
-            if (data.status === 'awaiting_ocr_selection') {
+            if (data.status === 'awaiting_subtitle_review') {
+                clearInterval(pollInterval);
+                currentJobId = jobId;
+                const subs = data.result?.review_subtitles || [];
+                const videoUrl = data.result?.original_video_url;
+                showReviewPopup(jobId, subs, videoUrl);
+            } else if (data.status === 'awaiting_ocr_selection') {
                 clearInterval(pollInterval);
                 currentJobId = jobId;
 
@@ -959,4 +965,133 @@ document.addEventListener('DOMContentLoaded', () => {
         // Scroll terminal to the bottom
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }
+
+    // ─── Subtitle Review Popup ─────────────────────────────────────────
+    const reviewOverlay = document.getElementById('subtitleReviewOverlay');
+    const reviewVideo = document.getElementById('reviewVideoPlayer');
+    const srtList = document.getElementById('srtList');
+    const countdownCircle = document.getElementById('countdownCircle');
+    const countdownText = document.getElementById('countdownText');
+    const btnEditSrt = document.getElementById('btnEditSrt');
+    const btnContinueSrt = document.getElementById('btnContinueSrt');
+    let reviewTimer = null;
+    let reviewSeconds = 30;
+    let reviewSubs = [];
+    let reviewJobId = null;
+    let isEditing = false;
+
+    const COUNTDOWN_CIRCUMFERENCE = 97.4; // 2*PI*15.5
+
+    function showReviewPopup(jobId, subtitles, videoUrl) {
+        reviewJobId = jobId;
+        reviewSubs = JSON.parse(JSON.stringify(subtitles)); // deep copy
+        reviewSeconds = 30;
+        isEditing = false;
+
+        // Load video
+        reviewVideo.src = videoUrl;
+        reviewVideo.load();
+
+        // Render SRT list
+        renderSrtList(reviewSubs);
+
+        // Show overlay
+        reviewOverlay.classList.remove('hidden');
+
+        // Start countdown
+        startCountdown();
+    }
+
+    function renderSrtList(subs) {
+        srtList.innerHTML = '';
+        subs.forEach((sub, i) => {
+            const item = document.createElement('div');
+            item.className = 'srt-item';
+            item.innerHTML = `
+                <div class="srt-index">#${i + 1}</div>
+                <div class="srt-time">${secToTime(sub.start)} → ${secToTime(sub.end)}</div>
+                <div class="srt-vn">${escapeHtml(sub.translation || '')}</div>
+            `;
+            item.addEventListener('click', () => {
+                // Jump video to this timestamp
+                reviewVideo.currentTime = sub.start;
+                reviewVideo.play();
+                // Highlight
+                document.querySelectorAll('.srt-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+            });
+            srtList.appendChild(item);
+        });
+    }
+
+    function secToTime(sec) {
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return m + ':' + s.toString().padStart(2, '0');
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function startCountdown() {
+        if (reviewTimer) clearInterval(reviewTimer);
+        updateCountdownUI();
+        reviewTimer = setInterval(() => {
+            if (isEditing) return; // pause khi user đang chỉnh sửa
+            reviewSeconds--;
+            updateCountdownUI();
+            if (reviewSeconds <= 0) {
+                clearInterval(reviewTimer);
+                submitReviewContinue(); // auto continue
+            }
+        }, 1000);
+    }
+
+    function updateCountdownUI() {
+        const offset = COUNTDOWN_CIRCUMFERENCE * (1 - reviewSeconds / 30);
+        countdownCircle.style.strokeDashoffset = offset;
+        countdownText.textContent = reviewSeconds + 's';
+    }
+
+    btnEditSrt.addEventListener('click', () => {
+        if (!isEditing) {
+            isEditing = true;
+            btnEditSrt.textContent = '▶ Đang chỉnh sửa...';
+            btnEditSrt.style.background = 'var(--warning)';
+            countdownText.textContent = '⏸';
+            // Enable inline editing
+            document.querySelectorAll('.srt-item').forEach((item, i) => {
+                item.classList.add('edit-mode');
+                const vnEl = item.querySelector('.srt-vn');
+                const text = reviewSubs[i].translation || '';
+                vnEl.innerHTML = `<textarea rows="2">${escapeHtml(text)}</textarea>`;
+                const ta = vnEl.querySelector('textarea');
+                ta.addEventListener('input', () => {
+                    reviewSubs[i].translation = ta.value;
+                });
+            });
+        }
+    });
+
+    async function submitReviewContinue() {
+        clearInterval(reviewTimer);
+        try {
+            reviewOverlay.classList.add('hidden');
+            appendLogLine('[REVIEW] Đã kiểm tra phụ đề xong. Tiếp tục TTS...', 'success');
+            const resp = await fetch(`/api/subtitle-review/continue/${reviewJobId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subtitles: reviewSubs, action: 'continue' })
+            });
+            if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.detail || 'Lỗi');
+            // Start polling again
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => pollJobStatus(reviewJobId), 1200);
+        } catch (err) {
+            appendLogLine(`[REVIEW LỖI] ${err.message}`, 'error');
+        }
+    }
+
+    btnContinueSrt.addEventListener('click', submitReviewContinue);
 });
