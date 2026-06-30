@@ -308,12 +308,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const styleToggleBtns = document.querySelectorAll('.style-toggle-btn');
     let selectedTranslateStyle = 'default';
 
+    const activeGlossaryBadge = document.getElementById('activeGlossaryBadge');
+    const styleNameMap = {
+        'default': 'Mặc định (Default)',
+        'dialogue': 'Phim ảnh (Dialogue)',
+        'review': 'Review / Vlog',
+        'tutorial': 'Hướng dẫn (Tutorial)'
+    };
+    function updateActiveGlossaryBadge(style) {
+        if (activeGlossaryBadge) {
+            const name = styleNameMap[style] || style;
+            activeGlossaryBadge.textContent = `Từ điển: ${name}`;
+        }
+    }
+    updateActiveGlossaryBadge(selectedTranslateStyle);
+
     // Style Toggle Buttons
     styleToggleBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             styleToggleBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedTranslateStyle = btn.dataset.style;
+            updateActiveGlossaryBadge(selectedTranslateStyle);
         });
     });
 
