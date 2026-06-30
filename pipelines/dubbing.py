@@ -9,7 +9,7 @@ import logging
 
 from downloader import download_douyin_video
 from audio_processor import extract_audio, generate_srt, mix_audio_and_video
-from translator import get_vertex_client, transcribe_and_translate_audio
+from translator import get_vertex_client, transcribe_and_translate_audio, transcribe_audio_gemini
 from tts_processor import generate_tts_for_subtitles, detect_speaker_gender
 from ocr_engine import extract_subtitle_segments
 from google.genai import types
@@ -158,7 +158,7 @@ class DubbingPipeline:
                     try:
                         if audio_ready and os.path.exists(original_audio_path):
                             client_asr = get_vertex_client()
-                            res = transcribe_and_translate_audio(client_asr, original_audio_path)
+                            res = transcribe_audio_gemini(client_asr, original_audio_path)
                             asr_result.append(res)
                     except Exception as e:
                         asr_err.append(e)
@@ -236,8 +236,18 @@ class DubbingPipeline:
                         job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
                         log("Gửi tệp âm thanh qua Google GenAI SDK để ASR...")
                         asr_client = get_vertex_client()
-                        subtitles_data = transcribe_and_translate_audio(asr_client, original_audio_path)
-                        subtitles = subtitles_data.get("subtitles", [])
+                        subtitles_data = transcribe_audio_gemini(asr_client, original_audio_path)
+                        whisper_subs = subtitles_data.get("subtitles", [])
+                        
+                        log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Gemini ASR. Bắt đầu dịch thuật...")
+                        translate_provider = job.get("translate_provider", "gemini")
+                        subtitles = self._translate_ocr_subtitles(
+                            whisper_subs, log,
+                            provider=translate_provider,
+                            voice_name=job.get("voice_name"),
+                            translate_style=job.get("translate_style", "default"),
+                            context=job.get("context")
+                        )
                     subtitles.sort(key=lambda x: x.get("start", 0.0))
                     log(f"Hoàn thành ASR. Tìm thấy {len(subtitles)} phân đoạn.")
 

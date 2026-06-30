@@ -184,6 +184,101 @@ def transcribe_and_translate_audio(client: genai.Client, audio_path: str) -> dic
     wait=wait_fixed(3),
     reraise=True
 )
+def transcribe_audio_gemini(client: genai.Client, audio_path: str) -> dict:
+    """
+    Sends the audio file to Gemini to transcribe it into the native language (Chinese) with timestamps.
+    """
+    logger.info(f"Sending audio to Gemini for native transcription: {audio_path}")
+    
+    if not os.path.exists(audio_path):
+        raise StopTask(f"File not found: {audio_path}")
+        
+    try:
+        file_bytes = Path(audio_path).read_bytes()
+    except Exception as e:
+        raise StopTask(f"Failed to read file: {e}")
+        
+    ext = os.path.splitext(audio_path)[1].lower()
+    if ext == ".ogg":
+        mime_type = "audio/ogg"
+    elif ext == ".mp4":
+        mime_type = "video/mp4"
+    else:
+        mime_type = "audio/mpeg"
+        
+    prompt = (
+        "You are an expert audio transcriber. Listen to the audio input and transcribe the speech exactly in its native language (Chinese).\n\n"
+        "CRITICAL SEGMENTATION RULES:\n"
+        "1. Divide text into short segments (1-2 sentences each, max 8 seconds per segment).\n"
+        "2. Ensure timestamps match the natural pauses in speech.\n"
+        "3. Align segment boundaries with natural breathing points.\n"
+        "4. Avoid segments shorter than 1.5 seconds.\n\n"
+        "For each segment, return the start and end time in seconds, speaker label, and the EXACT original native Chinese transcription."
+    )
+    
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "subtitles": {
+                "type": "ARRAY",
+                "description": "List of transcribed native subtitle segments",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "start": {"type": "NUMBER", "description": "Start time in seconds"},
+                        "end": {"type": "NUMBER", "description": "End time in seconds"},
+                        "speaker": {"type": "STRING", "description": "Speaker label (e.g., Speaker A)"},
+                        "text": {"type": "STRING", "description": "Original transcription in Chinese"}
+                    },
+                    "required": ["start", "end", "speaker", "text"]
+                }
+            }
+        },
+        "required": ["subtitles"]
+    }
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_text(text=prompt),
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+                temperature=0.1,
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
+            )
+        )
+        
+        if not response.text:
+            raise TranslateError("Empty response received from Gemini.")
+            
+        parsed_result = json.loads(response.text)
+        logger.info(f"Successfully transcribed {len(parsed_result.get('subtitles', []))} segments from Gemini.")
+        return parsed_result
+        
+    except errors.APIError as e:
+        logger.error(f"Vertex API Error: code={e.code}, message={e.message}")
+        if e.code in (400, 403, 404, 500):
+            raise StopTask(f"Fatal API error: {e.message}")
+        if e.code == 429:
+            raise TranslateError("Rate limit / Quota exceeded, retrying...")
+        raise TranslateError(e.message)
+    except Exception as e:
+        logger.error(f"Error during Gemini transcription: {str(e)}")
+        if isinstance(e, StopTask):
+            raise e
+        raise TranslateError(f"Transcription error: {str(e)}")
+
+
+@retry(
+    retry=retry_if_not_exception_type(NO_RETRY_EXCEPT),
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(3),
+    reraise=True
+)
 def ocr_and_translate_video(client: genai.Client, video_path: str) -> dict:
     """
     Sends the cropped video file to Gemini 2.5 Flash, performing OCR on hardcoded subtitles
