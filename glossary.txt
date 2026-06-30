@@ -1,0 +1,4 @@
+# Glossary dùng chung cho tất cả các phong cách (General)
+# Cú pháp: Từ tiếng Anh = Nghĩa tiếng Việt
+AI = Trí tuệ nhân tạo
+SaaS = Phần mềm dạng dịch vụ
