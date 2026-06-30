@@ -465,12 +465,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ─── Import file button inside URL input ───────────────────────────
+    const btnImportFile = document.getElementById('btnImportFile');
+    const videoFileInput = document.getElementById('videoFileInput');
+    const fileBadge = document.getElementById('fileSelectedBadge');
+    const fileNameEl = document.getElementById('selectedFileName');
+    const fileRemoveBtn = document.getElementById('fileRemoveBtn');
+    let importedFilePath = null;
+
+    btnImportFile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        videoFileInput.click();
+    });
+
+    videoFileInput.addEventListener('change', async () => {
+        if (videoFileInput.files.length > 0) {
+            await uploadFile(videoFileInput.files[0]);
+        }
+    });
+
+    fileRemoveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        importedFilePath = null;
+        videoFileInput.value = '';
+        fileBadge.classList.add('hidden');
+        videoUrlInput.required = true;
+        videoUrlInput.removeAttribute('disabled');
+        videoUrlInput.placeholder = 'Dán liên kết Douyin hoặc chọn file video...';
+    });
+
+    async function uploadFile(file) {
+        if (file.size > 4 * 1024 * 1024 * 1024) {
+            alert('File quá lớn! Tối đa 4GB.');
+            return;
+        }
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        fileNameEl.textContent = file.name + ' (' + sizeMB + ' MB)';
+        fileBadge.classList.remove('hidden');
+        videoUrlInput.required = false;
+        videoUrlInput.setAttribute('disabled', 'disabled');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const resp = await fetch('/api/upload-video', { method: 'POST', body: formData });
+            if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.detail || 'Upload thất bại');
+            const data = await resp.json();
+            importedFilePath = data.path;
+            fileNameEl.textContent = file.name + ' (' + data.size_mb + ' MB OK)';
+            appendLogLine('[IMPORT] ' + file.name + ' (' + data.size_mb + ' MB)', 'success');
+        } catch (err) {
+            fileNameEl.textContent = 'Lỗi: ' + err.message;
+            appendLogLine('[IMPORT LỖI] ' + err.message, 'error');
+        }
+    }
+
+    function getContextValue() {
+        const el = document.getElementById('videoContext');
+        return el ? el.value.trim() : '';
+    }
+
     // Form Submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const url = videoUrlInput.value.trim();
-        if (!url) return;
+        if (!url && !importedFilePath) return;
 
         const bgVolume = parseFloat(volumeSlider.value);
         const burnSubtitles = burnSubtitlesCheckbox.checked;
@@ -483,8 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
         const ttsSpeedEl = document.getElementById('ttsSpeed');
         const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.2;
-        const contextEl = document.getElementById('videoContext');
-        const context = contextEl ? contextEl.value.trim() : '';
+        const context = getContextValue();
 
         // Reset UI States
         submitBtn.disabled = true;
@@ -519,7 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    url,
+                    url: importedFilePath ? '' : url,
+                    imported_file: importedFilePath || null,
                     bg_volume: bgVolume,
                     burn_subtitles: burnSubtitles,
                     tts_provider: ttsProvider,
@@ -597,13 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStepProgressUI(currentStep);
 
             // 4. Handle Completion/Failure / OCR Selection
-            if (data.status === 'awaiting_subtitle_review') {
-                clearInterval(pollInterval);
-                currentJobId = jobId;
-                const subs = data.result?.review_subtitles || [];
-                const videoUrl = data.result?.original_video_url;
-                showReviewPopup(jobId, subs, videoUrl);
-            } else if (data.status === 'awaiting_ocr_selection') {
+            if (data.status === 'awaiting_ocr_selection') {
                 clearInterval(pollInterval);
                 currentJobId = jobId;
 
@@ -965,133 +1019,4 @@ document.addEventListener('DOMContentLoaded', () => {
         // Scroll terminal to the bottom
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }
-
-    // ─── Subtitle Review Popup ─────────────────────────────────────────
-    const reviewOverlay = document.getElementById('subtitleReviewOverlay');
-    const reviewVideo = document.getElementById('reviewVideoPlayer');
-    const srtList = document.getElementById('srtList');
-    const countdownCircle = document.getElementById('countdownCircle');
-    const countdownText = document.getElementById('countdownText');
-    const btnEditSrt = document.getElementById('btnEditSrt');
-    const btnContinueSrt = document.getElementById('btnContinueSrt');
-    let reviewTimer = null;
-    let reviewSeconds = 30;
-    let reviewSubs = [];
-    let reviewJobId = null;
-    let isEditing = false;
-
-    const COUNTDOWN_CIRCUMFERENCE = 97.4; // 2*PI*15.5
-
-    function showReviewPopup(jobId, subtitles, videoUrl) {
-        reviewJobId = jobId;
-        reviewSubs = JSON.parse(JSON.stringify(subtitles)); // deep copy
-        reviewSeconds = 30;
-        isEditing = false;
-
-        // Load video
-        reviewVideo.src = videoUrl;
-        reviewVideo.load();
-
-        // Render SRT list
-        renderSrtList(reviewSubs);
-
-        // Show overlay
-        reviewOverlay.classList.remove('hidden');
-
-        // Start countdown
-        startCountdown();
-    }
-
-    function renderSrtList(subs) {
-        srtList.innerHTML = '';
-        subs.forEach((sub, i) => {
-            const item = document.createElement('div');
-            item.className = 'srt-item';
-            item.innerHTML = `
-                <div class="srt-index">#${i + 1}</div>
-                <div class="srt-time">${secToTime(sub.start)} → ${secToTime(sub.end)}</div>
-                <div class="srt-vn">${escapeHtml(sub.translation || '')}</div>
-            `;
-            item.addEventListener('click', () => {
-                // Jump video to this timestamp
-                reviewVideo.currentTime = sub.start;
-                reviewVideo.play();
-                // Highlight
-                document.querySelectorAll('.srt-item').forEach(el => el.classList.remove('active'));
-                item.classList.add('active');
-            });
-            srtList.appendChild(item);
-        });
-    }
-
-    function secToTime(sec) {
-        const m = Math.floor(sec / 60);
-        const s = Math.floor(sec % 60);
-        return m + ':' + s.toString().padStart(2, '0');
-    }
-
-    function escapeHtml(str) {
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function startCountdown() {
-        if (reviewTimer) clearInterval(reviewTimer);
-        updateCountdownUI();
-        reviewTimer = setInterval(() => {
-            if (isEditing) return; // pause khi user đang chỉnh sửa
-            reviewSeconds--;
-            updateCountdownUI();
-            if (reviewSeconds <= 0) {
-                clearInterval(reviewTimer);
-                submitReviewContinue(); // auto continue
-            }
-        }, 1000);
-    }
-
-    function updateCountdownUI() {
-        const offset = COUNTDOWN_CIRCUMFERENCE * (1 - reviewSeconds / 30);
-        countdownCircle.style.strokeDashoffset = offset;
-        countdownText.textContent = reviewSeconds + 's';
-    }
-
-    btnEditSrt.addEventListener('click', () => {
-        if (!isEditing) {
-            isEditing = true;
-            btnEditSrt.textContent = '▶ Đang chỉnh sửa...';
-            btnEditSrt.style.background = 'var(--warning)';
-            countdownText.textContent = '⏸';
-            // Enable inline editing
-            document.querySelectorAll('.srt-item').forEach((item, i) => {
-                item.classList.add('edit-mode');
-                const vnEl = item.querySelector('.srt-vn');
-                const text = reviewSubs[i].translation || '';
-                vnEl.innerHTML = `<textarea rows="2">${escapeHtml(text)}</textarea>`;
-                const ta = vnEl.querySelector('textarea');
-                ta.addEventListener('input', () => {
-                    reviewSubs[i].translation = ta.value;
-                });
-            });
-        }
-    });
-
-    async function submitReviewContinue() {
-        clearInterval(reviewTimer);
-        try {
-            reviewOverlay.classList.add('hidden');
-            appendLogLine('[REVIEW] Đã kiểm tra phụ đề xong. Tiếp tục TTS...', 'success');
-            const resp = await fetch(`/api/subtitle-review/continue/${reviewJobId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subtitles: reviewSubs, action: 'continue' })
-            });
-            if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.detail || 'Lỗi');
-            // Start polling again
-            if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(() => pollJobStatus(reviewJobId), 1200);
-        } catch (err) {
-            appendLogLine(`[REVIEW LỖI] ${err.message}`, 'error');
-        }
-    }
-
-    btnContinueSrt.addEventListener('click', submitReviewContinue);
 });

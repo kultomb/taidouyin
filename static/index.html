@@ -34,42 +34,6 @@
         </nav>
     </header>
 
-    <!-- ========================================== -->
-    <!-- SUBTITLE REVIEW POPUP -->
-    <!-- ========================================== -->
-    <div id="subtitleReviewOverlay" class="review-overlay hidden">
-        <div class="review-modal">
-            <div class="review-header">
-                <h2 class="review-title">Kiểm tra phụ đề trước khi lồng tiếng</h2>
-                <div class="review-countdown" id="reviewCountdown">
-                    <span class="countdown-ring">
-                        <svg viewBox="0 0 36 36">
-                            <circle class="countdown-bg" cx="18" cy="18" r="15.5"></circle>
-                            <circle class="countdown-fill" id="countdownCircle" cx="18" cy="18" r="15.5"></circle>
-                        </svg>
-                    </span>
-                    <span id="countdownText" class="countdown-text">30s</span>
-                </div>
-                <span class="review-hint">Tự động tiếp tục sau khi hết giờ</span>
-            </div>
-            <div class="review-body">
-                <div class="review-video-panel">
-                    <video id="reviewVideoPlayer" class="video-player" controls muted></video>
-                </div>
-                <div class="review-srt-panel">
-                    <div class="srt-toolbar">
-                        <button type="button" id="btnEditSrt" class="btn-primary btn-sm">⏸ Chỉnh sửa</button>
-                        <button type="button" id="btnContinueSrt" class="btn-primary btn-sm btn-green">▶ Tiếp tục lồng
-                            tiếng</button>
-                    </div>
-                    <div class="srt-list" id="srtList">
-                        <!-- populated by JS -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <main class="app-container">
         <!-- Hero Section -->
         <section class="hero-section">
@@ -123,9 +87,6 @@
                                 placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
                         </div>
                     </div>
-                </div>
-                </div>
-                </div>
                 </div>
 
                 <!-- Middle: Balanced 2-Column Settings Grid -->

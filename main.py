@@ -16,7 +16,7 @@ if getattr(sys, 'frozen', False):
         sys.stderr = open(os.devnull, "w")
 
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -104,8 +104,66 @@ def _cleanup_expired_jobs():
     if expired:
         logger.info(f"Cleaned up {len(expired)} expired jobs")
 
+
+def run_pipeline_import(job_id: str, video_path: str):
+    """Phase 1 cho video import (local file) — bỏ qua download."""
+    job = jobs[job_id]
+    base_name = os.path.splitext(os.path.basename(video_path))[0]
+    safe_name = "".join(c if c.isalnum() or c in "_-" else "_" for c in base_name)[:40]
+    job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_name}"
+    job_folder = f"output/{job_folder_name}"
+    os.makedirs(job_folder, exist_ok=True)
+    job["job_folder"] = job_folder
+    job["folder_name"] = job_folder_name
+
+    def log(msg: str):
+        ts = time.strftime("%H:%M:%S")
+        line = f"[{ts}] INFO - {msg}"
+        job["logs"].append(line)
+        logger.info(f"[{job_id}] {msg}")
+
+    try:
+        job["step"] = 1
+        job["sub_step"] = "STEP 1.0: Copy video từ file import..."
+        log(f"Copy video từ: {video_path}")
+        import shutil
+        original_path = os.path.join(job_folder, "original.mp4")
+        shutil.copy2(video_path, original_path)
+        video_path = original_path
+        job["original_video"] = video_path
+        log(f"Import video thành công: {video_path}")
+
+        if os.path.exists(video_path):
+            log("Tối ưu cấu trúc video (Fast Start)...")
+            fast_path = os.path.join(job_folder, "original_fast.mp4")
+            cmd = ["ffmpeg", "-y", "-i", video_path, "-c", "copy", "-map", "0", "-movflags", "+faststart", fast_path]
+            try:
+                import subprocess
+                subprocess.run(cmd, capture_output=True, check=True, timeout=30)
+                os.replace(fast_path, video_path)
+                log("Tối ưu cấu trúc video thành công.")
+            except Exception as fe:
+                log(f"Không thể tối ưu Fast Start: {fe}")
+
+        if job.get("process_mode", "ocr") == "auto":
+            log("Chế độ ASR. Bắt đầu Phase 2 ngay...")
+            job["status"] = "running"
+            run_pipeline_phase2(job_id, use_ocr=False, y_start=0, y_end=0, x_start=0, x_end=0)
+        else:
+            job["status"] = "awaiting_ocr_selection"
+            job["sub_step"] = "Đang chờ chọn vùng quét phụ đề (OCR)..."
+            log("Import video thành công. Hiển thị video để chọn vùng OCR.")
+    except Exception as e:
+        logger.error(f"Pipeline Import failure: {str(e)}", exc_info=True)
+        job["status"] = "failed"
+        job["error"] = str(e)
+        job["sub_step"] = "LỖI: Import video thất bại."
+        log(f"LỖI HỆ THỐNG: {str(e)}")
+
+
 class TranslateRequest(BaseModel):
-    url: str
+    url: str = ""
+    imported_file: Optional[str] = None
     bg_volume: float = 0.30  # Ducking: bg audio volume when TTS is silent
     burn_subtitles: bool = False
     tts_provider: str = "edge"  # "edge", "google", hoặc "gemini"
@@ -457,114 +515,6 @@ def align_ocr_with_asr_timestamps(ocr_subs: list, asr_subs: list, log_func) -> l
     return checked_subs
 
 
-def _finalize_pipeline(job_id, job, subtitles, video_path, original_audio_path, tts_provider, bg_volume, burn_subtitles, log):
-    """Chạy Step 5 → Step 8 sau khi subtitle review hoàn tất (hoặc skip)."""
-    try:
-        job_folder = job["job_folder"]
-
-        # Step 5: Nhận diện giọng / Gán vai
-        job["step"] = 5
-        job["sub_step"] = "STEP 5.0: Đang phân loại người nói (Diarization)..."
-        for idx, sub in enumerate(subtitles):
-            log(f"Gán vai cho phân đoạn {idx+1}: {sub.get('speaker', 'default')}")
-
-        # Step 6: TTS AI
-        job["step"] = 6
-        provider_label = {"gemini": "Gemini TTS (AI Native)", "google": "Google Cloud TTS (Neural2)"}.get(tts_provider, "edge-tts (Microsoft Neural)")
-        job["sub_step"] = f"STEP 6.0: Đang lồng tiếng Việt bằng {provider_label}..."
-        log(f"Tổng hợp giọng nói tiếng Việt bằng {provider_label}...")
-        tts_dir = os.path.join(job_folder, "tts")
-        os.makedirs(tts_dir, exist_ok=True)
-
-        voice_map = job.get("voice_map")
-        voice_name = job.get("voice_name")
-        voice_female = job.get("voice_female")
-        voice_male = job.get("voice_male")
-
-        if not voice_map and not voice_name and (voice_female or voice_male):
-            voice_map = {}
-            seen_speakers = set()
-            for sub in subtitles:
-                spk = sub.get("speaker", "default")
-                if spk not in seen_speakers:
-                    seen_speakers.add(spk)
-                    gender = detect_speaker_gender(spk)
-                    if gender == "male" and voice_male:
-                        voice_map[spk] = voice_male
-                    elif gender == "female" and voice_female:
-                        voice_map[spk] = voice_female
-            if voice_map:
-                log(f"Phân vai giọng đọc: Nữ={voice_female}, Nam={voice_male} ({len(voice_map)} speakers)")
-
-        tts_speed = job.get("tts_speed", 1.2)
-        subtitles_with_tts = generate_tts_for_subtitles(
-            subtitles, tts_dir, provider=tts_provider,
-            voice_map=voice_map, voice_name=voice_name, tts_speed=tts_speed
-        )
-        log(f"Đã hoàn thành tổng hợp giọng nói cho {len(subtitles_with_tts)} phân đoạn.")
-
-        # Step 7: Tạo SRT
-        job["step"] = 7
-        job["sub_step"] = "STEP 7.0: Đang tạo phụ đề..."
-        srt_path = os.path.join(job_folder, "subtitles.srt")
-        srt_original_path = os.path.join(job_folder, "subtitles_original.srt")
-        job["srt"] = srt_path
-        job["srt_original"] = srt_original_path
-
-        sub_style = job.get("subtitle_style")
-        if sub_style and burn_subtitles:
-            from audio_processor import generate_ass
-            ass_path = srt_path.replace(".srt", ".ass")
-            generate_ass(subtitles, ass_path, {
-                "font": sub_style.get("font", "Montserrat"),
-                "fontsize": sub_style.get("fontsize", 20),
-                "color": sub_style.get("color", "&H00FFFFFF"),
-                "alignment": sub_style.get("position", 2),
-            })
-            srt_path = ass_path
-        generate_srt(subtitles, srt_path if not srt_path.endswith(".ass") else srt_path.replace(".ass", ".srt"), use_original=False)
-        generate_srt(subtitles, srt_original_path, use_original=True)
-
-        # Step 8: Xuất video cuối
-        job["step"] = 8
-        job["sub_step"] = "STEP 8.0: Đang xuất video việt hóa..."
-        log("Ghép giọng đọc AI, giảm âm lượng nhạc nền gốc và xuất video thành phẩm...")
-
-        output_video_path = os.path.join(job_folder, "translated_video.mp4")
-        if not os.path.exists(original_audio_path):
-            extract_audio(video_path, original_audio_path)
-            job["audio"] = original_audio_path
-
-        actual_timeline = mix_audio_and_video(
-            video_path=video_path, original_audio_path=original_audio_path,
-            tts_segments=subtitles_with_tts, output_video_path=output_video_path,
-            bg_volume=bg_volume, burn_subtitles=burn_subtitles,
-            srt_path=srt_path, srt_original_path=srt_original_path
-        )
-
-        try:
-            log("Dọn dẹp file trung gian...")
-            import shutil
-            if os.path.exists(tts_dir):
-                shutil.rmtree(tts_dir, ignore_errors=True)
-            if os.path.exists(original_audio_path):
-                os.remove(original_audio_path)
-        except Exception:
-            pass
-
-        job["translated_video"] = output_video_path
-        job["status"] = "completed"
-        job["sub_step"] = "Hoàn thành! Video đã sẵn sàng trong thư mục output."
-        log(f"Hoàn thành! Video lưu tại: {job_folder}/")
-
-    except Exception as e:
-        logger.error(f"Pipeline Phase 5-8 failure: {str(e)}", exc_info=True)
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["sub_step"] = "LỖI: Tiến trình xử lý thất bại."
-        log(f"LỖI HỆ THỐNG: {str(e)}")
-
-
 def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float, x_start: float = 0.0, x_end: float = 1.0):
     job = jobs[job_id]
     job_folder = job["job_folder"]
@@ -700,17 +650,9 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         for idx, sub in enumerate(subtitles):
             log(f"Phân đoạn {idx+1}: '{sub.get('text', '')}' -> '{sub.get('translation', '')}'")
             
-        # ── Subtitle Review (popup cho user kiểm tra trước khi TTS) ──
-        job["status"] = "awaiting_subtitle_review"
-        job["step"] = 4.5
-        job["sub_step"] = "Đang chờ bạn kiểm tra phụ đề trước khi lồng tiếng..."
-        job["review_countdown"] = 30
-        job["review_subtitles"] = subtitles  # lưu để frontend đọc
-        log("Hiển thị popup Subtitle Review – tự động tiếp tục sau 30s nếu không chỉnh sửa.")
-        return  # ⚠️ pause pipeline – resume từ hàm _finalize_pipeline
-        
-        # Step 5: Nhận diện giọng / Gán vai (code cũ giữ nguyên để fallback)
-        _finalize_pipeline(job_id, job, subtitles, video_path, original_audio_path, tts_provider, bg_volume, burn_subtitles, log)
+        # Step 5: Nhận diện giọng / Gán vai
+        job["step"] = 5
+        job["sub_step"] = "STEP 5.0: Đang phân loại người nói (Diarization)..."
         for idx, sub in enumerate(subtitles):
             log(f"Gán vai cho phân đoạn {idx+1}: {sub.get('speaker', 'default')}")
             
@@ -831,6 +773,32 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         log(f"LỖI HỆ THỐNG: {str(e)}")
 
 
+# ── Upload API ─────────────────────────────────────────────────────────
+UPLOAD_DIR = os.path.join(str(output_dir), "imports")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.post("/api/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    """Nhận file video upload, lưu vào output/imports/."""
+    import uuid as _uuid
+    ext = os.path.splitext(file.filename or "video.mp4")[1].lower()
+    if ext not in (".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv"):
+        raise HTTPException(status_code=400, detail=f"Định dạng không hỗ trợ: {ext}")
+    safe_name = f"{_uuid.uuid4().hex}{ext}"
+    dest_path = os.path.join(UPLOAD_DIR, safe_name)
+    try:
+        contents = await file.read()
+        with open(dest_path, "wb") as f:
+            f.write(contents)
+        size_mb = len(contents) / (1024 * 1024)
+        logger.info(f"Upload: {file.filename} ({size_mb:.1f} MB) -> {dest_path}")
+        return {"status": "success", "path": dest_path, "filename": file.filename, "size_mb": round(size_mb, 1)}
+    except Exception as e:
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        raise HTTPException(status_code=500, detail=f"Lỗi upload: {str(e)}")
+
+
 @app.post("/api/get-cookies")
 def get_cookies_endpoint():
     import subprocess
@@ -906,57 +874,13 @@ def start_translation(request: TranslateRequest):
     # Dọn job cũ trước khi tạo mới
     _cleanup_expired_jobs()
     
-    # Start thread
-    thread = threading.Thread(
-        target=run_pipeline_phase1,
-        args=(job_id, request.url),
-        daemon=True
-    )
+    if request.imported_file:
+        thread = threading.Thread(target=run_pipeline_import, args=(job_id, request.imported_file), daemon=True)
+    else:
+        thread = threading.Thread(target=run_pipeline_phase1, args=(job_id, request.url), daemon=True)
     thread.start()
     
     return {"job_id": job_id}
-
-
-class SubtitleReviewRequest(BaseModel):
-    subtitles: Optional[list] = None  # None = skip review, dùng SRT hiện tại
-    action: str = "continue"  # "continue" hoặc "skip"
-
-@app.post("/api/subtitle-review/continue/{job_id}")
-def subtitle_review_continue(job_id: str, request: SubtitleReviewRequest):
-    """User bấm Tiếp tục sau khi review subtitle."""
-    job = jobs.get(job_id)
-    if not job or job.get("status") != "awaiting_subtitle_review":
-        raise HTTPException(status_code=400, detail="Job không ở trạng thái review.")
-    
-    subtitles = job.get("review_subtitles", [])
-    if request.subtitles:
-        subtitles = request.subtitles
-        job["review_subtitles"] = subtitles  # cập nhật với SRT đã sửa
-    
-    video_path = job.get("original_video")
-    job_folder = job.get("job_folder")
-    original_audio_path = os.path.join(job_folder, "audio.mp3") if job_folder else ""
-    tts_provider = job.get("tts_provider", "edge")
-    bg_volume = job.get("bg_volume", 0.15)
-    burn_subtitles = job.get("burn_subtitles", False)
-    
-    def log(msg: str):
-        timestamp = time.strftime("%H:%M:%S")
-        line = f"[{timestamp}] INFO - {msg}"
-        job["logs"].append(line)
-        logger.info(f"[{job_id}] {msg}")
-    
-    job["status"] = "running"
-    log("User đã xác nhận phụ đề. Tiếp tục pipeline (Step 5-8)...")
-    
-    thread = threading.Thread(
-        target=_finalize_pipeline,
-        args=(job_id, job, subtitles, video_path, original_audio_path, tts_provider, bg_volume, burn_subtitles, log),
-        daemon=True
-    )
-    thread.start()
-    
-    return {"status": "success", "message": "Đã tiếp tục pipeline."}
 
 
 @app.post("/api/translate/resume/{job_id}")
@@ -1004,7 +928,7 @@ def get_status(job_id: str):
         "step": job["step"],
         "sub_step": job["sub_step"],
         "logs": job["logs"],
-        "result": {**result_urls, "review_subtitles": job.get("review_subtitles")} if job.get("status") == "awaiting_subtitle_review" else result_urls,
+        "result": result_urls,
         "error": job["error"]
     }
 
