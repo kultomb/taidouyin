@@ -1,4 +1,5 @@
 import os
+import hashlib
 import asyncio
 import subprocess
 import edge_tts
@@ -16,6 +17,13 @@ if not os.environ.get("GOOGLE_CLOUD_LOCATION"):
     os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
 
 logger = logging.getLogger("douyin_translator")
+
+# Cache TTS: key = hash(text+voice) → file_path
+# Tránh gọi Gemini lại nếu đã có audio giống hệt
+_tts_cache = {}
+
+def _tts_cache_key(text: str, voice: str) -> str:
+    return hashlib.md5((text + "|" + voice).encode("utf-8")).hexdigest()
 
 # ============================================================
 # Voice mappings
@@ -143,7 +151,12 @@ def speed_up_tts(input_path: str, speed: float = 1.2) -> str:
     if speed <= 0.5 or speed >= 2.0:
         logger.warning(f"speed_up_tts: speed={speed} outside 0.5-2.0 range, skip")
         return input_path
-    return _apply_atempo(input_path, input_path, speed, f"Spped up TTS {speed:.1f}x")
+    # Ghi ra file tạm rồi rename để tránh ffmpeg lỗi khi input == output
+    tmp_path = input_path + ".tmp.mp3"
+    result = _apply_atempo(input_path, tmp_path, speed, f"Speed up TTS {speed:.1f}x")
+    if result == tmp_path and os.path.exists(tmp_path):
+        os.replace(tmp_path, input_path)
+    return input_path
 
 def _apply_atempo(input_path: str, output_path: str, atempo: float, log_msg: str) -> str:
     """Dùng FFmpeg atempo filter để thay đổi tốc độ audio (giữ nguyên pitch)."""
@@ -418,8 +431,9 @@ class GeminiTTSProvider:
 # Main TTS generator
 # ============================================================
 
-# Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5, Gemini: 1 để tránh rate limit)
-TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 1}
+# Số segment TTS chạy song song
+# Gemini: 3 workers, có rate-limit tự nhiên từ Google (429)
+TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 3}
 
 async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
     """edge-tts async wrapper."""
@@ -431,9 +445,9 @@ def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, out
     tts.synthesize(text, speaker, output_path, voice_map, voice_name)
 
 def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
-    """Gemini TTS sync wrapper với retry mạnh - KHÔNG đổi giọng, KHÔNG bỏ cuộc dễ."""
+    """Gemini TTS sync wrapper với exponential backoff khi 429."""
     import time as _time
-    max_retries = 5
+    max_retries = 4
     for attempt in range(max_retries):
         try:
             tts.synthesize(text, speaker, output_path, voice_map, voice_name)
@@ -441,8 +455,19 @@ def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, out
                 return
             raise Exception("Output file empty")
         except Exception as e:
-            if attempt < max_retries - 1:
-                delay = (attempt + 1) * 5  # 5s, 10s, 15s, 20s
+            err_str = str(e).lower()
+            is_quota = "429" in err_str or "resource_exhausted" in err_str or "quota exceeded" in err_str
+            
+            if "timeout" in err_str:
+                logger.error(f"[Gemini] TIMEOUT for speaker='{speaker}': {e}. Skipping segment.")
+                raise
+            
+            if is_quota:
+                delay = (2 ** attempt) * 2  # 2s, 4s, 8s, 16s
+                logger.warning(f"[Gemini] 429 quota | attempt {attempt+1}/{max_retries} | retry in {delay}s | speaker='{speaker}'")
+                _time.sleep(delay)
+            elif attempt < max_retries - 1:
+                delay = (attempt + 1) * 3  # 3s, 6s, 9s
                 logger.warning(f"[Gemini] Retry {attempt+1}/{max_retries} after {delay}s for speaker='{speaker}': {e}")
                 _time.sleep(delay)
             else:
@@ -469,6 +494,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     else:
         tts = None  # edge-tts doesn't need persistent client
     
+    # Cache cục bộ trong 1 lần chạy (tránh Gemini TTS trùng text+voice)
+    _local_text_cache = {}
+    
     async def process_one(idx: int, sub: dict):
         nonlocal failures
         text = sub.get("translation", "")
@@ -478,6 +506,29 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
             return
         
         file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
+        
+        # ── Kiểm tra cache ─────────────────────────────────────────────
+        voice_actual = voice_name if voice_name else (
+            get_edge_voice(speaker, voice_map) if provider == "edge"
+            else pick_gemini_voice(speaker, voice_map, voice_name) if provider == "gemini"
+            else get_google_voice(speaker, voice_map)
+        )
+        ckey = _tts_cache_key(text, voice_actual)
+        if ckey in _tts_cache and os.path.exists(_tts_cache[ckey]):
+            cached_path = _tts_cache[ckey]
+            logger.info(f"[CACHE] segment {idx} reused: {os.path.basename(cached_path)}")
+            import shutil
+            shutil.copy2(cached_path, file_path)
+            actual_duration = get_audio_duration(file_path)
+            async with lock:
+                sub_copy = dict(sub)
+                sub_copy["audio_path"] = os.path.abspath(file_path)
+                sub_copy["tts_duration"] = actual_duration
+                updated[idx] = sub_copy
+            return
+        
+        import time as _t
+        t_start = _t.time()
         
         async with semaphore:
             success_segment = False
@@ -503,6 +554,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
 
             if success_segment:
                 try:
+                    # Timing log: end of synthesis
+                    t_synth = _t.time()
+                    
                     # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
                     trimmed_file_path = file_path + ".trimmed.mp3"
                     success_trim = await loop.run_in_executor(
@@ -516,6 +570,11 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                         await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
                     
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
+                    
+                    # Timing log & cache
+                    t_total = _t.time() - t_start
+                    logger.info(f"[TTS END] segment {idx} | synthesis={t_synth-t_start:.1f}s total={t_total:.1f}s | {text[:30]}...")
+                    _tts_cache[ckey] = file_path
                     
                     async with lock:
                         sub_copy = dict(sub)
