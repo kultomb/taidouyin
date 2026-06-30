@@ -143,7 +143,11 @@ def speed_up_tts(input_path: str, speed: float = 1.2) -> str:
     if speed <= 0.5 or speed >= 2.0:
         logger.warning(f"speed_up_tts: speed={speed} outside 0.5-2.0 range, skip")
         return input_path
-    return _apply_atempo(input_path, input_path, speed, f"Spped up TTS {speed:.1f}x")
+    tmp_path = input_path + ".tmp.mp3"
+    result = _apply_atempo(input_path, tmp_path, speed, f"Speed up TTS {speed:.1f}x")
+    if result == tmp_path and os.path.exists(tmp_path):
+        os.replace(tmp_path, input_path)
+    return input_path
 
 def _apply_atempo(input_path: str, output_path: str, atempo: float, log_msg: str) -> str:
     """Dùng FFmpeg atempo filter để thay đổi tốc độ audio (giữ nguyên pitch)."""
@@ -320,6 +324,7 @@ class GeminiTTSProvider:
     """Gemini TTS: 30 giọng AI chất lượng cao, model gemini-2.5-flash-preview-tts.
     Client được tạo 1 lần và share qua các thread."""
     name = "gemini"
+    API_TIMEOUT = 60  # seconds — tránh treo vô hạn khi API không phản hồi
 
     def __init__(self):
         self._client = None
@@ -361,11 +366,20 @@ class GeminiTTSProvider:
         )
 
         client = self._get_client()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-tts",
-            contents=[text],
-            config=config
-        )
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                client.models.generate_content,
+                model="gemini-2.5-flash-preview-tts",
+                contents=[text],
+                config=config
+            )
+            try:
+                response = future.result(timeout=self.API_TIMEOUT)
+            except concurrent.futures.TimeoutError:
+                raise Exception(
+                    f"Gemini TTS API timeout after {self.API_TIMEOUT}s for voice='{voice_name_actual}'"
+                )
 
         if not response or not response.candidates:
             raise Exception("Gemini TTS returned an empty response (no candidates).")
