@@ -86,7 +86,8 @@ def mix_audio_and_video(
     bg_volume: float = 0.15,
     burn_subtitles: bool = False,
     srt_path: str = None,
-    srt_original_path: str = None
+    srt_original_path: str = None,
+    tts_speed: float = 1.2
 ) -> list:
     """
     Mixes the original video, original audio (reduced volume for background music),
@@ -110,7 +111,7 @@ def mix_audio_and_video(
     # Pass 1: Mix tất cả TTS segments thành 1 file duy nhất
     # ============================================================
     tts_mixed_path = os.path.join(out_dir, "_tts_mixed.mp3")
-    actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path, video_duration)
+    actual_timeline = _premix_tts_segments(tts_segments, tts_mixed_path, video_duration, tts_speed)
     
     # Ghi đè file SRT với timeline thực tế để khớp chính xác với audio
     if srt_path:
@@ -171,7 +172,7 @@ def mix_audio_and_video(
         logger.error(f"ffmpeg error during mixing: {e.stderr}")
         raise e
 
-def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float) -> list:
+def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float, tts_speed: float = 1.2) -> list:
     """
     Trộn tất cả các phân đoạn TTS vào một tệp âm thanh duy nhất bằng cách đặt chúng
     chính xác tại mốc thời gian bắt đầu (start) của câu thoại gốc thông qua bộ lọc 'adelay' và 'amix'.
@@ -179,7 +180,7 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
     logger.info(f"Pre-mixing {len(tts_segments)} TTS segments at exact absolute offsets...")
     
     # Bước 1: Tính timeline thực tế (đồng nhất thời gian với câu thoại gốc)
-    actual_timeline = _compute_actual_timeline(tts_segments)
+    actual_timeline = _compute_actual_timeline(tts_segments, tts_speed)
 
     # Nếu không có phân đoạn nào, tạo file lặng rồi trả về
     valid_segments = [seg for seg in actual_timeline if os.path.exists(seg["audio_path"])]
@@ -271,7 +272,7 @@ def _build_atempo_filter(speed_factor: float) -> str:
         factors.append(temp)
     return ",".join([f"atempo={f:.4f}" for f in factors])
 
-def _compute_actual_timeline(segments: list) -> list:
+def _compute_actual_timeline(segments: list, tts_speed: float = 1.2) -> list:
     """
     Tính timeline THÔNG MINH đồng bộ với hành động video và TRÁNH TRÙNG LẶP/ĐÈ PHÁT ÂM (nhại):
     
@@ -294,19 +295,17 @@ def _compute_actual_timeline(segments: list) -> list:
     for i, sub in enumerate(segments):
         translation = (sub.get("translation", "") or "").strip()
         
-        tts_dur = sub.get("tts_duration", 0)
+        raw_tts_dur = sub.get("tts_duration", 0)
         original_start = sub.get("start", 0)
         original_end = sub.get("end", 0)
  
-        if tts_dur <= 0:
-            tts_dur = original_end - original_start
+        if raw_tts_dur <= 0:
+            raw_tts_dur = original_end - original_start
  
         audio_path = sub.get("audio_path", "")
         temp_path = None
         
         # 1. Đảm bảo không đè lên câu thoại trước (Tránh lỗi nhại/chồng âm)
-        # Chỉ áp dụng MIN_GAP lùi lịch phát đối với câu thoại từ thứ 2 trở đi.
-        # Câu đầu tiên (i == 0) luôn khớp chính xác tuyệt đối với gốc để tránh lọt tiếng.
         if i == 0:
             actual_start = original_start
         else:
@@ -318,56 +317,62 @@ def _compute_actual_timeline(segments: list) -> list:
         # Slot thời gian lý tưởng cho câu này
         effective_dur = max(0.1, original_end - actual_start)
         
+        # Độ dài tự nhiên của audio ở tốc độ tts_speed được yêu cầu
+        natural_tts_dur = raw_tts_dur / tts_speed
+        
         # Gap tối đa có thể mượn trước khi câu sau bắt đầu
         if next_start:
             max_available_time = max(effective_dur, next_start - actual_start - MIN_GAP)
         else:
-            max_available_time = max(effective_dur, tts_dur)
+            max_available_time = max(effective_dur, natural_tts_dur)
             
-        speed_factor = 1.0
+        speed_factor_relative = 1.0
         
         # ===============================================
         # CASE 1: TTS ngắn hơn slot lý tưởng → GIÃN CHẬM
         # ===============================================
-        if tts_dur <= effective_dur:
+        if natural_tts_dur <= effective_dur:
             desired_dur = effective_dur * TARGET_FILL_RATIO
-            slowdown_factor = tts_dur / desired_dur if desired_dur > 0.1 else 1.0
+            slowdown_factor = natural_tts_dur / desired_dur if desired_dur > 0.1 else 1.0
             
             if slowdown_factor < MAX_SLOWDOWN:
-                speed_factor = MAX_SLOWDOWN
+                speed_factor_relative = MAX_SLOWDOWN
             else:
-                speed_factor = slowdown_factor
+                speed_factor_relative = slowdown_factor
                 
-            speed_factor = min(speed_factor, 1.0)
-            actual_end = actual_start + (tts_dur / speed_factor)
-            tts_dur = tts_dur / speed_factor
+            speed_factor_relative = min(speed_factor_relative, 1.0)
+            actual_end = actual_start + (natural_tts_dur / speed_factor_relative)
+            tts_dur = natural_tts_dur / speed_factor_relative
             logger.info(
-                f"Segment {i} (Short): tts_dur={tts_dur*speed_factor:.2f}s, slot={effective_dur:.2f}s -> "
-                f"slowdown={speed_factor:.3f}x -> new_dur={tts_dur:.2f}s"
+                f"Segment {i} (Short): natural_dur={natural_tts_dur:.2f}s, slot={effective_dur:.2f}s -> "
+                f"slowdown_rel={speed_factor_relative:.3f}x -> new_dur={tts_dur:.2f}s"
             )
             
         # ===============================================
         # CASE 2: TTS dài hơn slot lý tưởng → TĂNG TỐC / MƯỢN TIMELINE
         # ===============================================
         else:
-            if tts_dur > max_available_time:
-                raw_speed = tts_dur / max_available_time
-                speed_factor = min(raw_speed, MAX_SPEEDUP_LIMIT)
-                speed_factor = max(1.0, speed_factor)
+            if natural_tts_dur > max_available_time:
+                raw_speed = natural_tts_dur / max_available_time
+                speed_factor_relative = min(raw_speed, MAX_SPEEDUP_LIMIT)
+                speed_factor_relative = max(1.0, speed_factor_relative)
                 logger.info(
-                    f"Segment {i} (Long - Speedup): tts_dur={tts_dur:.2f}s, max_available={max_available_time:.2f}s -> "
-                    f"speedup={speed_factor:.3f}x (required={raw_speed:.2f}x)"
+                    f"Segment {i} (Long - Speedup): natural_dur={natural_tts_dur:.2f}s, max_available={max_available_time:.2f}s -> "
+                    f"speedup_rel={speed_factor_relative:.3f}x (required={raw_speed:.2f}x)"
                 )
             else:
-                speed_factor = 1.0
+                speed_factor_relative = 1.0
                 logger.info(
-                    f"Segment {i} (Long - Borrow): tts_dur={tts_dur:.2f}s, slot={effective_dur:.2f}s, "
-                    f"borrowed from gap, speed=1.0x"
+                    f"Segment {i} (Long - Borrow): natural_dur={natural_tts_dur:.2f}s, slot={effective_dur:.2f}s, "
+                    f"borrowed from gap, speed_rel=1.0x"
                 )
             
-            actual_end = actual_start + (tts_dur / speed_factor)
-            tts_dur = tts_dur / speed_factor
+            actual_end = actual_start + (natural_tts_dur / speed_factor_relative)
+            tts_dur = natural_tts_dur / speed_factor_relative
             
+        # Hệ số điều chỉnh tốc độ thực tế áp dụng lên file gốc (1.0x)
+        speed_factor = speed_factor_relative * tts_speed
+        
         # Áp dụng atempo (cả speedup >1.0 lẫn slowdown <1.0)
         if abs(speed_factor - 1.0) > 0.01 and audio_path and os.path.exists(audio_path):
             adjusted_path = os.path.join(tempfile.gettempdir(), f"_atempo_{i}.mp3")

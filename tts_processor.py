@@ -174,12 +174,12 @@ def trim_silence(input_path: str, output_path: str) -> bool:
     """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file audio bằng FFmpeg silenceremove.
     Hỗ trợ cả MP3, WAV, PCM từ Gemini TTS.
     stop_periods=-1: tự động lặp cho đến khi hết khoảng lặng ở cuối.
-    stop_threshold=-45dB: ngưỡng cao hơn để cắt đuôi lặng triệt để hơn.
-    stop_duration=0.15: cắt khi im lặng > 150ms (tránh cắt ngắt nghỉ tự nhiên ngắn)."""
+    stop_threshold=-40dB: ngưỡng cao hơn để cắt đuôi lặng triệt để hơn.
+    stop_duration=0.1: cắt khi im lặng > 100ms."""
     # Luôn re-encode ra MP3 để đảm bảo định dạng đồng nhất
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.15",
+        "-af", "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-40dB:stop_duration=0.1",
         "-c:a", "libmp3lame", "-q:a", "2",
         "-ar", "44100",  # chuẩn hóa sample rate
         output_path
@@ -358,6 +358,7 @@ class GeminiTTSProvider:
 
         config = types.GenerateContentConfig(
             response_modalities=["AUDIO"],
+            temperature=0.0,
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name_actual)
@@ -525,10 +526,7 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     if success_trim and os.path.exists(trimmed_file_path):
                         os.replace(trimmed_file_path, file_path)
 
-                    # Tăng tốc giọng đọc theo tts_speed (mặc định 1.2x)
-                    if provider in ("gemini", "google") and tts_speed != 1.0:
-                        await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
-                    
+                    # Do NOT run speed_up_tts here. We will apply the speed factor in a single pass in audio_processor.py.
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                     
                     async with lock:

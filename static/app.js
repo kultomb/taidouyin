@@ -680,6 +680,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (typeof updateOverlaySize === 'function') updateOverlaySize();
                 }, 800);
 
+            } else if (data.status === 'awaiting_subtitle_review') {
+                clearInterval(pollInterval);
+                currentJobId = jobId;
+                showSubtitleReviewModal(data);
+
             } else if (data.status === 'completed') {
                 clearInterval(pollInterval);
                 appendLogLine('--- TIẾN TRÌNH HOÀN THÀNH XUẤT SẮC ---', 'success');
@@ -1019,4 +1024,223 @@ document.addEventListener('DOMContentLoaded', () => {
         // Scroll terminal to the bottom
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }
+
+    // --- Subtitle Review Modal controller ---
+    const subtitleReviewModal = document.getElementById('subtitleReviewModal');
+    const reviewCountdownContainer = document.getElementById('reviewCountdownContainer');
+    const subtitleCountdownText = document.getElementById('subtitleCountdownText');
+    const reviewVideoPlayer = document.getElementById('reviewVideoPlayer');
+    const subtitleList = document.getElementById('subtitleList');
+    const btnEditSubtitles = document.getElementById('btnEditSubtitles');
+    const btnContinueTTS = document.getElementById('btnContinueTTS');
+
+    let countdownInterval = null;
+    let reviewSubtitles = [];
+
+    function showSubtitleReviewModal(data) {
+        subtitleReviewModal.classList.remove('hidden');
+
+        // Load video
+        if (data.result && data.result.original_video_url) {
+            reviewVideoPlayer.src = data.result.original_video_url;
+            reviewVideoPlayer.load();
+        }
+
+        reviewSubtitles = data.subtitles || [];
+        renderSubtitleList(reviewSubtitles);
+
+        // Setup countdown
+        let secondsLeft = data.subtitle_review_countdown || 30;
+        let isPaused = data.subtitle_review_paused || false;
+
+        updateCountdownUI(secondsLeft, isPaused);
+
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        if (!isPaused) {
+            countdownInterval = setInterval(() => {
+                secondsLeft--;
+                updateCountdownUI(secondsLeft, false);
+                if (secondsLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    autoSubmitSubtitles();
+                }
+            }, 1000);
+        }
+    }
+
+    function renderSubtitleList(subtitles) {
+        subtitleList.innerHTML = '';
+        subtitles.forEach((sub, index) => {
+            const row = document.createElement('div');
+            row.classList.add('subtitle-item-row');
+            row.dataset.index = index;
+
+            const timeDiv = document.createElement('div');
+            timeDiv.classList.add('sub-time-inputs');
+
+            const startGroup = document.createElement('div');
+            startGroup.classList.add('time-input-group');
+            const startLabel = document.createElement('span');
+            startLabel.classList.add('time-label');
+            startLabel.textContent = 'Bắt đầu';
+            const startInput = document.createElement('input');
+            startInput.type = 'number';
+            startInput.step = '0.05';
+            startInput.classList.add('sub-time-input', 'start-time-input');
+            startInput.value = sub.start.toFixed(2);
+            startGroup.appendChild(startLabel);
+            startGroup.appendChild(startInput);
+
+            const endGroup = document.createElement('div');
+            endGroup.classList.add('time-input-group');
+            const endLabel = document.createElement('span');
+            endLabel.classList.add('time-label');
+            endLabel.textContent = 'Kết thúc';
+            const endInput = document.createElement('input');
+            endInput.type = 'number';
+            endInput.step = '0.05';
+            endInput.classList.add('sub-time-input', 'end-time-input');
+            endInput.value = sub.end.toFixed(2);
+            endGroup.appendChild(endLabel);
+            endGroup.appendChild(endInput);
+
+            timeDiv.appendChild(startGroup);
+            timeDiv.appendChild(endGroup);
+
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('sub-text-edit-area');
+
+            const origSpan = document.createElement('span');
+            origSpan.classList.add('sub-text-original');
+            origSpan.textContent = `Gốc: ${sub.text}`;
+
+            const transInput = document.createElement('input');
+            transInput.type = 'text';
+            transInput.classList.add('sub-text-input', 'translation-text-input');
+            transInput.value = sub.translation;
+
+            textDiv.appendChild(origSpan);
+            textDiv.appendChild(transInput);
+
+            row.appendChild(timeDiv);
+            row.appendChild(textDiv);
+
+            row.addEventListener('click', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+
+                subtitleList.querySelectorAll('.subtitle-item-row').forEach(r => r.classList.remove('active'));
+                row.classList.add('active');
+
+                const startTime = parseFloat(startInput.value);
+                if (!isNaN(startTime)) {
+                    reviewVideoPlayer.currentTime = startTime;
+                    reviewVideoPlayer.play().catch(() => {});
+                }
+            });
+
+            const triggerPause = () => {
+                pauseCountdown();
+            };
+            startInput.addEventListener('input', triggerPause);
+            endInput.addEventListener('input', triggerPause);
+            transInput.addEventListener('input', triggerPause);
+
+            subtitleList.appendChild(row);
+        });
+    }
+
+    function updateCountdownUI(seconds, isPaused) {
+        if (isPaused) {
+            reviewCountdownContainer.classList.add('paused');
+            subtitleCountdownText.textContent = '⏸ Đã tạm dừng đếm ngược (đang chỉnh sửa...)';
+        } else {
+            reviewCountdownContainer.classList.remove('paused');
+            subtitleCountdownText.textContent = `Tự động tiếp tục sau: ${seconds}s`;
+        }
+    }
+
+    async function pauseCountdown() {
+        if (reviewCountdownContainer.classList.contains('paused')) return;
+
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        updateCountdownUI(0, true);
+
+        try {
+            await fetch(`/api/translate/review/pause/${currentJobId}`, { method: 'POST' });
+            appendLogLine('Đã tạm dừng đếm ngược để sửa phụ đề.', 'info');
+        } catch (e) {
+            console.error('Không thể tạm dừng đếm ngược ở máy chủ:', e);
+        }
+    }
+
+    function gatherSubtitlesData() {
+        const rows = subtitleList.querySelectorAll('.subtitle-item-row');
+        const updatedSubs = [];
+
+        rows.forEach(row => {
+            const index = parseInt(row.dataset.index);
+            const startVal = parseFloat(row.querySelector('.start-time-input').value);
+            const endVal = parseFloat(row.querySelector('.end-time-input').value);
+            const translationVal = row.querySelector('.translation-text-input').value;
+
+            const originalSub = reviewSubtitles[index];
+            updatedSubs.push({
+                text: originalSub.text,
+                translation: translationVal,
+                start: startVal,
+                end: endVal,
+                speaker: originalSub.speaker
+            });
+        });
+
+        return updatedSubs;
+    }
+
+    async function submitRevisedSubtitles(subtitles) {
+        if (countdownInterval) clearInterval(countdownInterval);
+        subtitleReviewModal.classList.add('hidden');
+        reviewVideoPlayer.pause();
+
+        appendLogLine('Đang lưu phụ đề chỉnh sửa và tiếp tục lồng tiếng...', 'info');
+
+        try {
+            const response = await fetch(`/api/translate/review/continue/${currentJobId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subtitles: subtitles })
+            });
+
+            if (!response.ok) {
+                throw new Error('Lỗi lưu phụ đề từ máy chủ.');
+            }
+
+            appendLogLine('Lưu phụ đề thành công. Hệ thống tiếp tục quy trình lồng tiếng AI.', 'success');
+
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => pollJobStatus(currentJobId), 1200);
+
+        } catch (err) {
+            appendLogLine(`Lỗi khi tiếp tục: ${err.message}`, 'error');
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => pollJobStatus(currentJobId), 1200);
+        }
+    }
+
+    function autoSubmitSubtitles() {
+        const subs = gatherSubtitlesData();
+        submitRevisedSubtitles(subs);
+    }
+
+    btnEditSubtitles.addEventListener('click', () => {
+        pauseCountdown();
+    });
+
+    btnContinueTTS.addEventListener('click', () => {
+        const subs = gatherSubtitlesData();
+        submitRevisedSubtitles(subs);
+    });
 });

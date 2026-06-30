@@ -20,7 +20,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 # Import our custom modules
 from downloader import download_douyin_video, load_cookies_txt
@@ -186,6 +186,16 @@ class ResumeRequest(BaseModel):
     y_end: float = 0.95
     x_start: float = 0.0
     x_end: float = 1.0
+
+class SubtitleReviewItem(BaseModel):
+    text: str
+    translation: str
+    start: float
+    end: float
+    speaker: str
+
+class SubtitleReviewResponse(BaseModel):
+    subtitles: List[SubtitleReviewItem]
 
 def run_pipeline_phase1(job_id: str, url: str):
     job = jobs[job_id]
@@ -650,6 +660,38 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         for idx, sub in enumerate(subtitles):
             log(f"Phân đoạn {idx+1}: '{sub.get('text', '')}' -> '{sub.get('translation', '')}'")
             
+        # --- SUBTITLE REVIEW MODAL PAUSE STEP ---
+        job["subtitles"] = subtitles
+        job["status"] = "awaiting_subtitle_review"
+        job["subtitle_review_completed"] = False
+        job["subtitle_review_paused"] = False
+        job["subtitle_review_countdown"] = 30
+        
+        log("Đang chờ người dùng kiểm tra phụ đề (tối đa 30 giây)...")
+        
+        start_pause_time = time.time()
+        accumulated_elapsed = 0.0
+        while not job["subtitle_review_completed"]:
+            if job.get("subtitle_review_paused", False):
+                accumulated_elapsed += (time.time() - start_pause_time)
+                while job.get("subtitle_review_paused", False) and not job["subtitle_review_completed"]:
+                    time.sleep(0.2)
+                start_pause_time = time.time()
+                if job["subtitle_review_completed"]:
+                    break
+                
+            elapsed = time.time() - start_pause_time
+            remaining = 30.0 - (accumulated_elapsed + elapsed)
+            if remaining <= 0:
+                log("Hết thời gian chờ 30 giây. Tự động tiếp tục...")
+                break
+                
+            job["subtitle_review_countdown"] = max(0, int(remaining))
+            time.sleep(0.5)
+            
+        subtitles = job.get("subtitles", subtitles)
+        job["status"] = "running"
+        
         # Step 5: Nhận diện giọng / Gán vai
         job["step"] = 5
         job["sub_step"] = "STEP 5.0: Đang phân loại người nói (Diarization)..."
@@ -744,7 +786,8 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             bg_volume=bg_volume,
             burn_subtitles=burn_subtitles,
             srt_path=srt_path,
-            srt_original_path=srt_original_path
+            srt_original_path=srt_original_path,
+            tts_speed=tts_speed
         )
         
         # Dọn dẹp file trung gian (Bọc try-except để tránh lỗi Lock file trên Windows làm hỏng tiến độ)
@@ -905,6 +948,38 @@ def resume_translation(job_id: str, request: ResumeRequest):
     
     return {"status": "success", "message": "Đã tiếp tục tiến trình dịch thuật."}
 
+
+@app.post("/api/translate/review/pause/{job_id}")
+def pause_subtitle_countdown(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên xử lý.")
+    job = jobs[job_id]
+    job["subtitle_review_paused"] = True
+    return {"status": "success", "message": "Đã tạm dừng đếm ngược."}
+
+
+@app.post("/api/translate/review/continue/{job_id}")
+def continue_subtitle_tts(job_id: str, request: SubtitleReviewResponse):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên xử lý.")
+    job = jobs[job_id]
+    
+    revised_subs = []
+    for item in request.subtitles:
+        revised_subs.append({
+            "text": item.text,
+            "translation": item.translation,
+            "start": item.start,
+            "end": item.end,
+            "speaker": item.speaker
+        })
+        
+    job["subtitles"] = revised_subs
+    job["subtitle_review_completed"] = True
+    job["subtitle_review_paused"] = False
+    job["status"] = "running"
+    return {"status": "success", "message": "Đã lưu chỉnh sửa phụ đề và tiếp tục lồng tiếng."}
+
 @app.get("/api/status/{job_id}")
 def get_status(job_id: str):
     if job_id not in jobs:
@@ -929,7 +1004,10 @@ def get_status(job_id: str):
         "sub_step": job["sub_step"],
         "logs": job["logs"],
         "result": result_urls,
-        "error": job["error"]
+        "error": job["error"],
+        "subtitle_review_countdown": job.get("subtitle_review_countdown", 30),
+        "subtitle_review_paused": job.get("subtitle_review_paused", False),
+        "subtitles": job.get("subtitles") if job["status"] == "awaiting_subtitle_review" else None
     }
 
 @app.get("/api/download/{job_id}/{file_type}")

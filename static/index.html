@@ -629,6 +629,46 @@
         <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
+    <!-- Subtitle Review Modal (Popup) -->
+    <div id="subtitleReviewModal" class="subtitle-review-modal hidden">
+        <div class="subtitle-review-overlay"></div>
+        <div class="subtitle-review-content">
+            <div class="subtitle-review-header">
+                <h2>Kiểm tra phụ đề trước khi lồng tiếng</h2>
+                <div class="subtitle-countdown-container" id="reviewCountdownContainer">
+                    <span id="subtitleCountdownText">Tự động tiếp tục sau: 30s</span>
+                </div>
+            </div>
+            
+            <div class="subtitle-review-body">
+                <!-- Left: Video Preview -->
+                <div class="subtitle-video-preview">
+                    <video id="reviewVideoPlayer" class="review-video" controls muted playsinline></video>
+                </div>
+                
+                <!-- Right: SRT Editor -->
+                <div class="subtitle-editor-container">
+                    <div class="subtitle-editor-header">
+                        <span class="col-time">Thời gian (giây)</span>
+                        <span class="col-text">Phụ đề dịch Việt</span>
+                    </div>
+                    <div id="subtitleList" class="subtitle-list">
+                        <!-- Dynamic items populated via JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="subtitle-review-footer">
+                <button type="button" id="btnEditSubtitles" class="btn-review edit">
+                    <span>⏸ Chỉnh sửa</span>
+                </button>
+                <button type="button" id="btnContinueTTS" class="btn-review continue">
+                    <span>▶ Tiếp tục lồng tiếng</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js?v=1.8"></script>
 </body>
 
