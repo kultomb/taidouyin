@@ -52,6 +52,7 @@ This script is for oral performance. Use the everyday, colloquial register of {l
   - "là một chiếc điện thoại" → just say the phone name directly
   - "Như các bạn đã biết" → skip entirely, just state the fact
   - "Chúng ta hãy" → "Mình cùng" / "Giờ mình"
+- **De-stuttering & Cleaning Repetitions (CRITICAL)**: Spoken language contains stutters, repetitions, and hesitation filler words. You MUST aggressively clean up repetitions. If the original text repeats a word or phrase (e.g. repeating "measurement line", "check", "do it", or filler words) multiple times within a block or across adjacent blocks, merge and simplify them into a single clean, natural sentence. Do not translate stutters or awkward repetitions word-for-word. Make the script sound smart, polished, and professional.
 
 # ABSOLUTE FORMATTING RED LINES (SYSTEM-CRITICAL)
 
