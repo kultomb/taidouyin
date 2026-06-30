@@ -1243,6 +1243,4 @@ document.addEventListener('DOMContentLoaded', () => {
         const subs = gatherSubtitlesData();
         submitRevisedSubtitles(subs);
     });
-
-
 });

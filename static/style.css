@@ -161,6 +161,16 @@ body {
     box-shadow: 0 0 8px var(--success);
 }
 
+/* Main Container Layout */
+.app-container {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
 /* Hero Section */
 .hero-section {
     text-align: center;

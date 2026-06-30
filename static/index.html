@@ -4,13 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Video Tool - Dubbing & Re-Edit</title>
+    <title>DouyinTranslate. - SaaS Dịch Thuật Video Douyin Chuyên Nghiệp</title>
+    <!-- Google Fonts Inter & JetBrains Mono for Console -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2.0">
+    <link rel="stylesheet" href="style.css?v=1.4">
 </head>
 
 <body>
@@ -18,7 +19,7 @@
 
     <header class="app-header">
         <div class="logo">
-            <span>AI</span><span class="accent-text">Video</span><span class="dot">Tool</span>
+            <span>Douyin</span><span class="accent-text">Translate</span><span class="dot">.</span>
         </div>
         <nav class="app-nav">
             <button id="btnGetCookie" class="btn-cookie">
@@ -34,595 +35,598 @@
     </header>
 
     <main class="app-container">
-        <!-- Main Content -->
-            <!-- Hero Section -->
-            <section class="hero-section">
-                <h1 class="hero-title">Dịch thuật & Lồng tiếng Video</h1>
-                <p class="hero-subtitle">Tự động tải video gốc, nhận diện giọng nói bằng Vertex AI Gemini 2.5 Flash và lồng tiếng Việt chân thực.</p>
-            </section>
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1 class="hero-title">Dịch thuật & Lồng tiếng Video Douyin</h1>
+            <p class="hero-subtitle">Công cụ SaaS hiệu năng cao, tự động tải video gốc chất lượng tốt nhất, nhận diện
+                giọng nói bằng Vertex AI Gemini 2.5 Flash và lồng tiếng Việt chân thực.</p>
+        </section>
 
-            <!-- Input and Settings Form -->
-            <section class="card form-card">
-                <form id="translateForm">
-                    <!-- Top: URL + Context (Full Width) -->
-                    <div class="url-input-container">
-                        <div class="input-group" style="margin-bottom: 0;">
-                            <label for="videoUrl" class="input-label">
-                                Đường dẫn chia sẻ video
-                                <button type="button" id="btnToggleContext" class="btn-mini-toggle"
-                                    title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
-                            </label>
-                            <div class="input-wrapper">
-                                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        <!-- Input and Settings Form -->
+        <section class="card form-card">
+            <form id="translateForm">
+                <!-- Top: URL + Context (Full Width) -->
+                <div class="url-input-container">
+                    <div class="input-group" style="margin-bottom: 0;">
+                        <label for="videoUrl" class="input-label">
+                            Nhập link Douyin hoặc chọn file video
+                            <button type="button" id="btnToggleContext" class="btn-mini-toggle"
+                                title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
+                        </label>
+                        <div class="input-wrapper" id="mainInputWrapper">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                            </svg>
+                            <input type="text" id="videoUrl" placeholder="Dán liên kết Douyin hoặc chọn file video..."
+                                required>
+                            <button type="button" id="btnImportFile" class="btn-import-file"
+                                title="Chọn file video từ máy tính">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    style="width:18px;height:18px;">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
-                                <input type="text" id="videoUrl"
-                                    placeholder="Dán liên kết Douyin tại đây (ví dụ: https://v.douyin.com/...)"
-                                    required>
-                            </div>
+                            </button>
+                            <input type="file" id="videoFileInput"
+                                accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/x-flv,video/x-ms-wmv"
+                                hidden>
                         </div>
-                        <div class="input-group" id="contextGroup" style="display:none; margin-top: 8px;">
-                            <div class="input-wrapper">
-                                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                                </svg>
-                                <input type="text" id="videoContext"
-                                    placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
-                            </div>
+                        <div id="fileSelectedBadge" class="file-selected-badge hidden">
+                            <span class="file-badge-name" id="selectedFileName"></span>
+                            <button type="button" class="file-badge-remove" id="fileRemoveBtn"
+                                title="Xoá file">&times;</button>
                         </div>
                     </div>
+                    <div class="input-group" id="contextGroup" style="display:none; margin-top: 8px;">
+                        <div class="input-wrapper">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
+                            <input type="text" id="videoContext"
+                                placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
+                        </div>
+                    </div>
+                </div>
 
-                    <!-- Middle: Balanced 2-Column Settings Grid -->
-                    <div class="settings-grid-layout">
-                        <!-- Column 1: Voice & Media Settings -->
-                        <div class="settings-column">
-                            <div class="setting-panel">
-                                <label class="setting-label">Công cụ lồng tiếng (TTS)</label>
-                                <div class="tts-selection-container">
-                                    <!-- Edge TTS Option -->
-                                    <div class="tts-option-card active" data-tts="edge">
-                                        <div class="tts-option-header">
-                                            <div class="tts-radio-circle"></div>
-                                            <div class="tts-option-info">
-                                                <span class="tts-name">Edge TTS</span>
-                                                <span class="tts-badge">Miễn phí</span>
-                                            </div>
-                                        </div>
-                                        <div class="tts-voice-dropdown-wrapper">
-                                            <label class="voice-mini-label">Chọn giọng đọc:</label>
-                                            <div class="custom-select" id="edgeVoiceSelect">
-                                                <div class="custom-select-trigger" id="edgeVoiceTrigger">
-                                                    <span id="edgeVoiceSelectedText">Tự động phân vai (Đa giọng)</span>
-                                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2">
-                                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                                    </svg>
-                                                </div>
-                                                <div class="custom-options-container" id="edgeVoiceOptions">
-                                                    <!-- Dynamic options populated via JS -->
-                                                </div>
-                                            </div>
-                                            <!-- Gender-specific voice pickers (shown when Auto mode) -->
-                                            <div class="gender-voice-row" id="edgeGenderVoices" style="display:none;">
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👩 Nữ</label>
-                                                    <div class="custom-select mini-select" id="edgeFemaleSelect">
-                                                        <div class="custom-select-trigger" id="edgeFemaleTrigger">
-                                                            <span id="edgeFemaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="edgeFemaleOptions">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👨 Nam</label>
-                                                    <div class="custom-select mini-select" id="edgeMaleSelect">
-                                                        <div class="custom-select-trigger" id="edgeMaleTrigger">
-                                                            <span id="edgeMaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="edgeMaleOptions">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                <!-- Middle: Balanced 2-Column Settings Grid -->
+                <div class="settings-grid-layout">
+                    <!-- Column 1: Voice & Media Settings -->
+                    <div class="settings-column">
+                        <div class="setting-panel">
+                            <label class="setting-label">Công cụ lồng tiếng (TTS)</label>
+                            <div class="tts-selection-container">
+                                <!-- Edge TTS Option -->
+                                <div class="tts-option-card active" data-tts="edge">
+                                    <div class="tts-option-header">
+                                        <div class="tts-radio-circle"></div>
+                                        <div class="tts-option-info">
+                                            <span class="tts-name">Edge TTS</span>
+                                            <span class="tts-badge">Miễn phí</span>
                                         </div>
                                     </div>
-
-                                    <!-- Google TTS Option -->
-                                    <div class="tts-option-card" data-tts="google">
-                                        <div class="tts-option-header">
-                                            <div class="tts-radio-circle"></div>
-                                            <div class="tts-option-info">
-                                                <span class="tts-name">Google TTS</span>
-                                                <span class="tts-badge">Classic</span>
+                                    <div class="tts-voice-dropdown-wrapper">
+                                        <label class="voice-mini-label">Chọn giọng đọc:</label>
+                                        <div class="custom-select" id="edgeVoiceSelect">
+                                            <div class="custom-select-trigger" id="edgeVoiceTrigger">
+                                                <span id="edgeVoiceSelectedText">Tự động phân vai (Đa giọng)</span>
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
+                                            </div>
+                                            <div class="custom-options-container" id="edgeVoiceOptions">
+                                                <!-- Dynamic options populated via JS -->
                                             </div>
                                         </div>
-                                        <div class="tts-voice-dropdown-wrapper">
-                                            <label class="voice-mini-label">Chọn giọng đọc:</label>
-                                            <div class="custom-select" id="googleVoiceSelect">
-                                                <div class="custom-select-trigger" id="googleVoiceTrigger">
-                                                    <span id="googleVoiceSelectedText">Tự động phân vai (Đa
-                                                        giọng)</span>
-                                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2">
-                                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                                    </svg>
-                                                </div>
-                                                <div class="custom-options-container" id="googleVoiceOptions">
-                                                    <!-- Dynamic options populated via JS -->
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="edgeGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="edgeFemaleSelect">
+                                                    <div class="custom-select-trigger" id="edgeFemaleTrigger">
+                                                        <span id="edgeFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="edgeFemaleOptions"></div>
                                                 </div>
                                             </div>
-                                            <!-- Gender-specific voice pickers (shown when Auto mode) -->
-                                            <div class="gender-voice-row" id="googleGenderVoices" style="display:none;">
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👩 Nữ</label>
-                                                    <div class="custom-select mini-select" id="googleFemaleSelect">
-                                                        <div class="custom-select-trigger" id="googleFemaleTrigger">
-                                                            <span id="googleFemaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="googleFemaleOptions">
-                                                        </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="edgeMaleSelect">
+                                                    <div class="custom-select-trigger" id="edgeMaleTrigger">
+                                                        <span id="edgeMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
                                                     </div>
-                                                </div>
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👨 Nam</label>
-                                                    <div class="custom-select mini-select" id="googleMaleSelect">
-                                                        <div class="custom-select-trigger" id="googleMaleTrigger">
-                                                            <span id="googleMaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="googleMaleOptions">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Gemini TTS Option -->
-                                    <div class="tts-option-card" data-tts="gemini">
-                                        <div class="tts-option-header">
-                                            <div class="tts-radio-circle"></div>
-                                            <div class="tts-option-info">
-                                                <span class="tts-name">Gemini TTS</span>
-                                                <span class="tts-badge">AI</span>
-                                            </div>
-                                        </div>
-                                        <div class="tts-voice-dropdown-wrapper">
-                                            <label class="voice-mini-label">Chọn giọng đọc:</label>
-                                            <div class="custom-select" id="geminiVoiceSelect">
-                                                <div class="custom-select-trigger" id="geminiVoiceTrigger">
-                                                    <span id="geminiVoiceSelectedText">Tự động phân vai (30
-                                                        giọng)</span>
-                                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2">
-                                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                                    </svg>
-                                                </div>
-                                                <div class="custom-options-container" id="geminiVoiceOptions">
-                                                    <!-- Dynamic options populated via JS -->
-                                                </div>
-                                            </div>
-                                            <!-- Gender-specific voice pickers (shown when Auto mode) -->
-                                            <div class="gender-voice-row" id="geminiGenderVoices" style="display:none;">
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👩 Nữ</label>
-                                                    <div class="custom-select mini-select" id="geminiFemaleSelect">
-                                                        <div class="custom-select-trigger" id="geminiFemaleTrigger">
-                                                            <span id="geminiFemaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="geminiFemaleOptions">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="gender-voice-item">
-                                                    <label class="gender-voice-label">👨 Nam</label>
-                                                    <div class="custom-select mini-select" id="geminiMaleSelect">
-                                                        <div class="custom-select-trigger" id="geminiMaleTrigger">
-                                                            <span id="geminiMaleSelectedText">Tự động</span>
-                                                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
-                                                                stroke="currentColor" stroke-width="2">
-                                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="custom-options-container" id="geminiMaleOptions">
-                                                        </div>
-                                                    </div>
+                                                    <div class="custom-options-container" id="edgeMaleOptions"></div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="setting-panel">
-                                <label class="setting-label">Chế độ xử lý (Process Mode)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="process-toggle-btn tts-toggle-btn active"
-                                        data-process="ocr">
-                                        <span class="tts-name">Quét phụ đề</span>
-                                        <span class="tts-badge">OCR</span>
-                                    </button>
-                                    <button type="button" class="process-toggle-btn tts-toggle-btn" data-process="auto">
-                                        <span class="tts-name">Tự động hoàn toàn</span>
-                                        <span class="tts-badge">ASR</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="setting-panel">
-                                <label class="setting-label">Âm lượng & Phụ đề</label>
-                                <div class="setting-item" style="margin-bottom: 12px;">
-                                    <label class="setting-sub-label"
-                                        style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Tốc
-                                        độ giọng đọc</label>
-                                    <div class="slider-wrapper">
-                                        <input type="range" id="ttsSpeed" min="1.0" max="1.5" step="0.05" value="1.2">
-                                        <span id="speedValue">1.20x</span>
+                                <!-- Google TTS Option -->
+                                <div class="tts-option-card" data-tts="google">
+                                    <div class="tts-option-header">
+                                        <div class="tts-radio-circle"></div>
+                                        <div class="tts-option-info">
+                                            <span class="tts-name">Google TTS</span>
+                                            <span class="tts-badge">Classic</span>
+                                        </div>
+                                    </div>
+                                    <div class="tts-voice-dropdown-wrapper">
+                                        <label class="voice-mini-label">Chọn giọng đọc:</label>
+                                        <div class="custom-select" id="googleVoiceSelect">
+                                            <div class="custom-select-trigger" id="googleVoiceTrigger">
+                                                <span id="googleVoiceSelectedText">Tự động phân vai (Đa giọng)</span>
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
+                                            </div>
+                                            <div class="custom-options-container" id="googleVoiceOptions">
+                                                <!-- Dynamic options populated via JS -->
+                                            </div>
+                                        </div>
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="googleGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="googleFemaleSelect">
+                                                    <div class="custom-select-trigger" id="googleFemaleTrigger">
+                                                        <span id="googleFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="googleFemaleOptions">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="googleMaleSelect">
+                                                    <div class="custom-select-trigger" id="googleMaleTrigger">
+                                                        <span id="googleMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="googleMaleOptions"></div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="setting-item" style="margin-bottom: 12px;">
-                                    <label class="setting-sub-label"
-                                        style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Âm
-                                        lượng nhạc nền gốc (Ducking)</label>
-                                    <div class="slider-wrapper">
-                                        <input type="range" id="bgVolume" min="0" max="1" step="0.05" value="0.20">
-                                        <span id="volumeValue">20%</span>
+
+                                <!-- Gemini TTS Option -->
+                                <div class="tts-option-card" data-tts="gemini">
+                                    <div class="tts-option-header">
+                                        <div class="tts-radio-circle"></div>
+                                        <div class="tts-option-info">
+                                            <span class="tts-name">Gemini TTS</span>
+                                            <span class="tts-badge">AI</span>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="setting-item checkbox-item">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="burnSubtitles">
-                                        <span class="checkmark-box"></span>
-                                        <span class="checkbox-label">Gắn cứng phụ đề (Hardcode Subtitles) vào
-                                            video</span>
-                                    </label>
+                                    <div class="tts-voice-dropdown-wrapper">
+                                        <label class="voice-mini-label">Chọn giọng đọc:</label>
+                                        <div class="custom-select" id="geminiVoiceSelect">
+                                            <div class="custom-select-trigger" id="geminiVoiceTrigger">
+                                                <span id="geminiVoiceSelectedText">Tự động phân vai (30 giọng)</span>
+                                                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2">
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
+                                            </div>
+                                            <div class="custom-options-container" id="geminiVoiceOptions">
+                                                <!-- Dynamic options populated via JS -->
+                                            </div>
+                                        </div>
+                                        <!-- Gender-specific voice pickers (shown when Auto mode) -->
+                                        <div class="gender-voice-row" id="geminiGenderVoices" style="display:none;">
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👩 Nữ</label>
+                                                <div class="custom-select mini-select" id="geminiFemaleSelect">
+                                                    <div class="custom-select-trigger" id="geminiFemaleTrigger">
+                                                        <span id="geminiFemaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="geminiFemaleOptions">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="gender-voice-item">
+                                                <label class="gender-voice-label">👨 Nam</label>
+                                                <div class="custom-select mini-select" id="geminiMaleSelect">
+                                                    <div class="custom-select-trigger" id="geminiMaleTrigger">
+                                                        <span id="geminiMaleSelectedText">Tự động</span>
+                                                        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2">
+                                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="custom-options-container" id="geminiMaleOptions"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Column 2: AI Translation & ASR Settings -->
-                        <div class="settings-column">
-                            <div class="setting-panel">
-                                <label class="setting-label">Dịch thuật (Translation)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="translate-toggle-btn tts-toggle-btn active"
-                                        data-translate="gemini">
-                                        <span class="tts-name">Gemini Vertex</span>
-                                        <span class="tts-badge">Chuẩn</span>
-                                    </button>
-                                    <button type="button" class="translate-toggle-btn tts-toggle-btn"
-                                        data-translate="gist">
-                                        <span class="tts-name">Gist API</span>
-                                        <span class="tts-badge">Miễn phí</span>
-                                    </button>
+                        <div class="setting-panel">
+                            <label class="setting-label">Chế độ xử lý (Process Mode)</label>
+                            <div class="tts-toggle-group">
+                                <button type="button" class="process-toggle-btn tts-toggle-btn active"
+                                    data-process="ocr">
+                                    <span class="tts-name">Quét phụ đề</span>
+                                    <span class="tts-badge">OCR</span>
+                                </button>
+                                <button type="button" class="process-toggle-btn tts-toggle-btn" data-process="auto">
+                                    <span class="tts-name">Tự động hoàn toàn</span>
+                                    <span class="tts-badge">ASR</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="setting-panel">
+                            <label class="setting-label">Âm lượng & Phụ đề</label>
+                            <div class="setting-item" style="margin-bottom: 12px;">
+                                <label class="setting-sub-label"
+                                    style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Tốc
+                                    độ giọng đọc</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="ttsSpeed" min="1.0" max="1.5" step="0.05" value="1.2">
+                                    <span id="speedValue">1.20x</span>
                                 </div>
                             </div>
-
-                            <div class="setting-panel">
-                                <label class="setting-label">Phong cách dịch (Style)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="style-toggle-btn tts-toggle-btn active"
-                                        data-style="default">
-                                        <span class="tts-name">Mặc định</span>
-                                        <span class="tts-badge">Đa năng</span>
-                                    </button>
-                                    <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="dialogue">
-                                        <span class="tts-name">Hội thoại</span>
-                                        <span class="tts-badge">Phim</span>
-                                    </button>
-                                    <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="review">
-                                        <span class="tts-name">Review</span>
-                                        <span class="tts-badge">Đánh giá</span>
-                                    </button>
-                                    <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="tutorial">
-                                        <span class="tts-name">Hướng dẫn</span>
-                                        <span class="tts-badge">Sửa chữa</span>
-                                    </button>
-                                </div>
-
-                            </div>
-
-                            <div class="setting-panel">
-                                <label class="setting-label">Phương thức nhận dạng (ASR)</label>
-                                <div class="tts-toggle-group">
-                                    <button type="button" class="asr-toggle-btn tts-toggle-btn active" data-asr="audio">
-                                        <span class="tts-name">Chỉ âm thanh</span>
-                                        <span class="tts-badge">Nhanh</span>
-                                    </button>
-                                    <button type="button" class="asr-toggle-btn tts-toggle-btn" data-asr="video">
-                                        <span class="tts-name">Đa phương thức</span>
-                                        <span class="tts-badge">Khớp hình</span>
-                                    </button>
-                                    <button type="button" class="asr-toggle-btn tts-toggle-btn" data-asr="whisper">
-                                        <span class="tts-name">Whisper Offline</span>
-                                        <span class="tts-badge">Ngoại tuyến</span>
-                                    </button>
+                            <div class="setting-item" style="margin-bottom: 12px;">
+                                <label class="setting-sub-label"
+                                    style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500;">Âm
+                                    lượng nhạc nền gốc (Ducking)</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="bgVolume" min="0" max="1" step="0.05" value="0.20">
+                                    <span id="volumeValue">20%</span>
                                 </div>
                             </div>
-
-                            <!-- Subtitle Style -->
-                            <div class="setting-panel">
-                                <label class="setting-label">
-                                    🎨 Kiểu phụ đề
-                                    <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
+                            <div class="setting-item checkbox-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="burnSubtitles">
+                                    <span class="checkmark-box"></span>
+                                    <span class="checkbox-label">Gắn cứng phụ đề (Hardcode Subtitles) vào video</span>
                                 </label>
-                                <div id="subStyleCompact" style="display:none;">
-                                    <!-- Preview box -->
-                                    <div class="sub-preview-box" id="subPreview">
-                                        <div class="sub-preview-controls">
-                                            <button type="button" class="aspect-btn active" data-aspect="9:16">📱
-                                                9:16</button>
-                                            <button type="button" class="aspect-btn" data-aspect="16:9">🖥 16:9</button>
-                                        </div>
-                                        <div class="sub-preview-area" id="subPreviewArea">
-                                            <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
-                                        </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: AI Translation & ASR Settings -->
+                    <div class="settings-column">
+                        <div class="setting-panel">
+                            <label class="setting-label">Dịch thuật (Translation)</label>
+                            <div class="tts-toggle-group">
+                                <button type="button" class="translate-toggle-btn tts-toggle-btn active"
+                                    data-translate="gemini">
+                                    <span class="tts-name">Gemini Vertex</span>
+                                    <span class="tts-badge">Chuẩn</span>
+                                </button>
+                                <button type="button" class="translate-toggle-btn tts-toggle-btn" data-translate="gist">
+                                    <span class="tts-name">Gist API</span>
+                                    <span class="tts-badge">Miễn phí</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="setting-panel">
+                            <label class="setting-label">Phong cách dịch (Style)</label>
+                            <div class="tts-toggle-group">
+                                <button type="button" class="style-toggle-btn tts-toggle-btn active"
+                                    data-style="default">
+                                    <span class="tts-name">Mặc định</span>
+                                    <span class="tts-badge">Đa năng</span>
+                                </button>
+                                <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="dialogue">
+                                    <span class="tts-name">Hội thoại</span>
+                                    <span class="tts-badge">Phim</span>
+                                </button>
+                                <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="review">
+                                    <span class="tts-name">Review</span>
+                                    <span class="tts-badge">Đánh giá</span>
+                                </button>
+                                <button type="button" class="style-toggle-btn tts-toggle-btn" data-style="tutorial">
+                                    <span class="tts-name">Hướng dẫn</span>
+                                    <span class="tts-badge">Sửa chữa</span>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div class="setting-panel">
+                            <label class="setting-label">Phương thức nhận dạng (ASR)</label>
+                            <div class="tts-toggle-group">
+                                <button type="button" class="asr-toggle-btn tts-toggle-btn active" data-asr="audio">
+                                    <span class="tts-name">Chỉ âm thanh</span>
+                                    <span class="tts-badge">Nhanh</span>
+                                </button>
+                                <button type="button" class="asr-toggle-btn tts-toggle-btn" data-asr="video">
+                                    <span class="tts-name">Đa phương thức</span>
+                                    <span class="tts-badge">Khớp hình</span>
+                                </button>
+                                <button type="button" class="asr-toggle-btn tts-toggle-btn" data-asr="whisper">
+                                    <span class="tts-name">Whisper Offline</span>
+                                    <span class="tts-badge">Ngoại tuyến</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Subtitle Style -->
+                        <div class="setting-panel">
+                            <label class="setting-label">
+                                🎨 Kiểu phụ đề
+                                <button type="button" id="btnToggleSubStyle" class="btn-mini-toggle">+ Mở</button>
+                            </label>
+                            <div id="subStyleCompact" style="display:none;">
+                                <!-- Preview box -->
+                                <div class="sub-preview-box" id="subPreview">
+                                    <div class="sub-preview-controls">
+                                        <button type="button" class="aspect-btn active" data-aspect="9:16">📱
+                                            9:16</button>
+                                        <button type="button" class="aspect-btn" data-aspect="16:9">🖥 16:9</button>
                                     </div>
-                                    <!-- Controls -->
-                                    <div class="sub-row">
-                                        <select id="subFont" class="mini-select">
-                                            <option value="Montserrat">Montserrat</option>
-                                            <option value="Roboto">Roboto</option>
-                                            <option value="Inter">Inter</option>
-                                            <option value="OpenSans">OpenSans</option>
-                                            <option value="Nunito">Nunito</option>
-                                            <option value="Quicksand">Quicksand</option>
-                                            <option value="Lora">Lora</option>
-                                            <option value="Oswald">Oswald</option>
-                                            <option value="PlayfairDisplay">Playfair</option>
-                                            <option value="BeVietnamPro">BeVietnamPro</option>
-                                        </select>
-                                        <select id="subFontSize" class="mini-select">
-                                            <option value="16">16px</option>
-                                            <option value="18">18px</option>
-                                            <option value="20" selected>20px</option>
-                                            <option value="22">22px</option>
-                                            <option value="24">24px</option>
-                                            <option value="28">28px</option>
-                                            <option value="32">32px</option>
-                                        </select>
-                                        <select id="subColor" class="mini-select">
-                                            <option value="&H00FFFFFF">⬜ Trắng</option>
-                                            <option value="&H0000FFFF">🟨 Vàng</option>
-                                            <option value="&H0000FF00">🟩 Xanh lá</option>
-                                            <option value="&H00FF0000">🟦 Xanh dương</option>
-                                            <option value="&H000000FF">🟥 Đỏ</option>
-                                            <option value="&H00FF80FF">🩷 Hồng</option>
-                                        </select>
+                                    <div class="sub-preview-area" id="subPreviewArea">
+                                        <span class="sub-preview-text" id="subPreviewText">Xin chào các bạn</span>
                                     </div>
-                                    <div class="sub-row">
-                                        <select id="subPosition" class="mini-select">
-                                            <option value="2" selected>📍 Dưới Giữa</option>
-                                            <option value="1">📍 Dưới Trái</option>
-                                            <option value="3">📍 Dưới Phải</option>
-                                            <option value="8">📍 Trên Giữa</option>
-                                            <option value="5">📍 Giữa Màn</option>
-                                        </select>
-                                        <select id="subOutline" class="mini-select">
-                                            <option value="0">◽ Viền: Không</option>
-                                            <option value="1">◾ Viền: Mỏng</option>
-                                            <option value="1.5" selected>◾ Viền: Vừa</option>
-                                            <option value="2.5">◾ Viền: Dày</option>
-                                        </select>
-                                        <select id="subBgAlpha" class="mini-select">
-                                            <option value="00">Nền: Trong suốt</option>
-                                            <option value="40">Nền: Mờ 25%</option>
-                                            <option value="80" selected>Nền: Mờ 50%</option>
-                                            <option value="C0">Nền: Mờ 75%</option>
-                                            <option value="FF">Nền: Đặc</option>
-                                        </select>
-                                    </div>
+                                </div>
+                                <!-- Controls -->
+                                <div class="sub-row">
+                                    <select id="subFont" class="mini-select">
+                                        <option value="Montserrat">Montserrat</option>
+                                        <option value="Roboto">Roboto</option>
+                                        <option value="Inter">Inter</option>
+                                        <option value="OpenSans">OpenSans</option>
+                                        <option value="Nunito">Nunito</option>
+                                        <option value="Quicksand">Quicksand</option>
+                                        <option value="Lora">Lora</option>
+                                        <option value="Oswald">Oswald</option>
+                                        <option value="PlayfairDisplay">Playfair</option>
+                                        <option value="BeVietnamPro">BeVietnamPro</option>
+                                    </select>
+                                    <select id="subFontSize" class="mini-select">
+                                        <option value="16">16px</option>
+                                        <option value="18">18px</option>
+                                        <option value="20" selected>20px</option>
+                                        <option value="22">22px</option>
+                                        <option value="24">24px</option>
+                                        <option value="28">28px</option>
+                                        <option value="32">32px</option>
+                                    </select>
+                                    <select id="subColor" class="mini-select">
+                                        <option value="&H00FFFFFF">⬜ Trắng</option>
+                                        <option value="&H0000FFFF">🟨 Vàng</option>
+                                        <option value="&H0000FF00">🟩 Xanh lá</option>
+                                        <option value="&H00FF0000">🟦 Xanh dương</option>
+                                        <option value="&H000000FF">🟥 Đỏ</option>
+                                        <option value="&H00FF80FF">🩷 Hồng</option>
+                                    </select>
+                                </div>
+                                <div class="sub-row">
+                                    <select id="subPosition" class="mini-select">
+                                        <option value="2" selected>📍 Dưới Giữa</option>
+                                        <option value="1">📍 Dưới Trái</option>
+                                        <option value="3">📍 Dưới Phải</option>
+                                        <option value="8">📍 Trên Giữa</option>
+                                        <option value="5">📍 Giữa Màn</option>
+                                    </select>
+                                    <select id="subOutline" class="mini-select">
+                                        <option value="0">◽ Viền: Không</option>
+                                        <option value="1">◾ Viền: Mỏng</option>
+                                        <option value="1.5" selected>◾ Viền: Vừa</option>
+                                        <option value="2.5">◾ Viền: Dày</option>
+                                    </select>
+                                    <select id="subBgAlpha" class="mini-select">
+                                        <option value="00">Nền: Trong suốt</option>
+                                        <option value="40">Nền: Mờ 25%</option>
+                                        <option value="80" selected>Nền: Mờ 50%</option>
+                                        <option value="C0">Nền: Mờ 75%</option>
+                                        <option value="FF">Nền: Đặc</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Bottom: Submit Button (Full Width, Centered) -->
-                    <div class="action-container" style="margin-top: 20px;">
-                        <button type="submit" id="submitBtn" class="btn-primary">
-                            <span>Bắt đầu tiến trình xử lý</span>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                class="arrow-icon">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <!-- Processing Status Panel -->
-            <section id="processingCard" class="card status-card hidden">
-                <div class="status-header">
-                    <h2 class="status-title">Trạng thái xử lý</h2>
-                    <div class="running-indicator">
-                        <span class="pulse-dot"></span>
-                        <span id="currentSubStep">Đang chuẩn bị khởi tạo tiến trình...</span>
-                    </div>
                 </div>
 
-                <!-- Steps Progress Bar -->
-                <div class="steps-progress-container">
-                    <div class="progress-line-bg">
-                        <div id="progressLineFill" class="progress-line-fill" style="width: 0%;"></div>
-                    </div>
-                    <div class="steps-row">
-                        <div class="step-node" data-step="1">
-                            <div class="step-circle">1</div>
-                            <span class="step-name">Tải Video</span>
-                        </div>
-                        <div class="step-node" data-step="2">
-                            <div class="step-circle">2</div>
-                            <span class="step-name">Tách Âm</span>
-                        </div>
-                        <div class="step-node" data-step="3">
-                            <div class="step-circle">3</div>
-                            <span class="step-name">ASR</span>
-                        </div>
-                        <div class="step-node" data-step="4">
-                            <div class="step-circle">4</div>
-                            <span class="step-name">Dịch thuật</span>
-                        </div>
-                        <div class="step-node" data-step="5">
-                            <div class="step-circle">5</div>
-                            <span class="step-name">Nhận diện giọng</span>
-                        </div>
-                        <div class="step-node" data-step="6">
-                            <div class="step-circle">6</div>
-                            <span class="step-name">TTS AI</span>
-                        </div>
-                        <div class="step-node" data-step="7">
-                            <div class="step-circle">7</div>
-                            <span class="step-name">Lồng nhạc</span>
-                        </div>
-                        <div class="step-node" data-step="8">
-                            <div class="step-circle">8</div>
-                            <span class="step-name">Xuất bản</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Terminal Output -->
-                <div class="terminal-container">
-                    <div class="terminal-header">
-                        <span class="terminal-dot red"></span>
-                        <span class="terminal-dot yellow"></span>
-                        <span class="terminal-dot green"></span>
-                        <span class="terminal-title">System Console Output</span>
-                    </div>
-                    <div id="terminalBody" class="terminal-body">
-                        <div class="log-line text-muted">[00:00:00] WAITING - Chờ gửi yêu cầu xử lý từ phía người
-                            dùng...
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- OCR Crop Selector Panel -->
-            <section id="ocrSelectionCard" class="card ocr-card hidden">
-                <h2 class="card-title">Chọn vùng quét phụ đề chữ (OCR)</h2>
-                <p class="card-subtitle" style="margin-bottom: 20px; color: var(--text-secondary);">Hãy kéo thả hoặc
-                    điều
-                    chỉnh thanh dải màu sáng đè lên khu vực phụ đề chữ chạy của video gốc bên dưới để bắt đầu quét OCR
-                    chữ
-                    cứng.</p>
-
-                <div class="ocr-workspace">
-                    <div class="ocr-video-container" id="ocrVideoContainer">
-                        <video id="ocrVideoPlayer" class="video-player" muted playsinline></video>
-                        <!-- Drag crop overlay -->
-                        <div class="ocr-crop-overlay" id="ocrCropOverlay">
-                            <div class="ocr-crop-box" id="ocrCropBox">
-                                <div class="ocr-resize-handle top" id="handleTop"></div>
-                                <div class="ocr-resize-handle bottom" id="handleBottom"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Custom timeline scrub bar to easily browse through the entire video subtitles -->
-                <div class="ocr-timeline-container">
-                    <div
-                        style="display: flex; align-items: center; gap: 16px; justify-content: space-between; width: 100%;">
-                        <button type="button" id="btnOcrPlayPause" class="btn-download secondary"
-                            style="padding: 8px 18px; margin: 0; min-width: 120px;">
-                            <span>Phát video</span>
-                        </button>
-                        <span id="ocrTimeCurrent"
-                            style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); min-width: 40px; text-align: right;">0:00</span>
-                        <input type="range" id="ocrTimelineSlider" min="0" max="100" value="0"
-                            style="flex-grow: 1; cursor: pointer; margin: 0 8px;">
-                        <span id="ocrTimeDuration"
-                            style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); min-width: 40px;">0:00</span>
-                    </div>
-                </div>
-
-                <div class="ocr-actions" style="margin-top: 24px; display: flex; gap: 16px; justify-content: center;">
-                    <button type="button" id="btnStartOcr" class="btn-primary" style="margin: 0;">
-                        <span>Bắt đầu quét OCR phụ đề</span>
-                    </button>
-                    <button type="button" id="btnSkipOcr" class="btn-download secondary"
-                        style="margin: 0; padding: 12px 24px;">
-                        <span>Bỏ qua, dịch thường (ASR)</span>
+                <!-- Bottom: Submit Button (Full Width, Centered) -->
+                <div class="action-container" style="margin-top: 20px;">
+                    <button type="submit" id="submitBtn" class="btn-primary">
+                        <span>Bắt đầu tiến trình xử lý</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="arrow-icon">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
                     </button>
                 </div>
-            </section>
+            </form>
+        </section>
 
-            <!-- Final Results & Downloads -->
-            <section id="resultsCard" class="card results-card hidden">
-                <h2 class="card-title">Kết quả dịch thuật</h2>
-                <div class="results-grid">
-                    <div class="video-preview-wrapper">
-                        <h3>Video gốc</h3>
-                        <video id="originalVideoPlayer" controls class="video-player"></video>
+        <!-- Processing Status Panel -->
+        <section id="processingCard" class="card status-card hidden">
+            <div class="status-header">
+                <h2 class="status-title">Trạng thái xử lý</h2>
+                <div class="running-indicator">
+                    <span class="pulse-dot"></span>
+                    <span id="currentSubStep">Đang chuẩn bị khởi tạo tiến trình...</span>
+                </div>
+            </div>
+
+            <!-- Steps Progress Bar -->
+            <div class="steps-progress-container">
+                <div class="progress-line-bg">
+                    <div id="progressLineFill" class="progress-line-fill" style="width: 0%;"></div>
+                </div>
+                <div class="steps-row">
+                    <div class="step-node" data-step="1">
+                        <div class="step-circle">1</div>
+                        <span class="step-name">Tải Video</span>
                     </div>
-                    <div class="video-preview-wrapper">
-                        <h3>Video Việt hóa</h3>
-                        <video id="translatedVideoPlayer" controls class="video-player"></video>
+                    <div class="step-node" data-step="2">
+                        <div class="step-circle">2</div>
+                        <span class="step-name">Tách Âm</span>
+                    </div>
+                    <div class="step-node" data-step="3">
+                        <div class="step-circle">3</div>
+                        <span class="step-name">ASR</span>
+                    </div>
+                    <div class="step-node" data-step="4">
+                        <div class="step-circle">4</div>
+                        <span class="step-name">Dịch thuật</span>
+                    </div>
+                    <div class="step-node" data-step="5">
+                        <div class="step-circle">5</div>
+                        <span class="step-name">Nhận diện giọng</span>
+                    </div>
+                    <div class="step-node" data-step="6">
+                        <div class="step-circle">6</div>
+                        <span class="step-name">TTS AI</span>
+                    </div>
+                    <div class="step-node" data-step="7">
+                        <div class="step-circle">7</div>
+                        <span class="step-name">Lồng nhạc</span>
+                    </div>
+                    <div class="step-node" data-step="8">
+                        <div class="step-circle">8</div>
+                        <span class="step-name">Xuất bản</span>
                     </div>
                 </div>
+            </div>
 
-                <div class="downloads-section">
-                    <h3>Tải xuống tài nguyên</h3>
-                    <div class="download-buttons-group">
-                        <a id="downloadVideoBtn" href="#" class="btn-download" download>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <span>Tải Video việt hóa (MP4)</span>
-                        </a>
-                        <a id="downloadSrtBtn" href="#" class="btn-download secondary" download>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                                <polyline points="10 9 9 9 8 9"></polyline>
-                            </svg>
-                            <span>Tải phụ đề (SRT)</span>
-                        </a>
-                        <a id="downloadAudioBtn" href="#" class="btn-download secondary" download>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 18V5l12-2v13"></path>
-                                <circle cx="6" cy="18" r="3"></circle>
-                                <circle cx="18" cy="16" r="3"></circle>
-                            </svg>
-                            <span>Tải nhạc nền & thoại (MP3)</span>
-                        </a>
+            <!-- Live Terminal Output -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title">System Console Output</span>
+                </div>
+                <div id="terminalBody" class="terminal-body">
+                    <div class="log-line text-muted">[00:00:00] WAITING - Chờ gửi yêu cầu xử lý từ phía người dùng...
                     </div>
                 </div>
-            </section>
+            </div>
+        </section>
 
+        <!-- OCR Crop Selector Panel -->
+        <section id="ocrSelectionCard" class="card ocr-card hidden">
+            <h2 class="card-title">Chọn vùng quét phụ đề chữ (OCR)</h2>
+            <p class="card-subtitle" style="margin-bottom: 20px; color: var(--text-secondary);">Hãy kéo thả hoặc điều
+                chỉnh thanh dải màu sáng đè lên khu vực phụ đề chữ chạy của video gốc bên dưới để bắt đầu quét OCR chữ
+                cứng.</p>
+
+            <div class="ocr-workspace">
+                <div class="ocr-video-container" id="ocrVideoContainer">
+                    <video id="ocrVideoPlayer" class="video-player" muted playsinline></video>
+                    <!-- Drag crop overlay -->
+                    <div class="ocr-crop-overlay" id="ocrCropOverlay">
+                        <div class="ocr-crop-box" id="ocrCropBox">
+                            <div class="ocr-resize-handle top" id="handleTop"></div>
+                            <div class="ocr-resize-handle bottom" id="handleBottom"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom timeline scrub bar to easily browse through the entire video subtitles -->
+            <div class="ocr-timeline-container">
+                <div
+                    style="display: flex; align-items: center; gap: 16px; justify-content: space-between; width: 100%;">
+                    <button type="button" id="btnOcrPlayPause" class="btn-download secondary"
+                        style="padding: 8px 18px; margin: 0; min-width: 120px;">
+                        <span>Phát video</span>
+                    </button>
+                    <span id="ocrTimeCurrent"
+                        style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); min-width: 40px; text-align: right;">0:00</span>
+                    <input type="range" id="ocrTimelineSlider" min="0" max="100" value="0"
+                        style="flex-grow: 1; cursor: pointer; margin: 0 8px;">
+                    <span id="ocrTimeDuration"
+                        style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); min-width: 40px;">0:00</span>
+                </div>
+            </div>
+
+            <div class="ocr-actions" style="margin-top: 24px; display: flex; gap: 16px; justify-content: center;">
+                <button type="button" id="btnStartOcr" class="btn-primary" style="margin: 0;">
+                    <span>Bắt đầu quét OCR phụ đề</span>
+                </button>
+                <button type="button" id="btnSkipOcr" class="btn-download secondary"
+                    style="margin: 0; padding: 12px 24px;">
+                    <span>Bỏ qua, dịch thường (ASR)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Final Results & Downloads -->
+        <section id="resultsCard" class="card results-card hidden">
+            <h2 class="card-title">Kết quả dịch thuật</h2>
+            <div class="results-grid">
+                <div class="video-preview-wrapper">
+                    <h3>Video gốc</h3>
+                    <video id="originalVideoPlayer" controls class="video-player"></video>
+                </div>
+                <div class="video-preview-wrapper">
+                    <h3>Video Việt hóa</h3>
+                    <video id="translatedVideoPlayer" controls class="video-player"></video>
+                </div>
+            </div>
+
+            <div class="downloads-section">
+                <h3>Tải xuống tài nguyên</h3>
+                <div class="download-buttons-group">
+                    <a id="downloadVideoBtn" href="#" class="btn-download" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Tải Video việt hóa (MP4)</span>
+                    </a>
+                    <a id="downloadSrtBtn" href="#" class="btn-download secondary" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>Tải phụ đề (SRT)</span>
+                    </a>
+                    <a id="downloadAudioBtn" href="#" class="btn-download secondary" download>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                        <span>Tải nhạc nền & thoại (MP3)</span>
+                    </a>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer class="app-footer">
-        <p>&copy; 2026 AI Video Tool. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
+        <p>&copy; 2026 DouyinTranslate Pro. Tối ưu hóa cho hiệu năng SaaS và dịch thuật chất lượng cao.</p>
     </footer>
 
     <!-- Subtitle Review Modal (Popup) -->
