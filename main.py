@@ -32,7 +32,6 @@ from google.genai import types  # cho GenerateContentConfig
 
 # Import pipelines
 from pipelines.dubbing import DubbingPipeline
-from pipelines.reedit import ReEditPipeline
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -203,7 +202,6 @@ class SubtitleReviewResponse(BaseModel):
 
 # Init pipelines
 dubbing_pipeline = DubbingPipeline(jobs, JOBS_TTL_SECONDS)
-reedit_pipeline = ReEditPipeline(jobs)
 
 # ── Wrappers (gọi từ route) ─────────────────────────────────
 
@@ -213,9 +211,6 @@ def _run_dubbing_phase1(job_id: str, url: str):
 def _run_dubbing_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float,
                          x_start: float = 0.0, x_end: float = 1.0):
     dubbing_pipeline.run_phase2(job_id, use_ocr, y_start, y_end, x_start, x_end)
-
-def _run_reedit(job_id: str, url: str):
-    reedit_pipeline.run(job_id, url)
 
 # ── FastAPI Routes ──────────────────────────────────────────
 
@@ -893,75 +888,7 @@ def continue_subtitle_tts(job_id: str, request: SubtitleReviewResponse):
     job["status"] = "running"
     return {"status": "success", "message": "Đã lưu chỉnh sửa phụ đề và tiếp tục lồng tiếng."}
 
-# ============================================================
-# 🎬 AI Re-Edit Routes
-# ============================================================
 
-class ReEditRequest(BaseModel):
-    url: str
-
-@app.post("/api/reedit/start")
-def start_reedit(request: ReEditRequest):
-    global _last_request_time
-
-    now = time.time()
-    elapsed = now - _last_request_time
-    if elapsed < MIN_REQUEST_INTERVAL:
-        wait = round(MIN_REQUEST_INTERVAL - elapsed, 1)
-        raise HTTPException(status_code=429, detail=f"Vui lòng đợi {wait}s trước khi gửi request tiếp theo.")
-    _last_request_time = now
-
-    job_id = str(uuid.uuid4())
-    jobs[job_id] = {
-        "job_id": job_id,
-        "status": "running",
-        "step": 0,
-        "sub_step": "Khởi tạo AI Re-Edit...",
-        "logs": [],
-        "video_path": None,
-        "scenes_path": None,
-        "error": None,
-        "_created": time.time(),
-    }
-
-    _cleanup_expired_jobs()
-
-    thread = threading.Thread(
-        target=_run_reedit,
-        args=(job_id, request.url),
-        daemon=True
-    )
-    thread.start()
-
-    return {"job_id": job_id}
-
-
-@app.get("/api/reedit/status/{job_id}")
-def get_reedit_status(job_id: str):
-    if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Không tìm thấy phiên xử lý.")
-
-    job = jobs[job_id]
-    result_urls = {}
-    if "project_id" in job:
-        pid = job["project_id"]
-        result_urls = {
-            "source_video_url": f"/projects/{pid}/source.mp4",
-            "output_video_url": f"/projects/{pid}/output/final.mp4" if job.get("output_video") else None,
-            "scenes_json_url": f"/projects/{pid}/analysis/scenes.json" if job.get("scenes") else None,
-            "style_json_url": f"/projects/{pid}/analysis/style.json",
-            "edit_plan_url": f"/projects/{pid}/edit/edit_plan.json" if job.get("edit_plan") else None,
-        }
-
-    return {
-        "job_id": job["job_id"],
-        "status": job["status"],
-        "step": job["step"],
-        "sub_step": job["sub_step"],
-        "logs": job["logs"],
-        "result": result_urls,
-        "error": job["error"]
-    }
 
 @app.get("/api/status/{job_id}")
 def get_status(job_id: str):
