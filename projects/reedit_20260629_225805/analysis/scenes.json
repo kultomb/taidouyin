@@ -1,0 +1,83 @@
+[
+  {
+    "id": 1,
+    "start": 3.14,
+    "end": 4.56,
+    "text": "你是从天上掉下来的",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 2,
+    "start": 6.34,
+    "end": 14.6,
+    "text": "看清楚了 本关三界巡查大使 从现在起 这个镇归我管 第一个任务 让雨婷 龙王在哪儿 叫她出来见我",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 3,
+    "start": 22.6,
+    "end": 24.74,
+    "text": "你 您真是神仙",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 4,
+    "start": 27.12,
+    "end": 34.42,
+    "text": "老广 你聋了是吧 本座来了 你还敢下雨 给你三秒钟 停了 立刻 马上",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 5,
+    "start": 38.42,
+    "end": 39.18,
+    "text": "停了",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 6,
+    "start": 45.56,
+    "end": 62.86,
+    "text": "都起来都起来 跟姐说说 除了这破雨 还有啥麻烦 抓妖怪 还是要战 姐啥都会 神仙姑奶奶 求您救救我女儿 她被后山的妖怪抓走了 已经三天了 仙牙上说管不了 法师说妖怪厉害",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 7,
+    "start": 68.78,
+    "end": 72.8,
+    "text": "妖怪是吧 什么品种的 正好试试我的新装备",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 8,
+    "start": 77.98,
+    "end": 82.86,
+    "text": "小神仙 那妖怪会吃人的 您带把剑行不行 我衙门里有",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  },
+  {
+    "id": 9,
+    "start": 86.1,
+    "end": 92.48,
+    "text": "剑 我袋子里随便裤着 穿一张服都能炸平半座山 还怕一只山里的小野怪",
+    "summary": "Chưa phân tích (V2)",
+    "importance": 5,
+    "emotion": "neutral"
+  }
+]

@@ -1,14 +1,36 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ============================================
+    // TAB SWITCHING LOGIC
+    // ============================================
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetTab = btn.dataset.tab;
+            // Update buttons
+            tabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            // Update content
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            const targetContent = document.getElementById(targetTab === 'dubbing' ? 'tabDubbing' : 'tabReedit');
+            if (targetContent) targetContent.classList.add('active');
+        });
+    });
+
+    // ============================================
+    // TAB 1: 🎙️ AI Dubbing (existing logic)
+    // ============================================
     const volumeSlider = document.getElementById('bgVolume');
     const volumeValue = document.getElementById('volumeValue');
     const form = document.getElementById('translateForm');
     const submitBtn = document.getElementById('submitBtn');
     const videoUrlInput = document.getElementById('videoUrl');
     const burnSubtitlesCheckbox = document.getElementById('burnSubtitles');
-    const ttsOptionCards = document.querySelectorAll('.tts-option-card');
-    const asrToggleBtns = document.querySelectorAll('.asr-toggle-btn');
-    const translateToggleBtns = document.querySelectorAll('.translate-toggle-btn');
-    const processToggleBtns = document.querySelectorAll('.process-toggle-btn');
+    const ttsOptionCards = document.querySelectorAll('#tabDubbing .tts-option-card');
+    const asrToggleBtns = document.querySelectorAll('#tabDubbing .asr-toggle-btn');
+    const translateToggleBtns = document.querySelectorAll('#tabDubbing .translate-toggle-btn');
+    const processToggleBtns = document.querySelectorAll('#tabDubbing .process-toggle-btn');
     let selectedTtsProvider = 'edge';
     let selectedAsrMode = 'audio';
     let selectedTranslateProvider = 'gemini';
@@ -365,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subStyleCompact = document.getElementById('subStyleCompact');
     const subPreviewArea = document.getElementById('subPreviewArea');
     const subPreviewText = document.getElementById('subPreviewText');
-    
+
     if (btnToggleSubStyle && subStyleCompact) {
         btnToggleSubStyle.addEventListener('click', () => {
             const isVisible = subStyleCompact.style.display !== 'none';
@@ -396,26 +418,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const pos = document.getElementById('subPosition')?.value || '2';
         const outline = document.getElementById('subOutline')?.value || '1.5';
         const bgAlpha = document.getElementById('subBgAlpha')?.value || '80';
-        
+
         subPreviewText.style.fontFamily = font + ', sans-serif';
         subPreviewText.style.fontSize = size + 'px';
-        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline)*2}px #000`;
-        
+        subPreviewText.style.textShadow = `0 0 ${outline}px #000, 0 0 ${parseFloat(outline) * 2}px #000`;
+
         // Map color
-        const colorMap = {'&H00FFFFFF':'#FFFFFF','&H0000FFFF':'#FFFF00','&H0000FF00':'#00FF00','&H00FF0000':'#0066FF','&H000000FF':'#FF0000','&H00FF80FF':'#FF80FF'};
+        const colorMap = { '&H00FFFFFF': '#FFFFFF', '&H0000FFFF': '#FFFF00', '&H0000FF00': '#00FF00', '&H00FF0000': '#0066FF', '&H000000FF': '#FF0000', '&H00FF80FF': '#FF80FF' };
         subPreviewText.style.color = colorMap[colorEl?.value] || '#FFFFFF';
-        
+
         // Background
         const alpha = parseInt(bgAlpha, 16);
-        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha/255})` : 'transparent';
-        
+        subPreviewText.style.background = alpha > 0 ? `rgba(0,0,0,${alpha / 255})` : 'transparent';
+
         // Position
-        const posMap = {'2':'flex-end','1':'flex-end','3':'flex-end','8':'flex-start','5':'center'};
-        const justifyMap = {'2':'center','1':'flex-start','3':'flex-end','8':'center','5':'center'};
+        const posMap = { '2': 'flex-end', '1': 'flex-end', '3': 'flex-end', '8': 'flex-start', '5': 'center' };
+        const justifyMap = { '2': 'center', '1': 'flex-start', '3': 'flex-end', '8': 'center', '5': 'center' };
         subPreviewArea.style.alignItems = posMap[pos] || 'flex-end';
         subPreviewArea.style.justifyContent = justifyMap[pos] || 'center';
     }
-    
+
     document.querySelectorAll('#subStyleCompact select').forEach(sel => {
         sel.addEventListener('change', updateSubPreview);
     });
@@ -949,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnOcrPlayPause.querySelector('span').textContent = 'Tạm dừng';
     });
 
-    // Log printer helper
+    // Log printer helper (dùng chung cho cả 2 tabs)
     function appendLogLine(message, type = 'info') {
         const div = document.createElement('div');
         div.className = `log-line ${type}`;
@@ -959,4 +981,168 @@ document.addEventListener('DOMContentLoaded', () => {
         // Scroll terminal to the bottom
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }
+
+    // ============================================
+    // TAB 2: 🎬 AI Re-Edit Logic
+    // ============================================
+    const reeditForm = document.getElementById('reeditForm');
+    const reeditSubmitBtn = document.getElementById('reeditSubmitBtn');
+    const reeditUrlInput = document.getElementById('reeditUrl');
+    const reeditProcessingCard = document.getElementById('reeditProcessingCard');
+    const reeditCurrentStep = document.getElementById('reeditCurrentStep');
+    const reeditProgressFill = document.getElementById('reeditProgressFill');
+    const reeditTerminalBody = document.getElementById('reeditTerminalBody');
+    const reeditResultsCard = document.getElementById('reeditResultsCard');
+    const reeditOriginalPlayer = document.getElementById('reeditOriginalPlayer');
+    const reeditFinalPlayer = document.getElementById('reeditFinalPlayer');
+    const reeditDownloadVideo = document.getElementById('reeditDownloadVideo');
+    const reeditDownloadScenes = document.getElementById('reeditDownloadScenes');
+    const reeditDownloadPlan = document.getElementById('reeditDownloadPlan');
+
+    let reeditPollInterval = null;
+    let reeditDisplayedLogs = 0;
+
+    function reeditAppendLog(msg, type = 'info') {
+        if (!reeditTerminalBody) return;
+        const div = document.createElement('div');
+        div.className = `log-line ${type}`;
+        div.textContent = msg;
+        reeditTerminalBody.appendChild(div);
+        reeditTerminalBody.scrollTop = reeditTerminalBody.scrollHeight;
+    }
+
+    function reeditUpdateSteps(step, isFinished = false) {
+        if (!reeditProgressFill) return;
+        if (step < 1) return;
+        let pct = 0;
+        if (step > 1) pct = Math.min(((step - 1) / 5) * 100, 100);
+        if (isFinished) pct = 100;
+        reeditProgressFill.style.width = `${pct}%`;
+
+        const nodes = document.querySelectorAll('#reeditProcessingCard .step-node');
+        nodes.forEach(node => {
+            const ns = parseInt(node.getAttribute('data-step'));
+            node.classList.remove('active', 'completed');
+            if (isFinished) node.classList.add('completed');
+            else if (ns < step) node.classList.add('completed');
+            else if (ns === step) node.classList.add('active');
+        });
+    }
+
+    // Re-Edit source toggle
+    document.querySelectorAll('.reedit-source-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.reedit-source-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (btn.dataset.source === 'file') {
+                reeditUrlInput.placeholder = 'Chọn file MP4 từ máy...';
+                reeditUrlInput.type = 'file';
+                reeditUrlInput.accept = 'video/mp4';
+            } else {
+                reeditUrlInput.placeholder = 'Dán link video (Douyin / TikTok / YouTube)...';
+                reeditUrlInput.type = 'text';
+                reeditUrlInput.removeAttribute('accept');
+            }
+        });
+    });
+
+    // Re-Edit SRT toggle
+    document.querySelectorAll('.reedit-srt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.reedit-srt-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+
+    // Re-Edit Form Submit
+    if (reeditForm) {
+        reeditForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = reeditUrlInput.value.trim();
+            if (!url) return;
+
+            reeditSubmitBtn.disabled = true;
+            reeditSubmitBtn.querySelector('span').textContent = '⏳ Đang xử lý...';
+            reeditProcessingCard.classList.remove('hidden');
+            reeditResultsCard.classList.add('hidden');
+            reeditTerminalBody.innerHTML = '';
+            reeditAppendLog('🚀 Khởi động AI Re-Edit...', 'info');
+            reeditDisplayedLogs = 0;
+
+            try {
+                const response = await fetch('/api/reedit/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    throw new Error((errData && errData.detail) || 'Lỗi server.');
+                }
+                const data = await response.json();
+                reeditAppendLog(`✅ Job created: ${data.job_id}`, 'success');
+
+                if (reeditPollInterval) clearInterval(reeditPollInterval);
+                reeditPollInterval = setInterval(() => reeditPollStatus(data.job_id), 1500);
+
+            } catch (err) {
+                reeditAppendLog(`❌ Lỗi: ${err.message}`, 'error');
+                reeditSubmitBtn.disabled = false;
+                reeditSubmitBtn.querySelector('span').textContent = '🚀 Bắt đầu phân tích AI Re-Edit';
+            }
+        });
+    }
+
+    async function reeditPollStatus(jobId) {
+        try {
+            const resp = await fetch(`/api/reedit/status/${jobId}`);
+            if (!resp.ok) throw new Error('Không thể lấy trạng thái.');
+            const data = await resp.json();
+
+            // Update logs
+            const logs = data.logs || [];
+            if (logs.length > reeditDisplayedLogs) {
+                for (let i = reeditDisplayedLogs; i < logs.length; i++) {
+                    let type = 'info';
+                    const line = logs[i];
+                    if (line.includes('LỖI') || line.includes('ERROR') || line.includes('failed')) type = 'error';
+                    else if (line.includes('thành công') || line.includes('success') || line.includes('completed')) type = 'success';
+                    reeditAppendLog(line, type);
+                }
+                reeditDisplayedLogs = logs.length;
+            }
+
+            reeditCurrentStep.textContent = data.sub_step || 'Đang xử lý...';
+            reeditUpdateSteps(data.step || 0);
+
+            if (data.status === 'completed') {
+                clearInterval(reeditPollInterval);
+                reeditAppendLog('✅ AI Re-Edit hoàn tất!', 'success');
+                reeditUpdateSteps(6, true);
+                reeditResultsCard.classList.remove('hidden');
+
+                if (data.result && data.result.source_video_url) {
+                    reeditOriginalPlayer.src = data.result.source_video_url;
+                }
+                if (data.result && data.result.scenes_json_url) {
+                    reeditDownloadScenes.href = data.result.scenes_json_url;
+                }
+                reeditDownloadVideo.href = data.result?.source_video_url || '#';
+                reeditDownloadPlan.href = '#';
+
+                reeditSubmitBtn.disabled = false;
+                reeditSubmitBtn.querySelector('span').textContent = '🚀 Bắt đầu phân tích AI Re-Edit';
+
+            } else if (data.status === 'failed') {
+                clearInterval(reeditPollInterval);
+                reeditAppendLog(`❌ Thất bại: ${data.error || 'Unknown error'}`, 'error');
+                reeditSubmitBtn.disabled = false;
+                reeditSubmitBtn.querySelector('span').textContent = '🚀 Bắt đầu phân tích AI Re-Edit';
+            }
+
+        } catch (err) {
+            reeditAppendLog(`⚠️ Poll error: ${err.message}`, 'error');
+        }
+    }
+
 });

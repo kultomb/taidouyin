@@ -54,6 +54,39 @@ else:
 # Add static files folder so that HTML/JS/CSS are bundled inside the EXE
 datas.append(('static', 'static'))
 
+# Add prompts folder so Gemini translation prompts are available at runtime
+if os.path.exists('prompts'):
+    for f in os.listdir('prompts'):
+        src = os.path.join('prompts', f)
+        if os.path.isfile(src):
+            datas.append((src, 'prompts'))
+
+# Add fonts folder if it exists (for OCR / ASS subtitle rendering)
+if os.path.exists('fonts'):
+    for f in os.listdir('fonts'):
+        src = os.path.join('fonts', f)
+        if os.path.isfile(src):
+            datas.append((src, 'fonts'))
+
+# Hidden imports needed for uvicorn + fastapi in frozen EXE
+hiddenimports.extend([
+    'uvicorn.logging',
+    'uvicorn.loops',
+    'uvicorn.loops.auto',
+    'uvicorn.protocols',
+    'uvicorn.protocols.http',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.protocols.websockets',
+    'uvicorn.protocols.websockets.auto',
+    'uvicorn.lifespan',
+    'uvicorn.lifespan.on',
+    'starlette',
+    'starlette.routing',
+    'anyio',
+    'anyio._backends',
+    'anyio._backends._asyncio',
+])
+
 
 a = Analysis(
     ['main.py'],

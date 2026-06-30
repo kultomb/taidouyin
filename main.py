@@ -30,6 +30,10 @@ from tts_processor import generate_tts_for_subtitles, detect_speaker_gender
 from ocr_engine import extract_subtitle_segments
 from google.genai import types  # cho GenerateContentConfig
 
+# Import pipelines
+from pipelines.dubbing import DubbingPipeline
+from pipelines.reedit import ReEditPipeline
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("douyin_translator")
@@ -129,118 +133,23 @@ class ResumeRequest(BaseModel):
     x_start: float = 0.0
     x_end: float = 1.0
 
-def run_pipeline_phase1(job_id: str, url: str):
-    job = jobs[job_id]
-    
-    # Trích xuất Aweme ID để đặt tên thư mục dễ nhận biết
-    from downloader import (
-        clean_and_rewrite_douyin_url,
-        extract_aweme_id,
-        resolve_short_url,
-        load_cookies_txt
-    )
-    aweme_id = "video"
-    try:
-        clean_url = clean_and_rewrite_douyin_url(url)
-        if "douyin.com" in clean_url and ("v.douyin.com" in clean_url or "v.iesdouyin.com" in clean_url):
-            cookies = load_cookies_txt()
-            resolved_url = resolve_short_url(clean_url, cookies)
-        else:
-            resolved_url = clean_url
-        extracted = extract_aweme_id(resolved_url)
-        if extracted:
-            aweme_id = extracted
-    except Exception as e:
-        logger.warning(f"Không thể trích xuất aweme_id trước khi tạo thư mục: {e}")
+# Init pipelines
+dubbing_pipeline = DubbingPipeline(jobs, JOBS_TTL_SECONDS)
+reedit_pipeline = ReEditPipeline(jobs)
 
-    job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{aweme_id}"
-    job_folder = f"output/{job_folder_name}"
-    os.makedirs(job_folder, exist_ok=True)
-    job["job_folder"] = job_folder
-    job["folder_name"] = job_folder_name
-    
-    def log(msg: str):
-        timestamp = time.strftime("%H:%M:%S")
-        line = f"[{timestamp}] INFO - {msg}"
-        job["logs"].append(line)
-        logger.info(f"[{job_id}] {msg}")
-        
-    try:
-        # Step 1: Tải Video
-        job["step"] = 1
-        job["sub_step"] = "STEP 1.0: Đang tải video chất lượng cao nhất từ Douyin..."
-        log(f"Khởi động mô-đun tải video Douyin: {url}")
-        video_path = download_douyin_video(url, job_folder)
-        # Rename to original.mp4 for consistency
-        if video_path and os.path.exists(video_path):
-            original_path = os.path.join(job_folder, "original.mp4")
-            if video_path != original_path:
-                os.rename(video_path, original_path)
-            video_path = original_path
-        job["original_video"] = video_path
-        log(f"Tải video gốc thành công: {video_path}")
-        
-        # Di chuyển moov atom lên đầu (Fast Start) để trình duyệt load và hiển thị ngay lập tức
-        if video_path and os.path.exists(video_path):
-            log("Tối ưu hóa cấu trúc video (Fast Start) để trình duyệt hiển thị ngay lập tức...")
-            fast_path = os.path.join(job_folder, "original_fast.mp4")
-            fast_cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-c", "copy",
-                "-map", "0",
-                "-movflags", "+faststart",
-                fast_path
-            ]
-            try:
-                import subprocess
-                subprocess.run(fast_cmd, capture_output=True, check=True, timeout=30)
-                os.replace(fast_path, video_path)
-                log("Tối ưu hóa cấu trúc video thành công.")
-            except Exception as fe:
-                log(f"Không thể tối ưu hóa video Fast Start: {fe}. Tiếp tục dùng tệp gốc.")
-        
-        process_mode = job.get("process_mode", "ocr")
-        if process_mode == "auto":
-            log("Chế độ xử lý: Tự động (ASR). Bắt đầu Phase 2 ngay lập tức không qua chọn vùng...")
-            job["status"] = "running"
-            run_pipeline_phase2(
-                job_id=job_id,
-                use_ocr=False,
-                y_start=0.0,
-                y_end=0.0,
-                x_start=0.0,
-                x_end=0.0
-            )
-        else:
-            # Chuyển trạng thái sang chờ người dùng chọn vùng OCR
-            job["status"] = "awaiting_ocr_selection"
-            job["sub_step"] = "Đang chờ người dùng chọn vùng quét phụ đề (OCR)..."
-            log("Tải video gốc thành công. Trình duyệt đang hiển thị video để chọn vùng OCR phụ đề cứng.")
-        
-    except Exception as e:
-        logger.error(f"Pipeline Phase 1 failure: {str(e)}", exc_info=True)
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["sub_step"] = "LỖI: Tải video gốc thất bại."
-        log(f"LỖI HỆ THỐNG: {str(e)}")
+# ── Wrappers (gọi từ route) ─────────────────────────────────
 
-def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemini", voice_name: str = None, topic: str = None, translate_style: str = "default", context: str = None) -> list:
-    """
-    Dịch batch các đoạn OCR (tiếng Trung → tiếng Việt).
-    provider: "gemini" (Vertex AI) hoặc "gist" (Gist API miễn phí).
-    KHÔNG fallback chéo: chọn gì dùng đó.
-    translate_style: default, dialogue, review, tutorial
-    context: bối cảnh video để AI hiểu nội dung (vd: phim Tây Du Ký, có Natra...)
-    Trả về list định dạng chuẩn: [{start, end, text, translation, speaker}].
-    """
-    texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
-    if not any(t.strip() for t in texts_to_translate):
-        log_func("Không có văn bản OCR nào để dịch.")
-        return []
+def _run_dubbing_phase1(job_id: str, url: str):
+    dubbing_pipeline.run_phase1(job_id, url)
 
-    translations = [""] * len(texts_to_translate)
-    translated = False
+def _run_dubbing_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float,
+                         x_start: float = 0.0, x_end: float = 1.0):
+    dubbing_pipeline.run_phase2(job_id, use_ocr, y_start, y_end, x_start, x_end)
+
+def _run_reedit(job_id: str, url: str):
+    reedit_pipeline.run(job_id, url)
+
+# ── FastAPI Routes ──────────────────────────────────────────
 
     if provider == "gist":
         # Gist API miễn phí — chỉ dùng Gist, tự động fallback sang Google Translate Web nếu lỗi
@@ -792,7 +701,7 @@ def start_translation(request: TranslateRequest):
     
     # Start thread
     thread = threading.Thread(
-        target=run_pipeline_phase1,
+        target=_run_dubbing_phase1,
         args=(job_id, request.url),
         daemon=True
     )
@@ -815,13 +724,87 @@ def resume_translation(job_id: str, request: ResumeRequest):
     
     # Khởi chạy luồng xử lý Phase 2
     thread = threading.Thread(
-        target=run_pipeline_phase2,
+        target=_run_dubbing_phase2,
         args=(job_id, request.use_ocr, request.y_start, request.y_end, request.x_start, request.x_end),
         daemon=True
     )
     thread.start()
     
     return {"status": "success", "message": "Đã tiếp tục tiến trình dịch thuật."}
+
+
+# ============================================================
+# 🎬 AI Re-Edit Routes
+# ============================================================
+
+class ReEditRequest(BaseModel):
+    url: str
+
+@app.post("/api/reedit/start")
+def start_reedit(request: ReEditRequest):
+    global _last_request_time
+
+    now = time.time()
+    elapsed = now - _last_request_time
+    if elapsed < MIN_REQUEST_INTERVAL:
+        wait = round(MIN_REQUEST_INTERVAL - elapsed, 1)
+        raise HTTPException(status_code=429, detail=f"Vui lòng đợi {wait}s trước khi gửi request tiếp theo.")
+    _last_request_time = now
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "job_id": job_id,
+        "status": "running",
+        "step": 0,
+        "sub_step": "Khởi tạo AI Re-Edit...",
+        "logs": [],
+        "video_path": None,
+        "scenes_path": None,
+        "error": None,
+        "_created": time.time(),
+    }
+
+    _cleanup_expired_jobs()
+
+    thread = threading.Thread(
+        target=_run_reedit,
+        args=(job_id, request.url),
+        daemon=True
+    )
+    thread.start()
+
+    return {"job_id": job_id}
+
+
+@app.get("/api/reedit/status/{job_id}")
+def get_reedit_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên xử lý.")
+
+    job = jobs[job_id]
+    result_urls = {}
+    if "project_id" in job:
+        pid = job["project_id"]
+        result_urls = {
+            "source_video_url": f"/projects/{pid}/source.mp4",
+            "output_video_url": f"/projects/{pid}/output/final.mp4" if job.get("output_video") else None,
+            "scenes_json_url": f"/projects/{pid}/analysis/scenes.json" if job.get("scenes") else None,
+            "style_json_url": f"/projects/{pid}/analysis/style.json",
+            "edit_plan_url": f"/projects/{pid}/edit/edit_plan.json" if job.get("edit_plan") else None,
+        }
+
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "step": job["step"],
+        "sub_step": job["sub_step"],
+        "logs": job["logs"],
+        "result": result_urls,
+        "error": job["error"]
+    }
+
+
+# ============================================================
 
 @app.get("/api/status/{job_id}")
 def get_status(job_id: str):
@@ -886,6 +869,11 @@ def download_file(job_id: str, file_type: str):
 
 # Serve Output files statically for video range streaming support
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
+
+# Serve Projects folder for Re-Edit results
+projects_dir = exe_dir / "projects"
+os.makedirs(projects_dir, exist_ok=True)
+app.mount("/projects", StaticFiles(directory=str(projects_dir)), name="projects")
 
 # Serve Frontend static files directly
 app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
