@@ -78,6 +78,7 @@ Strangers / Formal:
 SENTENCE ENDINGS (use these, not stiff textbook endings):
   ✅ "nhé", "nha", "rồi", "luôn", "đấy", "thôi", "nhỉ", "hả", "đi", "mà", "cơ", "chứ", "ạ"
   ❌ "đó ạ", "vậy ạ", "điều đó", "một cách"
+  ⚠️ TRÁNH LẶP TỪ CUỐI CÂU: Tuyệt đối không dùng cùng một từ kết câu (như "nhé", "nha") liên tục ở các block liền kề nhau. Hãy thay đổi từ khác hoặc không dùng từ kết câu.
 
 NATURAL CONTRACTIONS:
   ✅ "không" → "ko"/"hông", "được không" → "được ko"

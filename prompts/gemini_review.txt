@@ -23,6 +23,7 @@ The content is a **review/commentary** — opinionated, analytical, engaging.
 - Each block must be a self-contained, natural phrase.
 - **NO ELLIPSIS BRIDGING**: End blocks with `.`, `,`, `!`, `?` — never `...`.
 - **De-stuttering**: Clean up spoken repetitions, stutters, and filler words. Merge them into a single clean, natural sentence. Do not translate stutters or redundant phrases word-for-word. Make the script sound clean and engaging.
+- **No consecutive particle repetition**: Avoid ending consecutive blocks with the same particle (like "nhé", "nha", "đấy"). Vary the ending punctuation and particles to maintain a natural human talking flow.
 
 ## 4. FORMATTING
 - Strict 1-to-1 block mapping. Never merge, never shift.

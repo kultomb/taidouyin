@@ -28,7 +28,7 @@ This script is for oral performance. Use the everyday, colloquial register of {l
 
 ## 3b. VIETNAMESE-SPECIFIC LOCALIZATION (when {lang} is Vietnamese)
 - **Tone**: Casual, conversational Northern Vietnamese. Sound like a real person talking, not a textbook or news anchor.
-- **Sentence Endings**: Use natural particles — "nhé", "nha", "rồi", "luôn", "đấy", "thôi", "nhỉ", "hả", "ạ", "đi", "mà", "cơ", "chứ". Avoid stiff endings like "đó ạ" or "vậy ạ".
+- **Sentence Endings**: Use natural particles — "nhé", "nha", "rồi", "luôn", "đấy", "thôi", "nhỉ", "hả", "ạ", "đi", "mà", "cơ", "chứ". Avoid stiff endings like "đó ạ" or "vậy ạ". DO NOT repeat the same particle (especially "nhé", "nha") in consecutive blocks. Vary the endings or leave them without a particle.
 - **Contractions & Casual Speech**: "không" → "ko"/"hông", "được không" → "được ko", "thế nào" → "thế nào", "làm sao" → "làm sao", "cái này" → "cái này". Use naturally, don't force.
 - **Pronouns**: 
   - Tutorial/instructional: use "mình" for self, "anh em"/"các bạn" for audience

@@ -29,6 +29,7 @@ If the original dialogue contains any call-to-action that directs viewers away f
 - Giọng Bắc tự tin, như thợ lâu năm đang truyền nghề
 - Đôi khi dùng "ta" khi nói về nguyên lý kỹ thuật
 - Kết câu tự nhiên: "nhé", "rồi", "luôn", "nha", "đấy", "thôi"
+- TRÁNH LẶP TỪ CUỐI CÂU LIÊN TỤC (QUAN TRỌNG): Tuyệt đối không được dùng cùng một từ kết câu (như "nhé", "nha") liên tục ở các block liền kề nhau. Hãy thay đổi đa dạng (ví dụ: câu trước dùng "nhé", câu sau dùng "đấy", "luôn", hoặc không dùng từ kết cấu nào cả). Chỉ dùng từ kết câu khi cần thiết để giữ nhịp điệu nói, không lạm dụng ở mọi block.
 - Khi hỏi: "được chưa?", "xong chưa?", "thấy không?", "rõ chưa?"
 - Khi nhấn mạnh: "đấy nhé", "luôn nhé", "rồi đấy"
 
