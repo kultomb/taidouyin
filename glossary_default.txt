@@ -1,0 +1,4 @@
+# Glossary cho phong cách Mặc định (Default)
+# Cú pháp: Từ tiếng Anh = Nghĩa tiếng Việt
+hello = xin chào
+bye = tạm biệt

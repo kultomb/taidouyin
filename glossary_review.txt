@@ -1,0 +1,11 @@
+# Glossary cho phong cách Review/Vlog (Review)
+# Cú pháp: Từ tiếng Anh = Nghĩa tiếng Việt (Mỗi dòng một cặp)
+unboxing = đập hộp
+hands-on = trên tay nhanh
+review = đánh giá chi tiết
+setup = góc làm việc
+cinematic = b-roll nghệ thuật
+giveaway = quà tặng tri ân
+đăng ký kênh = subscribe kênh nhé
+mọi người = anh em
+giới thiệu = review cho anh em

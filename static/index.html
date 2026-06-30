@@ -52,6 +52,8 @@
                             Nhập link Douyin hoặc chọn file video
                             <button type="button" id="btnToggleContext" class="btn-mini-toggle"
                                 title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
+                            <button type="button" id="btnOpenGlossaryModal" class="btn-mini-toggle" style="margin-left: 8px;"
+                                title="Chỉnh sửa từ điển dịch thuật (Glossary)">📖 Từ điển</button>
                         </label>
                         <div class="input-wrapper" id="mainInputWrapper">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -664,6 +666,43 @@
                 </button>
                 <button type="button" id="btnContinueTTS" class="btn-review continue">
                     <span>▶ Tiếp tục lồng tiếng</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Glossary Editor Modal (Popup) -->
+    <div id="glossaryModal" class="subtitle-review-modal hidden">
+        <div class="subtitle-review-overlay" id="glossaryOverlay"></div>
+        <div class="subtitle-review-content" style="max-width: 600px; height: 75vh;">
+            <div class="subtitle-review-header">
+                <h2>📖 Quản lý Từ điển dịch thuật (Glossary)</h2>
+            </div>
+            
+            <div class="subtitle-review-body" style="flex-direction: column; gap: 16px; padding: 20px;">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label class="input-label" for="glossaryStyleSelect">Chọn Từ điển cho Phong cách:</label>
+                    <select id="glossaryStyleSelect" class="sub-time-input" style="width: 100%; height: 38px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; border-radius: 6px; padding: 0 10px;">
+                        <option value="tutorial">💡 Phong cách Hướng dẫn (Tutorial)</option>
+                        <option value="dialogue">🎬 Phong cách Phim ảnh (Dialogue)</option>
+                        <option value="review">🎙️ Phong cách Review / Vlog (Review)</option>
+                        <option value="default">🌐 Phong cách Mặc định (Default)</option>
+                        <option value="general">🌍 Từ điển Dùng chung (General)</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1; min-height: 200px;">
+                    <label class="input-label" for="glossaryTextarea">Nội dung Từ điển (Cú pháp: TiếngAnh = TiếngViệt):</label>
+                    <textarea id="glossaryTextarea" style="width: 100%; height: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; border-radius: 6px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; resize: none;"></textarea>
+                </div>
+            </div>
+            
+            <div class="subtitle-review-footer">
+                <button type="button" id="btnCloseGlossary" class="btn-review edit">
+                    <span>Huỷ bỏ</span>
+                </button>
+                <button type="button" id="btnSaveGlossary" class="btn-review continue">
+                    <span>Lưu Từ điển</span>
                 </button>
             </div>
         </div>

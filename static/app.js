@@ -1243,4 +1243,82 @@ document.addEventListener('DOMContentLoaded', () => {
         const subs = gatherSubtitlesData();
         submitRevisedSubtitles(subs);
     });
+
+    // ─── Glossary Editor Modal (Popup) ──────────────────────────────────
+    const glossaryModal = document.getElementById('glossaryModal');
+    const btnOpenGlossaryModal = document.getElementById('btnOpenGlossaryModal');
+    const btnCloseGlossary = document.getElementById('btnCloseGlossary');
+    const btnSaveGlossary = document.getElementById('btnSaveGlossary');
+    const glossaryStyleSelect = document.getElementById('glossaryStyleSelect');
+    const glossaryTextarea = document.getElementById('glossaryTextarea');
+    const glossaryOverlay = document.getElementById('glossaryOverlay');
+
+    async function loadGlossary(style) {
+        glossaryTextarea.value = 'Đang tải từ điển...';
+        try {
+            const resp = await fetch(`/api/glossary/${style}`);
+            if (!resp.ok) throw new Error('Không thể tải từ điển.');
+            const data = await resp.json();
+            glossaryTextarea.value = data.content || '';
+        } catch (err) {
+            glossaryTextarea.value = `Lỗi: ${err.message}`;
+        }
+    }
+
+    if (btnOpenGlossaryModal) {
+        btnOpenGlossaryModal.addEventListener('click', () => {
+            glossaryModal.classList.remove('hidden');
+            // Mặc định chọn từ điển tương ứng với style hiện tại của form nếu có
+            const currentStyle = document.querySelector('.translate-toggle-btn.active')?.dataset.style || 'default';
+            if (currentStyle && glossaryStyleSelect) {
+                glossaryStyleSelect.value = currentStyle;
+            }
+            loadGlossary(glossaryStyleSelect.value || 'default');
+        });
+    }
+
+    if (glossaryStyleSelect) {
+        glossaryStyleSelect.addEventListener('change', (e) => {
+            loadGlossary(e.target.value);
+        });
+    }
+
+    if (btnCloseGlossary) {
+        btnCloseGlossary.addEventListener('click', () => {
+            glossaryModal.classList.add('hidden');
+        });
+    }
+    if (glossaryOverlay) {
+        glossaryOverlay.addEventListener('click', () => {
+            glossaryModal.classList.add('hidden');
+        });
+    }
+
+    if (btnSaveGlossary) {
+        btnSaveGlossary.addEventListener('click', async () => {
+            const style = glossaryStyleSelect.value;
+            const content = glossaryTextarea.value;
+            btnSaveGlossary.disabled = true;
+            btnSaveGlossary.querySelector('span').textContent = '⏳ Đang lưu...';
+            
+            try {
+                const resp = await fetch(`/api/glossary/${style}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                if (!resp.ok) throw new Error('Không thể lưu từ điển.');
+                const data = await resp.json();
+                appendLogLine(`[TỪ ĐIỂN] ${data.message}`, 'success');
+                alert(data.message);
+                glossaryModal.classList.add('hidden');
+            } catch (err) {
+                alert(`Lỗi: ${err.message}`);
+                appendLogLine(`[TỪ ĐIỂN LỖI] ${err.message}`, 'error');
+            } finally {
+                btnSaveGlossary.disabled = false;
+                btnSaveGlossary.querySelector('span').textContent = 'Lưu Từ điển';
+            }
+        });
+    }
 });

@@ -957,6 +957,44 @@ def download_file(job_id: str, file_type: str):
 # Serve Output files statically for video range streaming support
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
+class GlossarySaveRequest(BaseModel):
+    content: str
+
+@app.get("/api/glossary/{style}")
+def get_glossary_endpoint(style: str):
+    if style not in ["default", "dialogue", "review", "tutorial", "general"]:
+        raise HTTPException(status_code=400, detail="Phong cách từ điển không hợp lệ.")
+    
+    filename = f"glossary_{style}.txt" if style != "general" else "glossary.txt"
+    filepath = Path(__file__).parent / filename
+    
+    if not filepath.exists():
+        return {"style": style, "content": ""}
+        
+    try:
+        content = filepath.read_text(encoding="utf-8-sig", errors="ignore")
+        return {"style": style, "content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể đọc file: {str(e)}")
+
+@app.post("/api/glossary/{style}")
+def save_glossary_endpoint(style: str, request: GlossarySaveRequest):
+    if style not in ["default", "dialogue", "review", "tutorial", "general"]:
+        raise HTTPException(status_code=400, detail="Phong cách từ điển không hợp lệ.")
+        
+    filename = f"glossary_{style}.txt" if style != "general" else "glossary.txt"
+    filepath = Path(__file__).parent / filename
+    
+    try:
+        filepath.write_text(request.content, encoding="utf-8-sig")
+        # Xóa cache prompt để nạp lại glossary mới ở lượt dịch kế tiếp
+        import prompts
+        prompts._cache.clear()
+        return {"status": "success", "message": f"Đã lưu từ điển {style} thành công."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể ghi file: {str(e)}")
+
+
 # Serve Projects folder for Re-Edit results
 projects_dir = exe_dir / "projects"
 os.makedirs(projects_dir, exist_ok=True)

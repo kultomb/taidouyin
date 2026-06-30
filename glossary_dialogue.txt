@@ -1,0 +1,6 @@
+# Glossary cho phong cách Phim ảnh (Dialogue)
+# Cú pháp: Từ tiếng Anh = Nghĩa tiếng Việt (Mỗi dòng một cặp)
+sweetheart = cục cưng
+buddy = ông bạn
+bro = người anh em
+guys = mọi người
