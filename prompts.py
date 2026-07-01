@@ -34,10 +34,10 @@ def _load_prompt(style: str) -> str:
     # Load và chèn glossary
     glossary_content = ""
     # Thử tìm file glossary riêng cho phong cách này (vd: glossary_tutorial.txt)
-    # Nếu không thấy, sẽ fallback về file glossary.txt dùng chung
+    # Nếu không thấy, sẽ fallback về file glossary_default.txt dùng chung
     glossary_file = Path(__file__).parent / f"glossary_{style}.txt"
     if not glossary_file.exists():
-        glossary_file = Path(__file__).parent / "glossary.txt"
+        glossary_file = Path(__file__).parent / "glossary_default.txt"
         
     if glossary_file.exists():
         raw_glossary = glossary_file.read_text(encoding="utf-8-sig", errors="ignore").strip()
