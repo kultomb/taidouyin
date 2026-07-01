@@ -1811,3 +1811,9 @@ body {
 .btn-review.continue:active {
     transform: translateY(0);
 }
+
+/* Custom Styling for HTML native select option to fix dark mode contrast issues */
+select option {
+    background-color: #0d121f !important;
+    color: #f3f4f6 !important;
+}
