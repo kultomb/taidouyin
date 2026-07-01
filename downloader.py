@@ -409,6 +409,7 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
     Downloads a video in the requested resolution.
     First tries API direct download, then yt-dlp, finally Qt WebEngine.
     """
+    import yt_dlp
     # 1. Thử tải trực tiếp bằng API
     logger.info("Đang thử phương thức tải trực tiếp qua Douyin API...")
     try:
