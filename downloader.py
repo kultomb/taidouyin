@@ -436,6 +436,14 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
     else:
         fmt = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
 
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    }
+    if "bilibili.com" in clean_url:
+        headers['Referer'] = 'https://www.bilibili.com/'
+    elif "douyin.com" in clean_url:
+        headers['Referer'] = 'https://www.douyin.com/'
+
     ydl_opts = {
         'format': fmt,
         'outtmpl': os.path.join(output_dir, '%(id)s.%(ext)s'),
@@ -443,9 +451,8 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
         'noplaylist': True,
         'quiet': False,
         'no_warnings': False,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        }
+        'concurrent_fragment_downloads': 8,  # Tải đa luồng 8 phân đoạn song song
+        'http_headers': headers
     }
     
     # Option 1: Check for manual cookies.txt in project root

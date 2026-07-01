@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fileBadge.classList.add('hidden');
         videoUrlInput.required = true;
         videoUrlInput.removeAttribute('disabled');
-        videoUrlInput.placeholder = 'Dán liên kết Douyin hoặc chọn file video...';
+        videoUrlInput.placeholder = 'Dán liên kết Douyin, Bilibili hoặc chọn file video...';
     });
 
     async function uploadFile(file) {
