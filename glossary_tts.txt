@@ -8,6 +8,7 @@ cpu = xê pu
 ram = ram
 rom = rom
 ic = ai xi
+hs = hát ét
 ufs = u ép ét
 emmc = e mờ mờ xê
 nand = nan
