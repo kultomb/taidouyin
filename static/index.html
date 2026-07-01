@@ -94,6 +94,27 @@
                                 placeholder="vd: Phim Tây Du Ký có Natra (Ngao Quảng), Tôn Ngộ Không...">
                         </div>
                     </div>
+                    <div class="input-group" id="resolutionGroup" style="margin-top: 10px;">
+                        <label for="videoResolution" class="input-label">
+                            Độ phân giải tải video:
+                            <span id="resolutionScanStatus" style="margin-left: 8px; font-size: 0.75rem; color: var(--accent); display: none;">🔄 Đang quét độ phân giải...</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                            </svg>
+                            <select id="videoResolution" style="width: 100%; height: 42px; padding: 0 12px 0 40px; background-color: var(--card-bg-light); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-color); outline: none; font-size: 0.9rem; appearance: none; cursor: pointer;">
+                                <option value="1080" selected>Mặc định (Cao nhất lên tới 1080p)</option>
+                                <option value="720">720p</option>
+                                <option value="best">Không giới hạn (Gốc / 2K / 4K nếu có)</option>
+                            </select>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; right: 12px; top: 12px; width: 18px; height: 18px; pointer-events: none; opacity: 0.7;">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Middle: Balanced 2-Column Settings Grid -->

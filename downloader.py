@@ -176,7 +176,7 @@ def _build_abogus_url(base_url: str, query: str, ua: str) -> Optional[Tuple[str,
         logger.debug(f"Failed to generate aBogus, fallback to XBogus: {e}")
         return None
 
-def download_douyin_video_via_api(url: str, output_dir: str) -> str:
+def download_douyin_video_via_api(url: str, output_dir: str, resolution: str = "1080") -> str:
     """
     Tải video trực tiếp qua Douyin Web API (giống VIDU):
     - aBogus (ưu tiên) hoặc XBogus fallback
@@ -317,8 +317,22 @@ def download_douyin_video_via_api(url: str, output_dir: str) -> str:
     play_addr = None
     if bit_rates:
         try:
-            bit_rates.sort(key=lambda x: int(x.get("bit_rate", 0)), reverse=True)
-            play_addr = bit_rates[0].get("play_addr")
+            target_height = 1080 if resolution == "1080" else (720 if resolution == "720" else 99999)
+            filtered_rates = []
+            for item in bit_rates:
+                h = item.get("height") or item.get("video_extra", {}).get("height")
+                if h and isinstance(h, (int, float)):
+                    if h <= target_height:
+                        filtered_rates.append(item)
+                else:
+                    filtered_rates.append(item)
+            
+            if filtered_rates:
+                filtered_rates.sort(key=lambda x: int(x.get("bit_rate", 0)), reverse=True)
+                play_addr = filtered_rates[0].get("play_addr")
+            else:
+                bit_rates.sort(key=lambda x: int(x.get("bit_rate", 0)), reverse=True)
+                play_addr = bit_rates[0].get("play_addr")
         except Exception:
             pass
 
@@ -390,15 +404,15 @@ def _process_download_info(ydl, info: dict, output_dir: str) -> str:
                 
     return os.path.abspath(filename)
 
-def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str:
+def download_douyin_video(url: str, output_dir: str = "output/downloads", resolution: str = "1080") -> str:
     """
-    Downloads a Douyin video in the highest resolution.
+    Downloads a video in the requested resolution.
     First tries API direct download, then yt-dlp, finally Qt WebEngine.
     """
     # 1. Thử tải trực tiếp bằng API
     logger.info("Đang thử phương thức tải trực tiếp qua Douyin API...")
     try:
-        video_path = download_douyin_video_via_api(url, output_dir)
+        video_path = download_douyin_video_via_api(url, output_dir, resolution=resolution)
         if video_path and os.path.exists(video_path):
             return video_path
     except Exception as api_err:
@@ -411,8 +425,18 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str
     
     os.makedirs(output_dir, exist_ok=True)
     
+    # Ánh xạ độ phân giải sang format tương ứng của yt-dlp
+    if resolution == "1080":
+        fmt = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+    elif resolution == "720":
+        fmt = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+    elif resolution == "best":
+        fmt = 'bestvideo+bestaudio/best'
+    else:
+        fmt = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',  # Highest quality
+        'format': fmt,
         'outtmpl': os.path.join(output_dir, '%(id)s.%(ext)s'),
         'merge_output_format': 'mp4',
         'noplaylist': True,
@@ -483,4 +507,76 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads") -> str
                     "2. Truy cập douyin.com, xuất cookies và lưu thành tệp 'cookies.txt' trong thư mục dự án."
                 )
             raise e
+
+def get_video_info(url: str) -> dict:
+    """
+    Extracts available formats for the given video URL (Bilibili, Douyin, YouTube, etc.)
+    and detects the maximum available height/resolution.
+    Returns format options to display on the frontend.
+    """
+    import yt_dlp
+    clean_url = clean_and_rewrite_douyin_url(url)
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+    }
+    cookie_file = "cookies.txt"
+    if os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
+    else:
+        try:
+            ydl_opts['cookiesfrombrowser'] = ('chrome',)
+        except Exception:
+            pass
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(clean_url, download=False)
+            formats = info.get("formats", [])
+            max_height = 0
+            for f in formats:
+                h = f.get("height")
+                if h and isinstance(h, int):
+                    if h > max_height:
+                        max_height = h
+            
+            if max_height <= 0:
+                max_height = 1080
+
+            logger.info(f"Video '{info.get('title')}' max height detected: {max_height}p")
+            
+            resolutions = []
+            if max_height >= 2160:
+                resolutions.append({"value": "best", "label": "4K (Chất lượng gốc)"})
+                resolutions.append({"value": "1080", "label": "1080p"})
+                resolutions.append({"value": "720", "label": "720p"})
+            elif max_height >= 1440:
+                resolutions.append({"value": "best", "label": "2K (Chất lượng gốc)"})
+                resolutions.append({"value": "1080", "label": "1080p"})
+                resolutions.append({"value": "720", "label": "720p"})
+            elif max_height >= 1080:
+                resolutions.append({"value": "1080", "label": "1080p (Chất lượng tốt nhất)"})
+                resolutions.append({"value": "720", "label": "720p"})
+            else:
+                resolutions.append({"value": "720", "label": "720p (Chất lượng tốt nhất)"})
+                
+            return {
+                "status": "success",
+                "title": info.get("title", "Video không tiêu đề"),
+                "max_height": max_height,
+                "resolutions": resolutions
+            }
+    except Exception as e:
+        logger.error(f"Error extracting video info for {url}: {e}")
+        return {
+            "status": "error",
+            "title": "Không lấy được thông tin video",
+            "max_height": 1080,
+            "resolutions": [
+                {"value": "1080", "label": "1080p (Mặc định)"},
+                {"value": "720", "label": "720p"},
+                {"value": "best", "label": "Cao nhất (Không giới hạn)"}
+            ]
+        }
 

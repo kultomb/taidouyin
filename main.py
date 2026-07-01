@@ -182,6 +182,7 @@ class TranslateRequest(BaseModel):
     translate_style: str = "default"  # Phong cách dịch: default, dialogue, review, tutorial
     context: Optional[str] = None  # Bối cảnh video để AI hiểu nội dung (vd: phim Tây Du Ký, có Natra...)
     subtitle_style: Optional[Dict] = None  # Style ASS subtitle {font, fontsize, color, position}
+    resolution: Optional[str] = "1080"  # Độ phân giải tải video: best, 1080, 720
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -824,6 +825,7 @@ def start_translation(request: TranslateRequest):
         "translate_style": request.translate_style,
         "context": request.context,
         "subtitle_style": request.subtitle_style,
+        "resolution": request.resolution,
         "_created": time.time(),
     }
     
@@ -1002,6 +1004,14 @@ def save_glossary_endpoint(style: str, request: GlossarySaveRequest):
         return {"status": "success", "message": f"Đã lưu từ điển {style} thành công."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể ghi file: {str(e)}")
+
+
+@app.get("/api/video/info")
+def get_video_info_endpoint(url: str):
+    from downloader import get_video_info
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL không hợp lệ.")
+    return get_video_info(url)
 
 
 # Serve Projects folder for Re-Edit results

@@ -608,6 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tts_speed: ttsSpeed,
                     translate_style: selectedTranslateStyle,
                     context: context || null,
+                    resolution: document.getElementById('videoResolution') ? document.getElementById('videoResolution').value : '1080',
                     subtitle_style: burnSubtitlesCheckbox.checked ? {
                         font: (document.getElementById('subFont') || {}).value || 'Montserrat',
                         fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,
@@ -1335,6 +1336,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnSaveGlossary.disabled = false;
                 btnSaveGlossary.querySelector('span').textContent = 'Lưu Từ điển';
             }
+        });
+    }
+
+    // --- Background scan resolutions when URL changes ---
+    const resolutionSelect = document.getElementById('videoResolution');
+    const resolutionScanStatus = document.getElementById('resolutionScanStatus');
+    let lastScannedUrl = '';
+    let scanTimeout = null;
+
+    async function scanUrlResolutions(url) {
+        if (!url || !url.startsWith('http')) return;
+        if (url === lastScannedUrl) return;
+        
+        lastScannedUrl = url;
+        if (resolutionScanStatus) resolutionScanStatus.style.display = 'inline';
+        
+        try {
+            const resp = await fetch(`/api/video/info?url=${encodeURIComponent(url)}`);
+            if (!resp.ok) throw new Error('Quét lỗi');
+            const data = await resp.json();
+            
+            if (data.status === 'success' && data.resolutions && data.resolutions.length > 0) {
+                if (resolutionSelect) {
+                    resolutionSelect.innerHTML = '';
+                    data.resolutions.forEach(res => {
+                        const opt = document.createElement('option');
+                        opt.value = res.value;
+                        opt.textContent = res.label;
+                        if (res.value === '1080') {
+                            opt.selected = true;
+                        }
+                        resolutionSelect.appendChild(opt);
+                    });
+                    
+                    if (!resolutionSelect.querySelector('option[selected]')) {
+                        resolutionSelect.selectedIndex = 0;
+                    }
+                }
+                appendLogLine(`[ĐỘ PHÂN GIẢI] Đã tự động tải các độ phân giải khả dụng cho: "${data.title}"`, 'success');
+            }
+        } catch (err) {
+            console.warn('Không quét được độ phân giải khả dụng:', err);
+        } finally {
+            if (resolutionScanStatus) resolutionScanStatus.style.display = 'none';
+        }
+    }
+
+    if (videoUrlInput) {
+        videoUrlInput.addEventListener('input', () => {
+            if (scanTimeout) clearTimeout(scanTimeout);
+            scanTimeout = setTimeout(() => {
+                scanUrlResolutions(videoUrlInput.value.trim());
+            }, 1000);
+        });
+
+        videoUrlInput.addEventListener('paste', () => {
+            setTimeout(() => {
+                scanUrlResolutions(videoUrlInput.value.trim());
+            }, 150);
         });
     }
 });
