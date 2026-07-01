@@ -723,7 +723,13 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
             success_segment = False
             loop = asyncio.get_event_loop()
             try:
-                if provider == "gemini":
+                if speaker == "Mute" or speaker == "None":
+                    from audio_processor import _generate_silence
+                    dur = max(0.1, sub.get("end", 0) - sub.get("start", 0))
+                    await loop.run_in_executor(
+                        None, _generate_silence, file_path, dur
+                    )
+                elif provider == "gemini":
                     await loop.run_in_executor(
                         None, _synthesize_gemini_sync, tts, text_for_tts, speaker, file_path, voice_map, voice_name, tts_speed
                     )
@@ -743,22 +749,24 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
 
             if success_segment:
                 try:
-                    # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
-                    trimmed_file_path = file_path + ".trimmed.mp3"
-                    try:
-                        success_trim = await loop.run_in_executor(
-                            None, trim_silence, file_path, trimmed_file_path
-                        )
-                        if success_trim and os.path.exists(trimmed_file_path) and os.path.getsize(trimmed_file_path) > 0:
-                            os.replace(trimmed_file_path, file_path)
-                        else:
-                            logger.warning(f"Trim silence failed or produced empty file for segment {idx}, using original untrimmed TTS")
-                    except Exception as trim_e:
-                        logger.warning(f"Trim silence error for segment {idx}, using original untrimmed TTS: {trim_e}")
+                    if speaker != "Mute" and speaker != "None":
+                        # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
+                        trimmed_file_path = file_path + ".trimmed.mp3"
+                        try:
+                            success_trim = await loop.run_in_executor(
+                                None, trim_silence, file_path, trimmed_file_path
+                            )
+                            if success_trim and os.path.exists(trimmed_file_path) and os.path.getsize(trimmed_file_path) > 0:
+                                os.replace(trimmed_file_path, file_path)
+                            else:
+                                logger.warning(f"Trim silence failed or produced empty file for segment {idx}, using original untrimmed TTS")
+                        except Exception as trim_e:
+                            logger.warning(f"Trim silence error for segment {idx}, using original untrimmed TTS: {trim_e}")
 
-                    # Apply speed factor for Gemini (Google and Edge native speed handles it)
-                    if provider == "gemini" and abs(tts_speed - 1.0) > 0.01:
-                        await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
+                        # Apply speed factor for Gemini (Google and Edge native speed handles it)
+                        if provider == "gemini" and abs(tts_speed - 1.0) > 0.01:
+                            await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
+                            
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                     
                     async with lock:
