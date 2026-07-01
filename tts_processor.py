@@ -623,7 +623,7 @@ def normalize_text_for_tts(text: str) -> str:
             spelled.append(letter_map.get(char, char.lower()))
         return " ".join(spelled)
         
-    normalized = re.sub(r"\b[A-Z]{2,}\b", repl_acronym, normalized)
+    normalized = re.sub(r"\b[A-Z]{2,4}\b", repl_acronym, normalized)
     
     return normalized
 
