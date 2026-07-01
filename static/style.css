@@ -1814,6 +1814,6 @@ body {
 
 /* Custom Styling for HTML native select option to fix dark mode contrast issues */
 select option {
-    background-color: #0d121f !important;
-    color: #f3f4f6 !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
 }
