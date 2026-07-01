@@ -1,8 +1,42 @@
-# Từ điển phát âm TTS chuyên ngành điện thoại dành cho thợ Việt.
-# Định dạng: Từ_Tiếng_Anh = Phiên_Âm_Tiếng_Việt
-# Bạn có thể chỉnh sửa hoặc thêm các từ mới vào đây, hệ thống sẽ tự động áp dụng khi lồng tiếng.
+# Từ từ điển phát âm TTS chuyên ngành điện thoại dành cho thợ Việt.
+# Chỉ chứa các thuật ngữ/từ viết tắt tiếng Anh được GIỮ NGUYÊN trên phụ đề SRT,
+# nhưng cần máy đọc phát âm bằng tiếng Việt theo phong cách của thợ.
+# (Các từ tiếng Anh thông thường sẽ được dịch sang nghĩa tiếng Việt nên không cần khai báo ở đây)
 
-Phần mềm / tool / thao tác
+# 1. Các thuật ngữ viết tắt phần cứng & Giao tiếp (Hiện tiếng Anh - Đọc tiếng Việt)
+cpu = xê pu
+ram = ram
+rom = rom
+ic = ai xi
+ufs = u ép ét
+emmc = e mờ mờ xê
+nand = nan
+pmic = pi em ai xi
+baseband = bết ben
+modem = mô đờm
+boot = bút
+bootloader = bút lô đơ
+fastboot = phét bút
+edl = i đi eo
+adb = ây đi bi
+imei = i mei
+frp = ép rờ pê
+bypass = bai pát
+vbat = vê bát
+vph = vê pê hát
+vbus = vê bút
+gnd = gờ en đi
+i2c = y hai xê
+spi = ét pi ai
+uart = u a
+bga = bê gờ a
+mosfet = mót phét
+scsi = ét xê ét ai
+PP_VDD_MAIN = pi pi vê đi men
+PP = pi pi
+VDD = vê đi
+
+# 2. Các từ tiếng Anh phần mềm & Nút bấm thường giữ nguyên trên sơ đồ/tool
 read = rít
 write = rai
 error = e ro
@@ -25,147 +59,10 @@ driver = đơ rai vơ
 port = pót
 file = phai
 dump = đăm
-extract = ích trắc
-import = im pót
-export = ích pót
-install = in xto
-config = côn phích
-setting = xét ting
-option = óp sần
-enable = en bê
-disable = đis bê
-connect = cờ néc
-disconnect = đít cờ néc
-Máy / chip / bộ nhớ
-cpu = xê pu
-ram = ram
-rom = rom
-ic = ai xi
-ufs = u ép ét
-emmc = e mờ mờ xê
-nand = nen
-flash = phờ lát
-pmic = pi em ai xi
-baseband = bết ben
-modem = mô đờm
-Chế độ boot / cứu máy
-boot = bút
-bootloader = bút lô đơ
-fastboot = phét bút
-edl = i đi eo
-adb = ây đi bi
-download mode = đao lốt mốt
-reboot = ri bút
-hard reset = hạt ri xét
-soft reset = sọt ri xét
-wipe = oai
-cache = cát
-data = đây ta
-partition = pa ti sần
-Mạng / bảo mật
-imei = i mei
-frp = ép rờ pê
-bypass = bai pát
-auth = o
-token = tô cừn
-license = lai sần
-activation = ác ti vêi sần
-Đường nguồn / đo mạch
-vbat = vê bát
-vph = vê pê hát
-vbus = vê bút
-gnd = gờ en đi
-ground = gờ rao
-mass = mát
-
-voltage = vôn tịt
-current = cờ rần
-resistance = ri dét ten
-impedance = im pê đen
-ohm = ôm
-
-diode = đai ốt
-diode mode = đai ốt mốt
-short = sọt
-leak = lích
-leakage = lích ịch
-Linh kiện
-resistor = ri dét tơ
-res = rét
-
-capacitor = cờ pờ xi tơ
-cap = cáp
-tụ = cáp
-
-coil = coi
-inductor = in đắc tơ
-
-mosfet = mót phét
-transistor = tran zi tơ
-zener = zi nơ
-crystal = crít tồ
-oscillator = óc xi lây tơ
-IC / giao tiếp
-i2c = y hai xê
-spi = ét pi ai
-uart = u a
-bga = bê gờ a
-
-power ic = pao ai xi
-charging ic = cha giing ai xi
-audio ic = o đi ô ai xi
-wifi ic = oai phai ai xi
-bluetooth = blu tu
-rf ic = a ép ai xi
-Sửa main
-schematic = sơ ma tíc
-boardview = bo viêu
-layout = lê ao
-trace = trây
-line = lai
-pad = pát
-via = vai a
-
-solder = so đờ
-soldering = so đờ ring
-flux = phờ lắc
-stencil = xen tin
-jumper = giăm pơ
-reball = ri bo
-reflow = ri phờ lô
-remove = ri mu
-replace = ri pờ lây
-clean = clin
-Màn hình / camera / ngoại vi
-display = đít pờ lây
-lcd = eo xi đi
-oled = ô lét
-touch = tớt
-sensor = sen sờ
-camera = ca mê ra
-front = phờ rân
-rear = ri a
-speaker = spích kơ
-mic = mai
-Thao tác cơ bản
 active = ác típ
 key = ki
 click = cờ lích
 select = se léc
 ok = ô kê
-check = chếch
-test = tét
-measure = me dơ
-probe = prâu
-heat = hit
-scan = scan
-detect = đi téc
-identify = ai đen ti phai
-PP_VDD_MAIN = pi pi vê đi men
-PP = pi pi
-VBAT = vê bát
-VDD = vê đi
-CPU = xê pu
-IC = ai xi
-UFS = u ép ét
-eMMC = e mờ mờ xê
+diode = đai ốt
+gr = trở kháng
