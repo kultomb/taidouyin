@@ -455,36 +455,41 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
         'http_headers': headers
     }
     
-    # Option 1: Check for manual cookies.txt in project root
+    # Thử danh sách các phương án lấy cookie theo thứ tự ưu tiên:
+    # 1. Sử dụng cookies.txt nếu có
+    # 2. Trích xuất từ trình duyệt (chrome, edge, firefox, opera)
+    # 3. Chạy không có cookie
+
     cookie_file = "cookies.txt"
     if os.path.exists(cookie_file):
-        import tempfile, shutil
-        temp_cookie_file = os.path.join(tempfile.gettempdir(), "taidouyin_cookies.txt")
-        shutil.copy2(cookie_file, temp_cookie_file)
-        ydl_opts['cookiefile'] = temp_cookie_file
-        logger.info(f"Cookies override detected: using temp copy {temp_cookie_file}")
-    else:
-        # Option 2: Attempt browser cookies decryption (Chrome first, then Edge)
-        logger.info("Checking for local browser cookies...")
         try:
-            logger.info("Attempting Chrome cookies database...")
-            chrome_opts = dict(ydl_opts)
-            chrome_opts['cookiesfrombrowser'] = ('chrome',)
-            with _get_yt_dlp().YoutubeDL(chrome_opts) as ydl:
+            import tempfile, shutil
+            temp_cookie_file = os.path.join(tempfile.gettempdir(), "taidouyin_cookies.txt")
+            shutil.copy2(cookie_file, temp_cookie_file)
+            cookie_opts = dict(ydl_opts)
+            cookie_opts['cookiefile'] = temp_cookie_file
+            logger.info(f"Đang thử tải với cookies.txt thủ công...")
+            with yt_dlp.YoutubeDL(cookie_opts) as ydl:
                 info = ydl.extract_info(clean_url, download=True)
                 return _process_download_info(ydl, info, output_dir)
-        except Exception as chrome_err:
-            logger.warning(f"Chrome cookies copy/decryption failed: {chrome_err}. Trying Edge...")
-            try:
-                edge_opts = dict(ydl_opts)
-                edge_opts['cookiesfrombrowser'] = ('edge',)
-                with _get_yt_dlp().YoutubeDL(edge_opts) as ydl:
-                    info = ydl.extract_info(clean_url, download=True)
-                    return _process_download_info(ydl, info, output_dir)
-            except Exception as edge_err:
-                logger.warning(f"Edge cookies copy/decryption failed: {edge_err}. Attempting download without cookies...")
-                
-    # Fallback Option 3: Download without cookies or using cookies.txt if it was set
+        except Exception as e:
+            logger.warning(f"Tải bằng cookies.txt thất bại: {e}. Đang chuyển sang thử cookie trình duyệt...")
+
+    # Duyệt qua các trình duyệt khả dụng
+    browsers = ['chrome', 'edge', 'firefox', 'opera']
+    for browser in browsers:
+        try:
+            logger.info(f"Đang thử trích xuất cookie từ trình duyệt: {browser}...")
+            browser_opts = dict(ydl_opts)
+            browser_opts['cookiesfrombrowser'] = (browser,)
+            with yt_dlp.YoutubeDL(browser_opts) as ydl:
+                info = ydl.extract_info(clean_url, download=True)
+                return _process_download_info(ydl, info, output_dir)
+        except Exception as b_err:
+            logger.warning(f"Trích xuất cookie từ {browser} thất bại: {b_err}")
+
+    # Fallback cuối cùng: Chạy không dùng cookie
+    logger.info("Thử tải trực tiếp không sử dụng cookie...")
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(clean_url, download=True)
@@ -493,9 +498,9 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
             error_str = str(e)
             logger.error(f"yt-dlp extraction failed: {error_str}")
             
-            if "Fresh cookies" in error_str or "403" in error_str or "Sign" in error_str:
+            if "Fresh cookies" in error_str or "403" in error_str or "Sign" in error_str or "412" in error_str:
                 # 4. Thử phương pháp cuối cùng: Qt WebEngine (trình duyệt thật)
-                logger.info("yt-dlp yêu cầu cookie mới. Đang thử phương pháp WebEngine (trình duyệt thật)...")
+                logger.info("Yêu cầu cookie mới hoặc gặp lỗi 412. Đang thử phương pháp WebEngine...")
                 try:
                     from douyin_web_downloader import download_via_webengine
                     video_path = download_via_webengine(clean_url, output_dir)
@@ -506,13 +511,15 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
                     logger.error(f"WebEngine download failed: {web_err}")
                 
                 raise Exception(
-                    "Douyin yêu cầu xác thực Cookie. Vui lòng thực hiện theo một trong các cách sau:\n\n"
+                    "Video yêu cầu xác thực Cookie hoặc chặn truy cập (HTTP 412).\n"
+                    "Vui lòng xử lý theo một trong các cách sau:\n\n"
                     "CÁCH 1 (TỰ ĐỘNG - KHUYÊN DÙNG):\n"
-                    "1. Nhấn nút 'Đăng nhập Douyin' ở góc trên bên phải của giao diện Web.\n"
-                    "2. Quét mã QR đăng nhập Douyin trên cửa sổ bật lên, hệ thống sẽ tự động lưu cookie.\n\n"
-                    "CÁCH 2 (THỦ CÔNG):\n"
+                    "1. Đăng nhập tài khoản Bilibili/Douyin trên trình duyệt Chrome, Edge hoặc Firefox của bạn.\n"
+                    "2. Đảm bảo trình duyệt đã tải thành công video ở chế độ đăng nhập.\n\n"
+                    "CÁCH 2 (THỦ CÔNG - KHI LỖI TRÌNH DUYỆT BỊ KHÓA FILE COOKIE):\n"
                     "1. Cài đặt tiện ích mở rộng 'Get cookies.txt LOCALLY' trên trình duyệt.\n"
-                    "2. Truy cập douyin.com, xuất cookies và lưu thành tệp 'cookies.txt' trong thư mục dự án."
+                    "2. Truy cập trang web (douyin.com hoặc bilibili.com), xuất cookies ra file txt.\n"
+                    "3. Lưu hoặc gộp nội dung vào tệp 'cookies.txt' đặt trong thư mục gốc dự án."
                 )
             raise e
 
