@@ -508,6 +508,58 @@ def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, out
                 logger.error(f"[Gemini] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
                 raise
 
+TTS_PRONUNCIATION_MAP = {
+    r"\bread\b": "rít",
+    r"\bwrite\b": "rai",
+    r"\bscsi\b": "ét xê ét ai",
+    r"\berror\b": "e ro",
+    r"\bauto\b": "o to",
+    r"\bbackup\b": "bách ắp",
+    r"\bfrp\b": "ép rờ pê",
+    r"\bufs\b": "u ép ét",
+    r"\bcpu\b": "xê pu",
+    r"\bram\b": "ram",
+    r"\brom\b": "rom",
+    r"\bic\b": "ai xi",
+    r"\bbox\b": "bốc",
+    r"\bbypass\b": "bai pát",
+    r"\btool\b": "tun",
+    r"\blog\b": "lóc",
+    r"\bdriver\b": "đơ rai vơ",
+    r"\bport\b": "pọt",
+    r"\breset\b": "ri xét",
+    r"\bboot\b": "bút",
+    r"\bmain\b": "men",
+    r"\bfirmware\b": "phơm we",
+    r"\bimei\b": "i mei",
+    r"\bdump\b": "đăm",
+    r"\bformat\b": "pho mát",
+    r"\brecovery\b": "ri co vơ ri",
+    r"\bmosfet\b": "mót phét",
+    r"\bi2c\b": "ai hai xê",
+    r"\bbga\b": "bê gờ a",
+    r"\bemmc\b": "e mờ mờ xê",
+    r"\bvbat\b": "vê bát",
+    r"\bvph\b": "vê pê hát",
+    r"\bvbus\b": "vê bút",
+    r"\bactive\b": "ác típ",
+    r"\bkey\b": "ki",
+    r"\bfile\b": "phai",
+    r"\bclick\b": "kích",
+    r"\bselect\b": "xơ léc",
+    r"\bok\b": "ô kê"
+}
+
+def normalize_text_for_tts(text: str) -> str:
+    """Chuẩn hóa các thuật ngữ tiếng Anh chuyên ngành điện thoại để đọc chuẩn giọng thợ Việt."""
+    if not text:
+        return ""
+    import re
+    normalized = text
+    for pattern, replacement in TTS_PRONUNCIATION_MAP.items():
+        normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+    return normalized
+
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
     """
     Tạo TTS song song cho tất cả segment.
@@ -538,20 +590,23 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
         
         file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
         
+        # Chuẩn hóa văn bản đọc của TTS theo kiểu thợ Việt (vẫn giữ nguyên text phụ đề SRT gốc)
+        text_for_tts = normalize_text_for_tts(text)
+        
         async with semaphore:
             success_segment = False
             loop = asyncio.get_event_loop()
             try:
                 if provider == "gemini":
                     await loop.run_in_executor(
-                        None, _synthesize_gemini_sync, tts, text, speaker, file_path, voice_map, voice_name, tts_speed
+                        None, _synthesize_gemini_sync, tts, text_for_tts, speaker, file_path, voice_map, voice_name, tts_speed
                     )
                 elif provider == "google":
                     await loop.run_in_executor(
-                        None, _synthesize_google_sync, tts, text, speaker, file_path, voice_map, voice_name, tts_speed
+                        None, _synthesize_google_sync, tts, text_for_tts, speaker, file_path, voice_map, voice_name, tts_speed
                     )
                 else:
-                    await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name, tts_speed)
+                    await _synthesize_edge_async(text_for_tts, speaker, file_path, voice_map, voice_name, tts_speed)
                 
                 if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                     success_segment = True
