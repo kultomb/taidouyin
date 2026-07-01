@@ -103,29 +103,25 @@ def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = Non
 
 
 def _extract_style_rules(prompt: str) -> str:
-    """Extract key style rules từ full prompt để nhét vào batch prompt."""
+    """Extract các quy tắc phong cách (style, tone, persona, vocabulary) từ full prompt,
+    bỏ qua các chỉ dẫn về định dạng file SRT / timestamps để tránh làm mô hình bối rối."""
     lines = []
-    capture = False
     for line in prompt.split("\n"):
         stripped = line.strip()
-        # Capture sections that define style/role/persona
-        if stripped.startswith("#") and any(kw in stripped.lower() for kw in ["role", "style", "tone", "persona", "voice", "register", "overriding", "hard rule"]):
-            capture = True
-        elif stripped.startswith("#") and capture:
-            capture = False
-        if capture and stripped and not stripped.startswith("# TODO") and not stripped.startswith("# ACTUAL"):
-            # Simplify: chỉ lấy tối đa 15 dòng style
-            if len(lines) < 15:
-                lines.append(stripped)
-    return "\n".join(lines) if lines else "- Translate naturally, as if speaking in a conversation."
+        # Dừng thu thập khi bắt đầu đến các phần về format SRT/Timestamps hoặc hướng dẫn kỹ thuật SRT
+        if stripped.startswith("#") and any(kw in stripped.lower() for kw in ["self-check", "timestamp", "format", "actual task", "formatting"]):
+            break
+        lines.append(line)
+    return "\n".join(lines).strip()
 
 
 def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = None, context: str = None) -> str:
     """
     Build prompt cho chế độ dịch + phân vai (có speaker prediction).
-    Dùng prompt gốc từ file + thêm instruction phân vai.
+    Dùng các quy tắc dịch thuật từ file + thêm instruction phân vai và định dạng JSON.
     """
     prompt = _load_prompt(style)
+    style_rules = _extract_style_rules(prompt)
 
     batch_text = "\n---\n".join(
         f"[{i+1}] {t}" for i, t in enumerate(ocr_texts) if t.strip()
@@ -134,8 +130,19 @@ def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = 
     context_hint = _build_context_hint(context)
 
     return (
-        prompt
+        "You are an expert subtitle translator and character roleplay adapter.\n"
+        "Translate each Chinese segment below into natural spoken Vietnamese.\n\n"
         + context_hint +
-        "\n\n# ADDITIONAL INSTRUCTION: Predict speakers (Speaker A for female/default, Speaker B for male/others). Return JSON with 'translation' and 'speaker' for each block.\n"
-        + "\n# TEXT TO TRANSLATE:\n" + batch_text
+        "TRANSLATION STYLE GUIDELINES:\n"
+        + style_rules
+        + "\n\n"
+        "CRITICAL RULES:\n"
+        "1. Each block must be self-contained and natural when spoken alone.\n"
+        "2. Keep translations concise — similar speaking duration as original.\n"
+        "3. Vietnamese length must not exceed original by more than 10%.\n"
+        "4. Prefer short, natural, spoken Vietnamese over literal translation.\n\n"
+        "ROLEPLAY & OUTPUT INSTRUCTIONS:\n"
+        "- Predict speakers for each block (Speaker A for female/default, Speaker B for male/others).\n"
+        "- Return a JSON object matching the requested schema containing 'translation' and 'speaker' for each block in exact order.\n\n"
+        "# TEXT TO TRANSLATE:\n" + batch_text
     )
