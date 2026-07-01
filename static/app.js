@@ -333,7 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const btnGetCookie = document.getElementById('btnGetCookie');
+    const btnGetCookieDouyin = document.getElementById('btnGetCookieDouyin');
+    const btnGetCookieBilibili = document.getElementById('btnGetCookieBilibili');
 
     const processingCard = document.getElementById('processingCard');
     const currentSubStep = document.getElementById('currentSubStep');
@@ -450,24 +451,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Handle Douyin cookie login button
-    btnGetCookie.addEventListener('click', async () => {
-        btnGetCookie.disabled = true;
-        const spanText = btnGetCookie.querySelector('span');
+    // Handle dynamic cookie login buttons
+    async function handleLogin(btn, platform) {
+        if (!btn) return;
+        btn.disabled = true;
+        const spanText = btn.querySelector('span');
         const originalText = spanText.textContent;
         spanText.textContent = 'Đang xác thực...';
 
         processingCard.classList.remove('hidden');
-        appendLogLine('Đang gửi yêu cầu mở trình duyệt đăng nhập Douyin...', 'info');
+        appendLogLine(`Đang gửi yêu cầu mở trình duyệt đăng nhập ${platform === 'douyin' ? 'Douyin' : 'Bilibili'}...`, 'info');
 
         try {
-            const response = await fetch('/api/get-cookies', {
+            const response = await fetch(`/api/get-cookies?platform=${platform}`, {
                 method: 'POST'
             });
             const data = await response.json();
             if (data.status === 'success') {
                 appendLogLine(`[ĐĂNG NHẬP] ${data.message}`, 'success');
-                alert(`Đăng nhập Douyin thành công!\n${data.message}`);
+                alert(`Đăng nhập thành công!\n${data.message}`);
             } else {
                 appendLogLine(`[ĐĂNG NHẬP THẤT BẠI] ${data.message}`, 'error');
                 alert(`Không thể lấy cookie: ${data.message}`);
@@ -476,10 +478,17 @@ document.addEventListener('DOMContentLoaded', () => {
             appendLogLine(`[ĐĂNG NHẬP LỖI] Lỗi kết nối server: ${err.message}`, 'error');
             alert(`Lỗi kết nối tới máy chủ khi yêu cầu lấy cookie.`);
         } finally {
-            btnGetCookie.disabled = false;
+            btn.disabled = false;
             spanText.textContent = originalText;
         }
-    });
+    }
+
+    if (btnGetCookieDouyin) {
+        btnGetCookieDouyin.addEventListener('click', () => handleLogin(btnGetCookieDouyin, 'douyin'));
+    }
+    if (btnGetCookieBilibili) {
+        btnGetCookieBilibili.addEventListener('click', () => handleLogin(btnGetCookieBilibili, 'bilibili'));
+    }
 
     // ─── Import file button inside URL input ───────────────────────────
     const btnImportFile = document.getElementById('btnImportFile');

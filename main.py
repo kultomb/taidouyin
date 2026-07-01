@@ -757,13 +757,13 @@ async def upload_video(file: UploadFile = File(...)):
 
 
 @app.post("/api/get-cookies")
-def get_cookies_endpoint():
+def get_cookies_endpoint(platform: str = "douyin"):
     import subprocess
     import sys
     try:
-        logger.info("Khởi chạy giao diện thu thập cookie Douyin...")
+        logger.info(f"Khởi chạy giao diện thu thập cookie cho {platform}...")
         result = subprocess.run(
-            [sys.executable, "get_cookies_gui.py"],
+            [sys.executable, "get_cookies_gui.py", platform],
             capture_output=True,
             text=True,
             timeout=300  # 5 minutes timeout
@@ -776,14 +776,15 @@ def get_cookies_endpoint():
             if time.time() - mtime < 300:
                 cookies = load_cookies_txt(cookie_file)
                 if cookies:
-                    return {"status": "success", "message": f"Đã lưu thành công {len(cookies)} cookies vào cookies.txt!"}
+                    return {"status": "success", "message": f"Đã lưu và gộp thành công cookies vào cookies.txt!"}
         
         return {"status": "error", "message": "Không tìm thấy file cookies mới hoặc phiên làm việc đã bị hủy."}
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": "Quá thời gian chờ đăng nhập (5 phút)."}
     except Exception as e:
-        logger.error(f"Lỗi khởi chạy get_cookies_gui.py: {e}")
+        logger.error(f"Lỗi khởi chạy get_cookies_gui.py cho {platform}: {e}")
         return {"status": "error", "message": f"Lỗi khởi chạy công cụ lấy cookie: {str(e)}"}
+
 
 @app.post("/api/translate")
 def start_translation(request: TranslateRequest):
