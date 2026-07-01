@@ -213,7 +213,12 @@ def _run_dubbing_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
                          x_start: float = 0.0, x_end: float = 1.0):
     dubbing_pipeline.run_phase2(job_id, use_ocr, y_start, y_end, x_start, x_end)
 
-# ── FastAPI Routes ──────────────────────────────────────────
+def _translate_ocr_subtitles(ocr_segments: list, log_func, provider: str = "gemini", voice_name: str = None, translate_style: str = "default", context: str = None) -> list:
+    if not ocr_segments:
+        return []
+    texts_to_translate = [seg.get("text", "") for seg in ocr_segments]
+    translations = [""] * len(texts_to_translate)
+    translated = False
 
     if provider == "gist":
         # Gist API miễn phí — chỉ dùng Gist, tự động fallback sang Google Translate Web nếu lỗi
@@ -786,6 +791,148 @@ def get_cookies_endpoint(platform: str = "douyin"):
         return {"status": "error", "message": f"Lỗi khởi chạy công cụ lấy cookie: {str(e)}"}
 
 
+class BatchTranslateRequest(BaseModel):
+    urls: List[str]
+    bg_volume: float = 0.30
+    burn_subtitles: bool = False
+    tts_provider: str = "edge"
+    asr_mode: str = "audio"
+    translate_provider: str = "gemini"
+    process_mode: str = "auto"
+    voice_map: Optional[Dict] = None
+    voice_name: Optional[str] = None
+    voice_female: Optional[str] = None
+    voice_male: Optional[str] = None
+    topic: Optional[str] = None
+    tts_speed: float = 1.40
+    translate_style: str = "default"
+    context: Optional[str] = None
+    subtitle_style: Optional[Dict] = None
+    resolution: Optional[str] = "1080"
+
+def run_batch_pipeline_sync(batch_id: str, request: BatchTranslateRequest):
+    batch_job = jobs[batch_id]
+    
+    for idx, item in enumerate(batch_job["items"]):
+        batch_job["current_index"] = idx
+        item["status"] = "running"
+        
+        sub_job_id = str(uuid.uuid4())
+        item["job_id"] = sub_job_id
+        
+        # Tạo sub-job trong store
+        jobs[sub_job_id] = {
+            "job_id": sub_job_id,
+            "status": "running",
+            "step": 0,
+            "sub_step": "Khởi tạo tiến trình...",
+            "logs": [],
+            "original_video": None,
+            "translated_video": None,
+            "srt": None,
+            "srt_original": None,
+            "audio": None,
+            "error": None,
+            "bg_volume": request.bg_volume,
+            "burn_subtitles": request.burn_subtitles,
+            "tts_provider": request.tts_provider,
+            "asr_mode": request.asr_mode,
+            "translate_provider": request.translate_provider,
+            "process_mode": request.process_mode,
+            "voice_map": request.voice_map,
+            "voice_name": request.voice_name,
+            "voice_female": request.voice_female,
+            "voice_male": request.voice_male,
+            "topic": request.topic,
+            "tts_speed": request.tts_speed,
+            "translate_style": request.translate_style,
+            "context": request.context,
+            "subtitle_style": request.subtitle_style,
+            "resolution": request.resolution,
+            "is_batch_item": True, # Đánh dấu đây là sub-job thuộc một batch
+            "_created": time.time(),
+        }
+        
+        try:
+            # 1. Chạy Phase 1 đồng bộ
+            dubbing_pipeline.run_phase1(sub_job_id, item["url"])
+            
+            sub_job = jobs[sub_job_id]
+            # Nếu chạy ocr mode ở batch, tự động chạy Phase 2 với tọa độ phụ đề mặc định
+            if sub_job["status"] == "awaiting_ocr_selection":
+                sub_job["status"] = "running"
+                sub_job["sub_step"] = "Tự động kích hoạt OCR với vùng mặc định..."
+                dubbing_pipeline.run_phase2(
+                    job_id=sub_job_id,
+                    use_ocr=True,
+                    y_start=0.80,
+                    y_end=0.95,
+                    x_start=0.0,
+                    x_end=1.0
+                )
+                
+            # Đợi cho đến khi sub-job hoàn thành hoặc lỗi
+            while sub_job["status"] not in ("completed", "failed"):
+                time.sleep(1)
+                
+            if sub_job["status"] == "completed":
+                item["status"] = "completed"
+                item["translated_video"] = sub_job["translated_video"]
+            else:
+                item["status"] = "failed"
+                item["error"] = sub_job.get("error", "Lỗi xử lý video.")
+                
+        except Exception as e:
+            item["status"] = "failed"
+            item["error"] = str(e)
+            logger.error(f"Lỗi xử lý video batch {item['url']}: {e}", exc_info=True)
+            if sub_job_id in jobs:
+                jobs[sub_job_id]["status"] = "failed"
+                jobs[sub_job_id]["error"] = str(e)
+                jobs[sub_job_id]["logs"].append(f"[LỖI] {e}")
+                
+    batch_job["status"] = "completed"
+
+@app.post("/api/translate/batch")
+def start_batch_translation(request: BatchTranslateRequest):
+    # Dọn dẹp url rỗng
+    urls = [url.strip() for url in request.urls if url.strip()]
+    if not urls:
+        raise HTTPException(status_code=400, detail="Danh sách liên kết rỗng.")
+        
+    batch_id = str(uuid.uuid4())
+    jobs[batch_id] = {
+        "job_id": batch_id,
+        "is_batch": True,
+        "status": "running",
+        "urls": urls,
+        "current_index": 0,
+        "items": [
+             {
+                 "url": url,
+                 "job_id": None,
+                 "status": "waiting",
+                 "translated_video": None,
+                 "error": None
+             }
+             for url in urls
+        ],
+        "_created": time.time()
+    }
+    
+    _cleanup_expired_jobs()
+    
+    # Khởi chạy luồng xử lý hàng loạt tuần tự trong background
+    thread = threading.Thread(
+        target=run_batch_pipeline_sync,
+        args=(batch_id, request),
+        daemon=True
+    )
+    thread.start()
+    
+    return {"batch_id": batch_id}
+
+
 @app.post("/api/translate")
 def start_translation(request: TranslateRequest):
     global _last_request_time
@@ -909,7 +1056,47 @@ def get_status(job_id: str):
     
     job = jobs[job_id]
     
-    # Prepare download urls
+    # Nếu là Batch Job (xử lý hàng loạt)
+    if job.get("is_batch", False):
+        current_sub_logs = []
+        for item in job["items"]:
+            if item["status"] == "running" and item["job_id"]:
+                sub_job = jobs.get(item["job_id"])
+                if sub_job:
+                    current_sub_logs = sub_job.get("logs", [])
+                    break
+                    
+        formatted_items = []
+        for item in job["items"]:
+            sub_id = item["job_id"]
+            download_urls = {}
+            if sub_id and sub_id in jobs:
+                sub_job = jobs[sub_id]
+                if "folder_name" in sub_job:
+                    download_urls = {
+                        "original_video_url": f"/output/{sub_job['folder_name']}/original.mp4" if sub_job.get("original_video") else None,
+                        "translated_video_url": f"/output/{sub_job['folder_name']}/translated_video.mp4" if sub_job.get("translated_video") else None,
+                        "srt_url": f"/output/{sub_job['folder_name']}/subtitles.srt" if sub_job.get("srt") else None,
+                    }
+            formatted_items.append({
+                "url": item["url"],
+                "status": item["status"],
+                "job_id": item["job_id"],
+                "error": item["error"],
+                "result": download_urls
+            })
+            
+        return {
+            "is_batch": True,
+            "job_id": job["job_id"],
+            "status": job["status"],
+            "current_index": job["current_index"],
+            "items": formatted_items,
+            "logs": current_sub_logs,
+            "sub_step": f"Đang dịch video {job['current_index'] + 1}/{len(job['urls'])}" if job["status"] == "running" else "Đã hoàn thành toàn bộ danh sách!"
+        }
+
+    # Nếu là Single Job thông thường
     result_urls = {}
     if "folder_name" in job:
         result_urls = {

@@ -259,33 +259,38 @@ class DubbingPipeline:
 
             # --- SUBTITLE REVIEW MODAL PAUSE STEP ---
             job["subtitles"] = subtitles
-            job["status"] = "awaiting_subtitle_review"
-            job["subtitle_review_completed"] = False
-            job["subtitle_review_paused"] = False
-            job["subtitle_review_countdown"] = 30
             
-            log("Đang chờ người dùng kiểm tra phụ đề (tối đa 30 giây)...")
-            
-            start_pause_time = time.time()
-            accumulated_elapsed = 0.0
-            while not job["subtitle_review_completed"]:
-                if job.get("subtitle_review_paused", False):
-                    accumulated_elapsed += (time.time() - start_pause_time)
-                    while job.get("subtitle_review_paused", False) and not job["subtitle_review_completed"]:
-                        time.sleep(0.2)
-                    start_pause_time = time.time()
-                    if job["subtitle_review_completed"]:
-                        break
-                    
-                elapsed = time.time() - start_pause_time
-                remaining = 30.0 - (accumulated_elapsed + elapsed)
-                if remaining <= 0:
-                    log("Hết thời gian chờ 30 giây. Tự động tiếp tục...")
-                    break
-                    
-                job["subtitle_review_countdown"] = max(0, int(remaining))
-                time.sleep(0.5)
+            if job.get("is_batch_item", False):
+                job["status"] = "running"
+                log("Đang chạy chế độ Hàng loạt (Batch). Tự động bỏ qua bước duyệt phụ đề.")
+            else:
+                job["status"] = "awaiting_subtitle_review"
+                job["subtitle_review_completed"] = False
+                job["subtitle_review_paused"] = False
+                job["subtitle_review_countdown"] = 30
                 
+                log("Đang chờ người dùng kiểm tra phụ đề (tối đa 30 giây)...")
+                
+                start_pause_time = time.time()
+                accumulated_elapsed = 0.0
+                while not job["subtitle_review_completed"]:
+                    if job.get("subtitle_review_paused", False):
+                        accumulated_elapsed += (time.time() - start_pause_time)
+                        while job.get("subtitle_review_paused", False) and not job["subtitle_review_completed"]:
+                            time.sleep(0.2)
+                        start_pause_time = time.time()
+                        if job["subtitle_review_completed"]:
+                            break
+                        
+                    elapsed = time.time() - start_pause_time
+                    remaining = 30.0 - (accumulated_elapsed + elapsed)
+                    if remaining <= 0:
+                        log("Hết thời gian chờ 30 giây. Tự động tiếp tục...")
+                        break
+                        
+                    job["subtitle_review_countdown"] = max(0, int(remaining))
+                    time.sleep(0.5)
+                    
             subtitles = job.get("subtitles", subtitles)
             job["status"] = "running"
 

@@ -61,10 +61,15 @@
         <!-- Input and Settings Form -->
         <section class="card form-card">
             <form id="translateForm">
+                <!-- Mode Selector Tabs -->
+                <div class="mode-selector-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                    <button type="button" id="tabModeSingle" class="tab-btn active" style="background: none; border: none; color: var(--accent); font-weight: 600; padding: 6px 12px; border-bottom: 2px solid var(--accent); cursor: pointer;">🎬 Dịch một video</button>
+                    <button type="button" id="tabModeBatch" class="tab-btn" style="background: none; border: none; color: var(--text-muted); font-weight: 500; padding: 6px 12px; border-bottom: 2px solid transparent; cursor: pointer;">📚 Dịch hàng loạt (Batch)</button>
+                </div>
                 <!-- Top: URL + Context (Full Width) -->
                 <div class="url-input-container">
                     <div class="input-group" style="margin-bottom: 0;">
-                        <label for="videoUrl" class="input-label">
+                        <label for="videoUrl" class="input-label" id="urlInputLabel">
                             Nhập link video (Douyin, Bilibili, YouTube...) hoặc chọn file video
                             <button type="button" id="btnToggleContext" class="btn-mini-toggle"
                                 title="Thêm bối cảnh để AI dịch chuẩn hơn">+ Bối cảnh</button>
@@ -80,6 +85,7 @@
                             </svg>
                             <input type="text" id="videoUrl" placeholder="Dán liên kết Douyin, Bilibili, YouTube hoặc chọn file video..."
                                 required>
+                            <textarea id="videoUrls" class="hidden" placeholder="Dán danh sách liên kết video (mỗi liên kết một dòng)...&#10;Ví dụ:&#10;https://www.youtube.com/watch?v=123&#10;https://www.bilibili.com/video/BV456" rows="4" style="width: 100%; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 12px 12px 12px 42px; font-family: monospace; font-size: 0.9rem; resize: vertical; box-sizing: border-box; outline: none; transition: border-color 0.2s; display: none;"></textarea>
                             <button type="button" id="btnImportFile" class="btn-import-file"
                                 title="Chọn file video từ máy tính">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -501,6 +507,48 @@
                     </button>
                 </div>
             </form>
+        </section>
+
+        <!-- Batch Processing Card -->
+        <section id="batchProcessingCard" class="card hidden" style="margin-top: 24px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+                <h2 class="card-title" style="margin: 0; font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <span>📦 Tiến trình Dịch thuật Hàng loạt (Batch)</span>
+                </h2>
+                <span id="batchOverallStatus" class="badge badge-running" style="background: rgba(99, 102, 241, 0.1); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.2); padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;">Đang dịch...</span>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div style="margin: 16px 0;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px;">
+                    <span id="batchProgressText">Tiến độ: 0/0 video</span>
+                    <span id="batchPercentText">0%</span>
+                </div>
+                <div class="progress-bar" style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; border: 1px solid var(--border);">
+                    <div id="batchProgressBarFill" style="background: var(--accent); width: 0%; height: 100%; transition: width 0.3s; border-radius: 4px;"></div>
+                </div>
+            </div>
+
+            <!-- Batch Items List -->
+            <div id="batchItemsList" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.15); padding: 10px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
+                <!-- Dynamically populated batch items -->
+            </div>
+
+            <!-- Active Video Logs -->
+            <div class="card-header" style="padding-top: 10px; border-top: 1px solid var(--border); margin-top: 15px;">
+                <h3 class="card-title" style="font-size: 0.95rem; margin: 0; color: var(--text); font-weight: 500;">📺 Nhật ký xử lý của video hiện tại:</h3>
+            </div>
+            <div class="terminal" style="margin-top: 8px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden;">
+                <div class="terminal-header" style="background: #1e293b; padding: 8px 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border);">
+                    <span class="terminal-dot red" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+                    <span class="terminal-dot yellow" style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                    <span class="terminal-dot green" style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                    <span class="terminal-title" style="margin-left: 6px; font-family: monospace; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">LIVE LOG STREAM</span>
+                </div>
+                <div class="terminal-body" id="batchTerminalBody" style="height: 200px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.82rem; line-height: 1.4; color: #34d399; padding: 12px; background: #0f172a; white-space: pre-wrap; margin: 0;">
+                    Chờ nhận nhật ký hệ thống...
+                </div>
+            </div>
         </section>
 
         <!-- Processing Status Panel -->

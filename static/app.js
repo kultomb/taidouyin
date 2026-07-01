@@ -554,9 +554,135 @@ document.addEventListener('DOMContentLoaded', () => {
         return el ? el.value.trim() : '';
     }
 
+    // Mode selector registration
+    let activeMode = 'single';
+    const tabModeSingle = document.getElementById('tabModeSingle');
+    const tabModeBatch = document.getElementById('tabModeBatch');
+    const videoUrls = document.getElementById('videoUrls');
+    const batchProcessingCard = document.getElementById('batchProcessingCard');
+
+    if (tabModeSingle && tabModeBatch && videoUrls) {
+        tabModeSingle.addEventListener('click', () => {
+            activeMode = 'single';
+            tabModeSingle.classList.add('active');
+            tabModeSingle.style.borderBottom = '2px solid var(--accent)';
+            tabModeSingle.style.color = 'var(--accent)';
+            tabModeBatch.classList.remove('active');
+            tabModeBatch.style.borderBottom = '2px solid transparent';
+            tabModeBatch.style.color = 'var(--text-muted)';
+            
+            videoUrlInput.classList.remove('hidden');
+            videoUrlInput.style.display = 'block';
+            videoUrlInput.required = !importedFilePath;
+            
+            videoUrls.classList.add('hidden');
+            videoUrls.style.display = 'none';
+            videoUrls.required = false;
+        });
+
+        tabModeBatch.addEventListener('click', () => {
+            activeMode = 'batch';
+            tabModeBatch.classList.add('active');
+            tabModeBatch.style.borderBottom = '2px solid var(--accent)';
+            tabModeBatch.style.color = 'var(--accent)';
+            tabModeSingle.classList.remove('active');
+            tabModeSingle.style.borderBottom = '2px solid transparent';
+            tabModeSingle.style.color = 'var(--text-muted)';
+            
+            videoUrlInput.classList.add('hidden');
+            videoUrlInput.style.display = 'none';
+            videoUrlInput.required = false;
+            
+            videoUrls.classList.remove('hidden');
+            videoUrls.style.display = 'block';
+            videoUrls.required = true;
+        });
+    }
+
     // Form Submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        if (activeMode === 'batch') {
+            const urlsRaw = videoUrls.value.split('\n');
+            const urls = urlsRaw.map(u => u.trim()).filter(u => u.length > 0);
+            if (urls.length === 0) {
+                alert('Vui lòng nhập ít nhất một liên kết video!');
+                return;
+            }
+
+            // UI Reset for Batch
+            submitBtn.disabled = true;
+            submitBtn.querySelector('span').textContent = 'Đang chạy batch...';
+            batchProcessingCard.classList.remove('hidden');
+            processingCard.classList.add('hidden');
+            resultsCard.classList.add('hidden');
+            ocrSelectionCard.classList.add('hidden');
+
+            const bgVolume = parseFloat(volumeSlider.value);
+            const burnSubtitles = burnSubtitlesCheckbox.checked;
+            const ttsProvider = selectedTtsProvider;
+            const asrMode = selectedAsrMode;
+            const translateProvider = selectedTranslateProvider;
+            const processMode = selectedProcessMode; 
+            const voiceName = (selectedTtsProvider === 'edge') ? selectedEdgeVoice : (selectedTtsProvider === 'gemini' ? selectedGeminiVoice : selectedGoogleVoice);
+            const voiceFemale = (selectedTtsProvider === 'edge') ? selectedEdgeFemale : (selectedTtsProvider === 'gemini' ? selectedGeminiFemale : selectedGoogleFemale);
+            const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
+            const ttsSpeedEl = document.getElementById('ttsSpeed');
+            const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.4;
+            const context = getContextValue();
+
+            // Clear terminal batch log
+            const batchTerminal = document.getElementById('batchTerminalBody');
+            if (batchTerminal) batchTerminal.innerHTML = 'Đang khởi động tiến trình dịch thuật hàng loạt...\n';
+            displayedBatchLogCount = 0;
+
+            try {
+                const response = await fetch('/api/translate/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        urls: urls,
+                        bg_volume: bgVolume,
+                        burn_subtitles: burnSubtitles,
+                        tts_provider: ttsProvider,
+                        asr_mode: asrMode,
+                        translate_provider: translateProvider,
+                        process_mode: processMode,
+                        voice_name: voiceName ? voiceName : null,
+                        voice_female: voiceFemale || null,
+                        voice_male: voiceMale || null,
+                        tts_speed: ttsSpeed,
+                        translate_style: selectedTranslateStyle,
+                        context: context || null,
+                        resolution: document.getElementById('videoResolution') ? document.getElementById('videoResolution').value : '1080',
+                        subtitle_style: burnSubtitlesCheckbox.checked ? {
+                            font: (document.getElementById('subFont') || {}).value || 'Montserrat',
+                            fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,
+                            color: (document.getElementById('subColor') || {}).value || '&H00FFFFFF',
+                            position: parseInt((document.getElementById('subPosition') || {}).value) || 2
+                        } : null
+                    })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    throw new Error((errData && errData.detail) ? errData.detail : 'Lỗi kết nối máy chủ.');
+                }
+
+                const data = await response.json();
+                const batchId = data.batch_id;
+
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(() => pollBatchStatus(batchId), 1200);
+
+            } catch (err) {
+                alert(`Lỗi khởi chạy tiến trình hàng loạt: ${err.message}`);
+                submitBtn.disabled = false;
+                submitBtn.querySelector('span').textContent = 'Bắt đầu tiến trình xử lý';
+            }
+            return;
+        }
 
         const url = videoUrlInput.value.trim();
         if (!url && !importedFilePath) return;
@@ -652,6 +778,164 @@ document.addEventListener('DOMContentLoaded', () => {
             submitBtn.querySelector('span').textContent = 'Bắt đầu tiến trình xử lý';
         }
     });
+
+    let displayedBatchLogCount = 0;
+    async function pollBatchStatus(batchId) {
+        try {
+            const response = await fetch(`/api/status/${batchId}`);
+            if (!response.ok) throw new Error('Không thể lấy trạng thái batch.');
+            const data = await response.json();
+
+            // 1. Update overall status badge
+            const overallStatus = document.getElementById('batchOverallStatus');
+            if (overallStatus) {
+                overallStatus.textContent = data.status === 'running' ? 'Đang chạy...' : (data.status === 'completed' ? 'Đã hoàn thành' : 'Thất bại');
+                overallStatus.className = 'badge ' + (data.status === 'running' ? 'badge-running' : (data.status === 'completed' ? 'badge-completed' : 'badge-failed'));
+            }
+
+            // 2. Update progress bar
+            const total = data.items.length;
+            const completedCount = data.items.filter(i => i.status === 'completed').length;
+            const failedCount = data.items.filter(i => i.status === 'failed').length;
+            const processed = completedCount + failedCount;
+            const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+            const progressText = document.getElementById('batchProgressText');
+            if (progressText) {
+                progressText.textContent = `Tiến độ: Video ${data.current_index + 1}/${total} (Đã hoàn thành ${completedCount}, Lỗi ${failedCount})`;
+            }
+            const percentText = document.getElementById('batchPercentText');
+            if (percentText) {
+                percentText.textContent = `${percent}%`;
+            }
+            const barFill = document.getElementById('batchProgressBarFill');
+            if (barFill) {
+                barFill.style.width = `${percent}%`;
+            }
+
+            // 3. Render items list with individual download buttons!
+            const listContainer = document.getElementById('batchItemsList');
+            if (listContainer) {
+                listContainer.innerHTML = '';
+                data.items.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.alignItems = 'center';
+                    row.style.padding = '8px 12px';
+                    row.style.background = 'rgba(255,255,255,0.02)';
+                    row.style.border = '1px solid var(--border)';
+                    row.style.borderRadius = '6px';
+                    
+                    const left = document.createElement('div');
+                    left.style.display = 'flex';
+                    left.style.flexDirection = 'column';
+                    left.style.gap = '2px';
+                    
+                    const title = document.createElement('span');
+                    title.style.fontSize = '0.85rem';
+                    title.style.fontWeight = '500';
+                    title.style.color = index === data.current_index && data.status === 'running' ? 'var(--accent)' : 'var(--text)';
+                    
+                    let urlLabel = item.url;
+                    if (urlLabel.length > 60) urlLabel = urlLabel.substring(0, 60) + '...';
+                    title.textContent = `${index + 1}. ${urlLabel}`;
+                    
+                    const statusText = document.createElement('span');
+                    statusText.style.fontSize = '0.75rem';
+                    if (item.status === 'waiting') {
+                        statusText.textContent = '⏳ Đang chờ...';
+                        statusText.style.color = 'var(--text-muted)';
+                    } else if (item.status === 'running') {
+                        statusText.textContent = '🔄 Đang xử lý...';
+                        statusText.style.color = 'var(--accent)';
+                    } else if (item.status === 'completed') {
+                        statusText.textContent = '✅ Đã hoàn thành';
+                        statusText.style.color = '#10b981';
+                    } else if (item.status === 'failed') {
+                        statusText.textContent = `❌ Lỗi: ${item.error || 'Thất bại'}`;
+                        statusText.style.color = '#ef4444';
+                    }
+                    
+                    left.appendChild(title);
+                    left.appendChild(statusText);
+                    row.appendChild(left);
+
+                    if (item.status === 'completed' && item.result) {
+                        const right = document.createElement('div');
+                        right.style.display = 'flex';
+                        right.style.gap = '6px';
+                        
+                        if (item.result.translated_video_url) {
+                            const btnDl = document.createElement('a');
+                            btnDl.href = item.result.translated_video_url;
+                            btnDl.download = `translated_${index + 1}.mp4`;
+                            btnDl.textContent = '📥 Tải video';
+                            btnDl.style.fontSize = '0.75rem';
+                            btnDl.style.padding = '4px 8px';
+                            btnDl.style.background = 'var(--accent)';
+                            btnDl.style.color = 'white';
+                            btnDl.style.borderRadius = '4px';
+                            btnDl.style.textDecoration = 'none';
+                            right.appendChild(btnDl);
+                        }
+                        if (item.result.srt_url) {
+                            const btnSrt = document.createElement('a');
+                            btnSrt.href = item.result.srt_url;
+                            btnSrt.download = `subtitles_${index + 1}.srt`;
+                            btnSrt.textContent = '📝 SRT';
+                            btnSrt.style.fontSize = '0.75rem';
+                            btnSrt.style.padding = '4px 8px';
+                            btnSrt.style.background = 'rgba(255,255,255,0.08)';
+                            btnSrt.style.color = 'var(--text)';
+                            btnSrt.style.borderRadius = '4px';
+                            btnSrt.style.border = '1px solid var(--border)';
+                            btnSrt.style.textDecoration = 'none';
+                            right.appendChild(btnSrt);
+                        }
+                        row.appendChild(right);
+                    }
+                    
+                    listContainer.appendChild(row);
+                });
+            }
+
+            const terminal = document.getElementById('batchTerminalBody');
+            if (terminal) {
+                const logs = data.logs || [];
+                if (logs.length > displayedBatchLogCount) {
+                    if (displayedBatchLogCount === 0) terminal.innerHTML = '';
+                    for (let i = displayedBatchLogCount; i < logs.length; i++) {
+                        const line = logs[i];
+                        const div = document.createElement('div');
+                        div.style.marginBottom = '2px';
+                        
+                        if (line.includes('LỖI') || line.includes('ERROR') || line.includes('Thất bại')) {
+                            div.style.color = '#f87171';
+                        } else if (line.includes('thành công') || line.includes('Hoàn thành') || line.includes('SUCCESS')) {
+                            div.style.color = '#34d399';
+                        } else if (line.includes('Cảnh báo') || line.includes('WARNING')) {
+                            div.style.color = '#fbbf24';
+                        }
+                        div.textContent = line;
+                        terminal.appendChild(div);
+                    }
+                    displayedBatchLogCount = logs.length;
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            }
+
+            if (data.status !== 'running') {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                submitBtn.disabled = false;
+                submitBtn.querySelector('span').textContent = 'Bắt đầu tiến trình xử lý';
+            }
+
+        } catch (err) {
+            console.error('Lỗi khi cập nhật trạng thái batch:', err);
+        }
+    }
 
     // Polling function
     async function pollJobStatus(jobId) {
