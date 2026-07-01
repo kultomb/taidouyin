@@ -1,5 +1,6 @@
 MOSFET = MOSFET
 VBAT = VBAT
+GR = Giá trị đi ốt
 Số bảo mật = imei
 log = log
 Fluctuating DC reading = dòng DC dao động
@@ -126,7 +127,7 @@ eMMC = eMMC
 NAND = NAND
 reball = làm chân
 jumper = câu dây đồng
-GR = GR
+GR = Giá trị đi ốt
 IC BQ = IC sạc
 auto reading = hao nguồn
 I2C = I2C
