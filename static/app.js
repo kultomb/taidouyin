@@ -1437,11 +1437,58 @@ document.addEventListener('DOMContentLoaded', () => {
             textDiv.appendChild(origSpan);
             textDiv.appendChild(transInput);
 
+            // Thêm vùng chọn phân vai giọng cho từng dòng phụ đề
+            const speakerDiv = document.createElement('div');
+            speakerDiv.classList.add('sub-speaker-select-area');
+            speakerDiv.style.width = '115px';
+            speakerDiv.style.flexShrink = '0';
+            speakerDiv.style.display = 'flex';
+            speakerDiv.style.flexDirection = 'column';
+            speakerDiv.style.gap = '4px';
+
+            const spkSelect = document.createElement('select');
+            spkSelect.classList.add('sub-time-input', 'speaker-select-input');
+            spkSelect.style.width = '115px';
+            spkSelect.style.padding = '5px 8px';
+            spkSelect.style.borderRadius = '6px';
+            spkSelect.style.background = 'rgba(255, 255, 255, 0.05)';
+            spkSelect.style.color = 'var(--text-primary)';
+            spkSelect.style.border = '1px solid var(--border-color)';
+            spkSelect.style.fontSize = '0.75rem';
+            spkSelect.style.cursor = 'pointer';
+
+            const currentSpeaker = sub.speaker || 'Speaker A';
+            const standardSpeakers = ['Speaker A', 'Speaker B', 'Speaker C', 'Speaker D'];
+            let allSpeakers = [...standardSpeakers];
+            if (currentSpeaker && !standardSpeakers.includes(currentSpeaker)) {
+                allSpeakers.push(currentSpeaker);
+            }
+
+            allSpeakers.forEach(spk => {
+                const opt = document.createElement('option');
+                opt.value = spk;
+                let displayName = spk;
+                if (spk === 'Speaker A') displayName = 'Giọng A (Nữ/Trung)';
+                else if (spk === 'Speaker B') displayName = 'Giọng B (Nam)';
+                else if (spk === 'Speaker C') displayName = 'Giọng C';
+                else if (spk === 'Speaker D') displayName = 'Giọng D';
+                
+                opt.textContent = displayName;
+                opt.style.background = '#1e1e24';
+                if (currentSpeaker === spk) {
+                    opt.selected = true;
+                }
+                spkSelect.appendChild(opt);
+            });
+
+            speakerDiv.appendChild(spkSelect);
+
             row.appendChild(timeDiv);
             row.appendChild(textDiv);
+            row.appendChild(speakerDiv);
 
             row.addEventListener('click', (e) => {
-                if (e.target.tagName === 'INPUT') return;
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
                 subtitleList.querySelectorAll('.subtitle-item-row').forEach(r => r.classList.remove('active'));
                 row.classList.add('active');
@@ -1459,6 +1506,7 @@ document.addEventListener('DOMContentLoaded', () => {
             startInput.addEventListener('input', triggerPause);
             endInput.addEventListener('input', triggerPause);
             transInput.addEventListener('input', triggerPause);
+            spkSelect.addEventListener('change', triggerPause);
 
             subtitleList.appendChild(row);
         });
@@ -1500,6 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const startVal = parseFloat(row.querySelector('.start-time-input').value);
             const endVal = parseFloat(row.querySelector('.end-time-input').value);
             const translationVal = row.querySelector('.translation-text-input').value;
+            const speakerVal = row.querySelector('.speaker-select-input').value;
 
             const originalSub = reviewSubtitles[index];
             updatedSubs.push({
@@ -1507,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 translation: translationVal,
                 start: startVal,
                 end: endVal,
-                speaker: originalSub.speaker
+                speaker: speakerVal
             });
         });
 
