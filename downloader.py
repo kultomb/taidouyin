@@ -52,6 +52,18 @@ def clean_and_rewrite_douyin_url(url: str) -> str:
         
     return clean_url
 
+def validate_video_url(url: str):
+    """
+    Kiểm tra xem URL có phải là trang cá nhân hoặc kênh hay không.
+    Nếu đúng, ném ra ngoại lệ thân thiện với người dùng.
+    """
+    if "douyin.com/user/" in url:
+        raise Exception("Bạn đã nhập liên kết trang cá nhân Douyin. Vui lòng dán liên kết của một video cụ thể (ví dụ: https://www.douyin.com/video/1234567).")
+    if "space.bilibili.com" in url or "bilibili.com/space/" in url:
+        raise Exception("Bạn đã nhập liên kết trang cá nhân Bilibili. Vui lòng dán liên kết của một video cụ thể (ví dụ: https://www.bilibili.com/video/BV12345).")
+    if "youtube.com/@" in url or "youtube.com/channel/" in url or "youtube.com/c/" in url or "youtube.com/user/" in url:
+        raise Exception("Bạn đã nhập liên kết kênh YouTube. Vui lòng dán liên kết của một video cụ thể (ví dụ: https://www.youtube.com/watch?v=12345).")
+
 def load_cookies_txt(filepath="cookies.txt"):
     cookies = {}
     if not os.path.exists(filepath):
@@ -410,6 +422,8 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
     First tries API direct download, then yt-dlp, finally Qt WebEngine.
     """
     import yt_dlp
+    clean_url = clean_and_rewrite_douyin_url(url)
+    validate_video_url(clean_url)
     # 1. Thử tải trực tiếp bằng API
     logger.info("Đang thử phương thức tải trực tiếp qua Douyin API...")
     try:
@@ -533,6 +547,7 @@ def get_video_info(url: str) -> dict:
     """
     import yt_dlp
     clean_url = clean_and_rewrite_douyin_url(url)
+    validate_video_url(clean_url)
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
