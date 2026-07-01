@@ -622,6 +622,15 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
         voice_male = job.get("voice_male")
         topic = job.get("topic")
 
+        # Tự động gộp thành đơn giọng nếu chỉ thiết lập duy nhất 1 giọng Nữ hoặc Nam
+        if not voice_name:
+            if voice_female and not voice_male:
+                voice_name = voice_female
+                voice_female = None
+            elif voice_male and not voice_female:
+                voice_name = voice_male
+                voice_male = None
+
         if not voice_map and not voice_name and (voice_female or voice_male):
             # Tự động phân vai: gán giọng nữ/nam cho từng speaker dựa trên gender
             voice_map = {}
