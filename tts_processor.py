@@ -610,6 +610,69 @@ def normalize_text_for_tts(text: str) -> str:
         
     return normalized
 
+def batch_transliterate_for_tts(subtitles: list) -> list:
+    """
+    Sử dụng Gemini để chuyển đổi hàng loạt các câu phụ đề sang dạng phiên âm phát âm tiếng Việt
+    cho tất cả các thuật ngữ tiếng Anh, chữ viết tắt, mã hiệu... trước khi chạy TTS.
+    """
+    import re
+    texts = [sub.get("translation", "").strip() for sub in subtitles]
+    if not any(t for t in texts):
+        return [sub.get("translation", "") for sub in subtitles]
+        
+    logger.info(f"🤖 Đang gửi {len(texts)} câu sang Gemini để phiên âm phát âm tiếng Việt hàng loạt...")
+    
+    batch_text = "\n---\n".join(
+        f"[{i+1}] {t}" for i, t in enumerate(texts) if t
+    )
+    
+    prompt = (
+        "You are an expert Vietnamese voiceover assistant specialized in phone repair tutorials.\n"
+        "Your task is to rewrite each Vietnamese sentence below so that all English words, technical acronyms, "
+        "brand names, and codes (e.g. read, write, error, filled, backup, HS, SCSI, UFS, FRP, LDO, gear...) "
+        "are converted into their natural Vietnamese phonetic pronunciations as spoken by Vietnamese technicians.\n\n"
+        "CRITICAL RULES:\n"
+        "1. Keep existing Vietnamese words exactly as they are. Only rewrite the English words and acronyms.\n"
+        "2. Keep numbers and simple symbols. Convert letters and acronyms to their Vietnamese phonetic spellings (e.g. HS -> hát ét, UFS -> u ép ét, eMMC -> e mờ mờ xê, SCSI -> ét xê ét ai, read -> rít, write -> rai, filled -> phin, gear -> ghia, error -> e ro).\n"
+        "3. Brand names must be pronounced naturally (e.g. Motorola -> mô tô rô la, Samsung -> sam sung).\n"
+        "4. Return ONLY the rewritten lines, one per line, in the exact same order. No numbers, no markdown, no comments.\n\n"
+        "# TEXT TO REWRITE:\n" + batch_text
+    )
+    
+    try:
+        from translator import get_vertex_client
+        from google.genai import types
+        client = get_vertex_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt],
+            config=types.GenerateContentConfig(temperature=0.1)
+        )
+        if response and response.text:
+            lines = [l.strip() for l in response.text.split("\n") if l.strip()]
+            
+            phonetic_texts = [""] * len(subtitles)
+            j = 0
+            for i, sub in enumerate(subtitles):
+                text = sub.get("translation", "").strip()
+                if text:
+                    if j < len(lines):
+                        # Loại bỏ số thứ tự [1] hoặc đầu dòng nếu Gemini vô tình trả về
+                        cleaned_line = re.sub(r"^\[\d+\]\s*", "", lines[j]).strip()
+                        phonetic_texts[i] = cleaned_line
+                        j += 1
+                    else:
+                        phonetic_texts[i] = text
+                else:
+                    phonetic_texts[i] = ""
+            
+            logger.info("✅ Phiên âm phát âm tiếng Việt bằng Gemini thành công.")
+            return phonetic_texts
+    except Exception as e:
+        logger.warning(f"⚠️ Không thể phiên âm bằng Gemini: {e}. Sẽ dùng bộ lọc từ điển cục bộ.")
+        
+    return None
+
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
     """
     Tạo TTS song song cho tất cả segment.
@@ -622,6 +685,16 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
     updated = [None] * len(subtitles)
     failures = 0
     lock = asyncio.Lock()
+    
+    # 1. Gọi Gemini để phiên âm phát âm tiếng Việt hàng loạt trước khi chạy TTS
+    loop = asyncio.get_event_loop()
+    try:
+        phonetic_texts = await loop.run_in_executor(
+            None, batch_transliterate_for_tts, subtitles
+        )
+    except Exception as e:
+        logger.warning(f"Failed to batch transliterate: {e}")
+        phonetic_texts = None
     
     if provider == "gemini":
         tts = GeminiTTSProvider()
@@ -641,7 +714,10 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
         file_path = os.path.join(output_dir, f"tts_{idx:04d}.mp3")
         
         # Chuẩn hóa văn bản đọc của TTS theo kiểu thợ Việt (vẫn giữ nguyên text phụ đề SRT gốc)
-        text_for_tts = normalize_text_for_tts(text)
+        if phonetic_texts and idx < len(phonetic_texts) and phonetic_texts[idx]:
+            text_for_tts = phonetic_texts[idx]
+        else:
+            text_for_tts = normalize_text_for_tts(text)
         
         async with semaphore:
             success_segment = False

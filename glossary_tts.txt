@@ -40,8 +40,6 @@ VDD = vê đi
 # 2. Các từ tiếng Anh phần mềm & Nút bấm thường giữ nguyên trên sơ đồ/tool
 read = rít
 write = rai
-filled = phin
-rri = rờ rờ ai
 error = e ro
 auto = au tu
 backup = bách ắp
