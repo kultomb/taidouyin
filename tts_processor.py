@@ -550,13 +550,62 @@ TTS_PRONUNCIATION_MAP = {
     r"\bok\b": "ô kê"
 }
 
+def load_tts_glossary() -> dict:
+    """Tải từ điển phát âm tùy chỉnh từ file glossary_tts.txt nếu tồn tại."""
+    import re
+    custom_map = {}
+    filename = "glossary_tts.txt"
+    
+    # Kiểm tra một số vị trí có thể chứa file
+    possible_paths = [
+        filename,
+        os.path.join(os.getcwd(), filename),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    ]
+    
+    glossary_path = None
+    for p in possible_paths:
+        if os.path.exists(p):
+            glossary_path = p
+            break
+            
+    if glossary_path:
+        try:
+            with open(glossary_path, "r", encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    parts = line.split("=", 1)
+                    key = parts[0].strip().lower()
+                    val = parts[1].strip()
+                    if key and val:
+                        # Lưu dưới dạng định dạng regex nguyên từ (\bword\b)
+                        pattern = r"\b" + re.escape(key) + r"\b"
+                        custom_map[pattern] = val
+            logger.info(f"Loaded {len(custom_map)} custom TTS pronunciations from {glossary_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load custom TTS glossary: {e}")
+            
+    return custom_map
+
 def normalize_text_for_tts(text: str) -> str:
-    """Chuẩn hóa các thuật ngữ tiếng Anh chuyên ngành điện thoại để đọc chuẩn giọng thợ Việt."""
+    """Chuẩn hóa các thuật ngữ tiếng Anh chuyên ngành điện thoại để đọc chuẩn giọng thợ Việt.
+    Hỗ trợ tải động từ file glossary_tts.txt để người dùng dễ dàng cập nhật thêm từ mới."""
     if not text:
         return ""
     import re
+    
+    # 1. Khởi tạo map mặc định
+    full_map = dict(TTS_PRONUNCIATION_MAP)
+    
+    # 2. Tải động từ glossary_tts.txt
+    custom_map = load_tts_glossary()
+    full_map.update(custom_map)
+    
+    # 3. Tiến hành thay thế
     normalized = text
-    for pattern, replacement in TTS_PRONUNCIATION_MAP.items():
+    for pattern, replacement in full_map.items():
         normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
     return normalized
 

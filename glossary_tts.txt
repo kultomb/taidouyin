@@ -1,0 +1,43 @@
+# Từ điển phát âm TTS chuyên ngành điện thoại dành cho thợ Việt.
+# Định dạng: Từ_Tiếng_Anh = Phiên_Âm_Tiếng_Việt
+# Bạn có thể chỉnh sửa hoặc thêm các từ mới vào đây, hệ thống sẽ tự động áp dụng khi lồng tiếng.
+
+read = rít
+write = rai
+scsi = ét xê ét ai
+error = e ro
+auto = o to
+backup = bách ắp
+frp = ép rờ pê
+ufs = u ép ét
+cpu = xê pu
+ram = ram
+rom = rom
+ic = ai xi
+box = bốc
+bypass = bai pát
+tool = tun
+log = lóc
+driver = đơ rai vơ
+port = pọt
+reset = ri xét
+boot = bút
+main = men
+firmware = phơm we
+imei = i mei
+dump = đăm
+format = pho mát
+recovery = ri co vơ ri
+mosfet = mót phét
+i2c = ai hai xê
+bga = bê gờ a
+emmc = e mờ mờ xê
+vbat = vê bát
+vph = vê pê hát
+vbus = vê bút
+active = ác típ
+key = ki
+file = phai
+click = kích
+select = xơ léc
+ok = ô kê
