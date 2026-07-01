@@ -607,6 +607,24 @@ def normalize_text_for_tts(text: str) -> str:
     normalized = text
     for pattern, replacement in full_map.items():
         normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+        
+    # 4. Tự động đánh vần các chữ viết tắt viết hoa chưa có trong từ điển (ví dụ: HS -> hát ét, LDO -> eo đê ô)
+    letter_map = {
+        'A': 'ây', 'B': 'bi', 'C': 'xê', 'D': 'đê', 'E': 'e', 'F': 'ép', 'G': 'gi',
+        'H': 'hát', 'I': 'ai', 'J': 'giê', 'K': 'ca', 'L': 'eo', 'M': 'em', 'N': 'en',
+        'O': 'ô', 'P': 'pê', 'Q': 'quy', 'R': 'rờ', 'S': 'ét', 'T': 'tê', 'U': 'u',
+        'V': 'vê', 'W': 've', 'X': 'ích', 'Y': 'ai', 'Z': 'dét'
+    }
+    
+    def repl_acronym(match):
+        word = match.group(0)
+        spelled = []
+        for char in word:
+            spelled.append(letter_map.get(char, char.lower()))
+        return " ".join(spelled)
+        
+    normalized = re.sub(r"\b[A-Z]{2,}\b", repl_acronym, normalized)
+    
     return normalized
 
 async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.2) -> tuple:
