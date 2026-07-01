@@ -37,15 +37,16 @@ Each block will be voiced separately by TTS.
 - End each block with period (`.`), comma (`,`), question mark (`?`), exclamation (`!`), or natural sentence-ending particle.
 - If a sentence is split across blocks, just let each fragment be a natural standalone phrase.
 
-5. STRICT SYLLABLE BUDGET FOR DIALOGUE TIMING (CRITICAL)
-Vietnamese is naturally longer than Chinese/English, which causes TTS audio overlap. To keep speakers' dialogue tight and prevent overlap:
-- Calculate the duration of each block: duration = end_time - start_time.
-- Strictly limit your translation to a maximum of 3 to 4 syllables per second.
-  Formula: Max Syllables = duration_seconds * 4.
-  Example: 1.0s block = max 4 syllables (e.g., "Em đi đây." [3] or "Cậu làm gì thế?" [4]).
-  Example: 2.0s block = max 8 syllables (e.g., "Hôm nay em nhớ anh lắm." [6] or "Chúng ta không thể làm vậy." [7]).
-- Do NOT translate literally. Translate into the shortest possible natural Vietnamese expression that conveys the core emotional meaning. Remove all filler words, greetings, or auxiliary verbs.
-- Each block MUST be speakable comfortably within its duration.
+5. BALANCED DIALOGUE PACING & TIMING (CRITICAL)
+Vietnamese translation must be natural, full, and emotional like a real movie script. Avoid over-compressing or over-shortening the dialogue, otherwise the TTS audio finishes too early, leaving awkward silence while the character is still speaking/moving their lips in the video.
+- Keep the sentence structure complete and rich in emotion ("đầy đủ từ như srt, nghĩa hay").
+- Target a comfortable speaking speed: about 4 to 5 syllables per second of the block's duration.
+  Formula: Target Syllables = duration_seconds * 4.5.
+  Example: 1.0s block = around 4-5 syllables (e.g., "Em đi đây nhé." [4] or "Cậu làm gì thế?" [4]).
+  Example: 2.0s block = around 8-10 syllables (e.g., "Hôm nay em nhớ anh nhiều lắm." [7] or "Chúng ta không thể làm như vậy." [8]).
+- Do NOT translate literally, but do NOT aggressively discard greetings, auxiliary verbs, or natural spoken words if they add to the emotion, meaning, or pacing of the sentence.
+- Ensure the speaking duration of the translation matches the original speaker's timing, so the pacing is natural and they finish speaking around the same time.
+- Each block MUST be speakable comfortably within its duration, without being too short or too long.
 
 6. VIETNAMESE-SPECIFIC LOCALIZATION
 Tone: Casual, conversational Northern Vietnamese. Like a real person talking — not a textbook, not a news anchor.

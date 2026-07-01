@@ -979,6 +979,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 processingCard.classList.add('hidden');
                 ocrSelectionCard.classList.remove('hidden');
 
+                // Khởi tạo kích thước mặc định cho khung chọn OCR 2 chiều
+                ocrCropBox.style.left = '10%';
+                ocrCropBox.style.width = '80%';
+                ocrCropBox.style.top = '85%';
+                ocrCropBox.style.height = '8%';
+
                 const videoUrl = data.result.original_video_url;
                 ocrVideoPlayer.src = videoUrl;
                 ocrVideoPlayer.load();
@@ -1120,28 +1126,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // Crop selection box dragging/resizing logic
     const ocrCropOverlay = document.getElementById('ocrCropOverlay');
     const ocrCropBox = document.getElementById('ocrCropBox');
+    const ocrGuideVertical = document.getElementById('ocrGuideVertical');
+    const ocrGuideHorizontal = document.getElementById('ocrGuideHorizontal');
     let isDragging = false;
-    let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom'
+    let dragType = 'move'; // 'move', 'resize-top', 'resize-bottom', 'resize-left', 'resize-right', etc.
+    let startX = 0;
     let startY = 0;
     let startTop = 85;   // percentage
     let startHeight = 8; // percentage
+    let startLeft = 10;   // percentage
+    let startWidth = 80; // percentage
 
     ocrCropBox.addEventListener('mousedown', (e) => {
         isDragging = true;
+        startX = e.clientX;
         startY = e.clientY;
 
         const rect = ocrCropBox.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
-        if (clickY <= 15) {
-            dragType = 'resize-top';
-        } else if (clickY >= rect.height - 15) {
-            dragType = 'resize-bottom';
-        } else {
-            dragType = 'move';
-        }
+
+        // Xác định kéo cạnh nào (ngưỡng 12px)
+        const border = 12;
+        const isLeft = clickX <= border;
+        const isRight = clickX >= rect.width - border;
+        const isTop = clickY <= border;
+        const isBottom = clickY >= rect.height - border;
+
+        if (isLeft && isTop) dragType = 'resize-topleft';
+        else if (isRight && isTop) dragType = 'resize-topright';
+        else if (isLeft && isBottom) dragType = 'resize-bottomleft';
+        else if (isRight && isBottom) dragType = 'resize-bottomright';
+        else if (isLeft) dragType = 'resize-left';
+        else if (isRight) dragType = 'resize-right';
+        else if (isTop) dragType = 'resize-top';
+        else if (isBottom) dragType = 'resize-bottom';
+        else dragType = 'move';
 
         startTop = parseFloat(ocrCropBox.style.top || '85');
         startHeight = parseFloat(ocrCropBox.style.height || '8');
+        startLeft = parseFloat(ocrCropBox.style.left || '10');
+        startWidth = parseFloat(ocrCropBox.style.width || '80');
 
         e.preventDefault();
     });
@@ -1150,29 +1175,91 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDragging) return;
 
         const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaX = ((e.clientX - startX) / overlayRect.width) * 100;
         const deltaY = ((e.clientY - startY) / overlayRect.height) * 100;
 
         if (dragType === 'move') {
             let newTop = startTop + deltaY;
+            let newLeft = startLeft + deltaX;
             newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+            newLeft = Math.max(0, Math.min(100 - startWidth, newLeft));
+
+            // Căn chỉnh tâm kiểu CapCut (Snapping & Guides)
+            const potentialCenterX = newLeft + startWidth / 2;
+            const potentialCenterY = newTop + startHeight / 2;
+            const snapThreshold = 1.5;
+
+            // Snap & Show vertical guide (center horizontally)
+            if (Math.abs(potentialCenterX - 50) < snapThreshold) {
+                newLeft = 50 - startWidth / 2;
+                if (ocrGuideVertical) ocrGuideVertical.classList.add('active');
+            } else {
+                if (ocrGuideVertical) ocrGuideVertical.classList.remove('active');
+            }
+
+            // Snap & Show horizontal guide (center vertically)
+            if (Math.abs(potentialCenterY - 50) < snapThreshold) {
+                newTop = 50 - startHeight / 2;
+                if (ocrGuideHorizontal) ocrGuideHorizontal.classList.add('active');
+            } else {
+                if (ocrGuideHorizontal) ocrGuideHorizontal.classList.remove('active');
+            }
+
             ocrCropBox.style.top = `${newTop}%`;
-        } else if (dragType === 'resize-top') {
-            let newTop = startTop + deltaY;
-            let newHeight = startHeight - deltaY;
-            if (newTop >= 0 && newHeight >= 5) {
+            ocrCropBox.style.left = `${newLeft}%`;
+        } else {
+            let newTop = startTop;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newWidth = startWidth;
+
+            // Xử lý chiều dọc (Y-axis)
+            if (dragType.includes('top')) {
+                newTop = startTop + deltaY;
+                newHeight = startHeight - deltaY;
+                if (newTop < 0) {
+                    newHeight = startTop + startHeight;
+                    newTop = 0;
+                }
+            } else if (dragType.includes('bottom')) {
+                newHeight = startHeight + deltaY;
+                if (startTop + newHeight > 100) {
+                    newHeight = 100 - startTop;
+                }
+            }
+
+            // Xử lý chiều ngang (X-axis)
+            if (dragType.includes('left')) {
+                newLeft = startLeft + deltaX;
+                newWidth = startWidth - deltaX;
+                if (newLeft < 0) {
+                    newWidth = startLeft + startWidth;
+                    newLeft = 0;
+                }
+            } else if (dragType.includes('right')) {
+                newWidth = startWidth + deltaX;
+                if (startLeft + newWidth > 100) {
+                    newWidth = 100 - startLeft;
+                }
+            }
+
+            // Giới hạn kích thước tối thiểu là 4%
+            const minSize = 4;
+            if (newHeight >= minSize) {
                 ocrCropBox.style.top = `${newTop}%`;
                 ocrCropBox.style.height = `${newHeight}%`;
             }
-        } else if (dragType === 'resize-bottom') {
-            let newHeight = startHeight + deltaY;
-            if (startTop + newHeight <= 100 && newHeight >= 5) {
-                ocrCropBox.style.height = `${newHeight}%`;
+            if (newWidth >= minSize) {
+                ocrCropBox.style.left = `${newLeft}%`;
+                ocrCropBox.style.width = `${newWidth}%`;
             }
         }
     });
 
     document.addEventListener('mouseup', () => {
         isDragging = false;
+        if (ocrGuideVertical) ocrGuideVertical.classList.remove('active');
+        if (ocrGuideHorizontal) ocrGuideHorizontal.classList.remove('active');
     });
 
     // Touch support for dragging on mobile devices
@@ -1180,20 +1267,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.touches.length !== 1) return;
         isDragging = true;
         const touch = e.touches[0];
+        startX = touch.clientX;
         startY = touch.clientY;
 
         const rect = ocrCropBox.getBoundingClientRect();
+        const clickX = touch.clientX - rect.left;
         const clickY = touch.clientY - rect.top;
-        if (clickY <= 20) {
-            dragType = 'resize-top';
-        } else if (clickY >= rect.height - 20) {
-            dragType = 'resize-bottom';
-        } else {
-            dragType = 'move';
-        }
+
+        // Ngưỡng to hơn một chút cho chạm tay trên di động
+        const border = 16;
+        const isLeft = clickX <= border;
+        const isRight = clickX >= rect.width - border;
+        const isTop = clickY <= border;
+        const isBottom = clickY >= rect.height - border;
+
+        if (isLeft && isTop) dragType = 'resize-topleft';
+        else if (isRight && isTop) dragType = 'resize-topright';
+        else if (isLeft && isBottom) dragType = 'resize-bottomleft';
+        else if (isRight && isBottom) dragType = 'resize-bottomright';
+        else if (isLeft) dragType = 'resize-left';
+        else if (isRight) dragType = 'resize-right';
+        else if (isTop) dragType = 'resize-top';
+        else if (isBottom) dragType = 'resize-bottom';
+        else dragType = 'move';
 
         startTop = parseFloat(ocrCropBox.style.top || '85');
         startHeight = parseFloat(ocrCropBox.style.height || '8');
+        startLeft = parseFloat(ocrCropBox.style.left || '10');
+        startWidth = parseFloat(ocrCropBox.style.width || '80');
 
         e.preventDefault();
     });
@@ -1202,29 +1303,91 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDragging || e.touches.length !== 1) return;
         const touch = e.touches[0];
         const overlayRect = ocrCropOverlay.getBoundingClientRect();
+        const deltaX = ((touch.clientX - startX) / overlayRect.width) * 100;
         const deltaY = ((touch.clientY - startY) / overlayRect.height) * 100;
 
         if (dragType === 'move') {
             let newTop = startTop + deltaY;
+            let newLeft = startLeft + deltaX;
             newTop = Math.max(0, Math.min(100 - startHeight, newTop));
+            newLeft = Math.max(0, Math.min(100 - startWidth, newLeft));
+
+            // Căn chỉnh tâm kiểu CapCut (Snapping & Guides)
+            const potentialCenterX = newLeft + startWidth / 2;
+            const potentialCenterY = newTop + startHeight / 2;
+            const snapThreshold = 1.5;
+
+            // Snap & Show vertical guide (center horizontally)
+            if (Math.abs(potentialCenterX - 50) < snapThreshold) {
+                newLeft = 50 - startWidth / 2;
+                if (ocrGuideVertical) ocrGuideVertical.classList.add('active');
+            } else {
+                if (ocrGuideVertical) ocrGuideVertical.classList.remove('active');
+            }
+
+            // Snap & Show horizontal guide (center vertically)
+            if (Math.abs(potentialCenterY - 50) < snapThreshold) {
+                newTop = 50 - startHeight / 2;
+                if (ocrGuideHorizontal) ocrGuideHorizontal.classList.add('active');
+            } else {
+                if (ocrGuideHorizontal) ocrGuideHorizontal.classList.remove('active');
+            }
+
             ocrCropBox.style.top = `${newTop}%`;
-        } else if (dragType === 'resize-top') {
-            let newTop = startTop + deltaY;
-            let newHeight = startHeight - deltaY;
-            if (newTop >= 0 && newHeight >= 5) {
+            ocrCropBox.style.left = `${newLeft}%`;
+        } else {
+            let newTop = startTop;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newWidth = startWidth;
+
+            // Xử lý chiều dọc (Y-axis)
+            if (dragType.includes('top')) {
+                newTop = startTop + deltaY;
+                newHeight = startHeight - deltaY;
+                if (newTop < 0) {
+                    newHeight = startTop + startHeight;
+                    newTop = 0;
+                }
+            } else if (dragType.includes('bottom')) {
+                newHeight = startHeight + deltaY;
+                if (startTop + newHeight > 100) {
+                    newHeight = 100 - startTop;
+                }
+            }
+
+            // Xử lý chiều ngang (X-axis)
+            if (dragType.includes('left')) {
+                newLeft = startLeft + deltaX;
+                newWidth = startWidth - deltaX;
+                if (newLeft < 0) {
+                    newWidth = startLeft + startWidth;
+                    newLeft = 0;
+                }
+            } else if (dragType.includes('right')) {
+                newWidth = startWidth + deltaX;
+                if (startLeft + newWidth > 100) {
+                    newWidth = 100 - startLeft;
+                }
+            }
+
+            // Giới hạn kích thước tối thiểu là 4%
+            const minSize = 4;
+            if (newHeight >= minSize) {
                 ocrCropBox.style.top = `${newTop}%`;
                 ocrCropBox.style.height = `${newHeight}%`;
             }
-        } else if (dragType === 'resize-bottom') {
-            let newHeight = startHeight + deltaY;
-            if (startTop + newHeight <= 100 && newHeight >= 5) {
-                ocrCropBox.style.height = `${newHeight}%`;
+            if (newWidth >= minSize) {
+                ocrCropBox.style.left = `${newLeft}%`;
+                ocrCropBox.style.width = `${newWidth}%`;
             }
         }
     });
 
     document.addEventListener('touchend', () => {
         isDragging = false;
+        if (ocrGuideVertical) ocrGuideVertical.classList.remove('active');
+        if (ocrGuideHorizontal) ocrGuideHorizontal.classList.remove('active');
     });
 
     // Resume execution handler
@@ -1235,8 +1398,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const y_start = parseFloat(ocrCropBox.style.top || '85') / 100;
         const y_height = parseFloat(ocrCropBox.style.height || '8') / 100;
         const y_end = y_start + y_height;
-        const x_start = parseFloat(ocrCropBox.style.left || '0') / 100;
-        const x_width = parseFloat(ocrCropBox.style.width || '100') / 100;
+        const x_start = parseFloat(ocrCropBox.style.left || '10') / 100;
+        const x_width = parseFloat(ocrCropBox.style.width || '80') / 100;
         const x_end = x_start + x_width;
 
         appendLogLine(`[GỬI CẤU HÌNH] Chạy quy trình tiếp tục: Dùng OCR = ${useOcr}, XY = [${x_start.toFixed(2)}-${x_end.toFixed(2)}, ${y_start.toFixed(2)}-${y_end.toFixed(2)}]`, 'info');

@@ -86,6 +86,9 @@ def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = Non
 
     context_hint = _build_context_hint(context)
 
+    rule_3 = "3. Vietnamese length should match the natural speaking pacing and duration of the original." if style == "dialogue" else "3. Vietnamese length must not exceed original by more than 10%."
+    rule_4 = "4. Translate into complete, natural spoken Vietnamese (\"đầy đủ từ như srt, nghĩa hay\"), avoiding over-compression." if style == "dialogue" else "4. Prefer short, natural, spoken Vietnamese over literal translation."
+
     return (
         "You are an expert subtitle translator. Translate each Chinese segment below into natural spoken Vietnamese.\n"
         "Return ONLY translations, one per line, in exact order. No numbers, no prefixes, no comments.\n\n"
@@ -96,8 +99,8 @@ def build_batch_prompt(ocr_texts: list, style: str = "default", topic: str = Non
         "CRITICAL RULES:\n"
         "1. Each block must be self-contained and natural when spoken alone.\n"
         "2. Keep translations concise — similar speaking duration as original.\n"
-        "3. Vietnamese length must not exceed original by more than 10%.\n"
-        "4. Prefer short, natural, spoken Vietnamese over literal translation.\n"
+        f"{rule_3}\n"
+        f"{rule_4}\n"
         "\n# TEXT TO TRANSLATE:\n" + batch_text
     )
 
@@ -129,6 +132,9 @@ def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = 
 
     context_hint = _build_context_hint(context)
 
+    rule_3 = "3. Vietnamese length should match the natural speaking pacing and duration of the original." if style == "dialogue" else "3. Vietnamese length must not exceed original by more than 10%."
+    rule_4 = "4. Translate into complete, natural spoken Vietnamese (\"đầy đủ từ như srt, nghĩa hay\"), avoiding over-compression." if style == "dialogue" else "4. Prefer short, natural, spoken Vietnamese over literal translation."
+
     return (
         "You are an expert subtitle translator and character roleplay adapter.\n"
         "Translate each Chinese segment below into natural spoken Vietnamese.\n\n"
@@ -139,8 +145,8 @@ def build_roleplay_prompt(ocr_texts: list, style: str = "default", topic: str = 
         "CRITICAL RULES:\n"
         "1. Each block must be self-contained and natural when spoken alone.\n"
         "2. Keep translations concise — similar speaking duration as original.\n"
-        "3. Vietnamese length must not exceed original by more than 10%.\n"
-        "4. Prefer short, natural, spoken Vietnamese over literal translation.\n\n"
+        f"{rule_3}\n"
+        f"{rule_4}\n\n"
         "ROLEPLAY & OUTPUT INSTRUCTIONS:\n"
         "- Predict speakers for each block (Speaker A for female/default, Speaker B for male/others).\n"
         "- Return a JSON object matching the requested schema containing 'translation' and 'speaker' for each block in exact order.\n\n"
