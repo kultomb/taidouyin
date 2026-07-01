@@ -335,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnGetCookieDouyin = document.getElementById('btnGetCookieDouyin');
     const btnGetCookieBilibili = document.getElementById('btnGetCookieBilibili');
+    const btnGetCookieYoutube = document.getElementById('btnGetCookieYoutube');
 
     const processingCard = document.getElementById('processingCard');
     const currentSubStep = document.getElementById('currentSubStep');
@@ -489,6 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnGetCookieBilibili) {
         btnGetCookieBilibili.addEventListener('click', () => handleLogin(btnGetCookieBilibili, 'bilibili'));
     }
+    if (btnGetCookieYoutube) {
+        btnGetCookieYoutube.addEventListener('click', () => handleLogin(btnGetCookieYoutube, 'youtube'));
+    }
 
     // ─── Import file button inside URL input ───────────────────────────
     const btnImportFile = document.getElementById('btnImportFile');
@@ -516,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fileBadge.classList.add('hidden');
         videoUrlInput.required = true;
         videoUrlInput.removeAttribute('disabled');
-        videoUrlInput.placeholder = 'Dán liên kết Douyin, Bilibili hoặc chọn file video...';
+        videoUrlInput.placeholder = 'Dán liên kết Douyin, Bilibili, YouTube hoặc chọn file video...';
     });
 
     async function uploadFile(file) {

@@ -54,6 +54,18 @@ class MultiPlatformCookieWindow(QMainWindow):
                 "2. Hoàn thành kéo captcha (nếu có) trên màn hình.<br/>"
                 "3. Khi đã đăng nhập xong và hiển thị Avatar của bạn, bấm nút <b>LƯU COOKIE & ĐÓNG</b> bên dưới."
             )
+        elif self.platform == "youtube":
+            self.setWindowTitle("Trình Xác Thực Cookie YouTube (FastAPI SaaS)")
+            self.filter_domain = "youtube.com"
+            self.target_url = "https://www.youtube.com"
+            self.success_cookies = ("SID", "LOGIN_INFO")
+            self.platform_name = "YouTube"
+            instructions = (
+                "<b>HƯỚNG DẪN XÁC THỰC YOUTUBE:</b><br/>"
+                "1. Vui lòng đăng nhập tài khoản Google / YouTube của bạn ở cửa sổ bên dưới.<br/>"
+                "2. Thực hiện các bước xác minh 2 lớp (nếu có) do Google yêu cầu.<br/>"
+                "3. Khi đã đăng nhập xong và hiển thị trang chủ YouTube ở trạng thái đăng nhập, bấm nút <b>LƯU COOKIE & ĐÓNG</b> bên dưới."
+            )
         else:  # Mặc định là douyin
             self.setWindowTitle("Trình Xác Thực Cookie Douyin (FastAPI SaaS)")
             self.filter_domain = "douyin.com"
@@ -118,7 +130,6 @@ class MultiPlatformCookieWindow(QMainWindow):
         self.profile.setHttpUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
         self.cookie_store = self.profile.cookieStore()
-        # Không xóa sạch cookie cũ để tránh bắt người dùng đăng nhập lại nếu họ đã đăng nhập trước đó
         self.cookie_store.cookieAdded.connect(self.on_cookie_added)
 
         # Tải trang
@@ -133,8 +144,15 @@ class MultiPlatformCookieWindow(QMainWindow):
 
     def on_cookie_added(self, cookie: QNetworkCookie):
         domain = cookie.domain()
-        if self.filter_domain not in domain:
-            return
+        
+        # Lọc tên miền tương ứng
+        if self.platform == "youtube":
+            # Cho phép cả google.com và youtube.com vì đăng nhập YouTube phụ thuộc Google
+            if "youtube.com" not in domain and "google.com" not in domain:
+                return
+        else:
+            if self.filter_domain not in domain:
+                return
 
         name = cookie.name().data().decode("utf-8", errors="ignore")
         if not name or not name.strip():

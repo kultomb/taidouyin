@@ -443,6 +443,8 @@ def download_douyin_video(url: str, output_dir: str = "output/downloads", resolu
         headers['Referer'] = 'https://www.bilibili.com/'
     elif "douyin.com" in clean_url:
         headers['Referer'] = 'https://www.douyin.com/'
+    elif "youtube.com" in clean_url or "youtu.be" in clean_url:
+        headers['Referer'] = 'https://www.youtube.com/'
 
     ydl_opts = {
         'format': fmt,
