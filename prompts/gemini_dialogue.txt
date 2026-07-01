@@ -37,11 +37,14 @@ Each block will be voiced separately by TTS.
 - End each block with period (`.`), comma (`,`), question mark (`?`), exclamation (`!`), or natural sentence-ending particle.
 - If a sentence is split across blocks, just let each fragment be a natural standalone phrase.
 
-5. AGGRESSIVE CONCISION FOR TTS TIMING
-Vietnamese is ~30% longer than Chinese/English. To fit the timestamp:
-- Remove unnecessary repetition, fillers, and redundant modifiers.
-- Use the shortest, most natural spoken expression.
-- Keep emotional words and key meaning.
+5. STRICT SYLLABLE BUDGET FOR DIALOGUE TIMING (CRITICAL)
+Vietnamese is naturally longer than Chinese/English, which causes TTS audio overlap. To keep speakers' dialogue tight and prevent overlap:
+- Calculate the duration of each block: duration = end_time - start_time.
+- Strictly limit your translation to a maximum of 3 to 4 syllables per second.
+  Formula: Max Syllables = duration_seconds * 4.
+  Example: 1.0s block = max 4 syllables (e.g., "Em đi đây." [3] or "Cậu làm gì thế?" [4]).
+  Example: 2.0s block = max 8 syllables (e.g., "Hôm nay em nhớ anh lắm." [6] or "Chúng ta không thể làm vậy." [7]).
+- Do NOT translate literally. Translate into the shortest possible natural Vietnamese expression that conveys the core emotional meaning. Remove all filler words, greetings, or auxiliary verbs.
 - Each block MUST be speakable comfortably within its duration.
 
 6. VIETNAMESE-SPECIFIC LOCALIZATION
