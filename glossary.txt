@@ -1,6 +1,5 @@
 MOSFET = MOSFET
 VBAT = VBAT
-GR = GR
 Số bảo mật = imei
 log = log
 Fluctuating DC reading = dòng DC dao động
