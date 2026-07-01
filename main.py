@@ -178,7 +178,7 @@ class TranslateRequest(BaseModel):
     voice_female: Optional[str] = None  # Giọng Nữ khi chọn tự động phân vai
     voice_male: Optional[str] = None    # Giọng Nam khi chọn tự động phân vai
     topic: Optional[str] = None  # Chủ đề video (vd: sửa điện thoại, tây du ký, review...)
-    tts_speed: float = 1.20  # Tốc độ giọng đọc (1.0 = bình thường, 1.2 = nhanh 20%)
+    tts_speed: float = 1.40  # Tốc độ giọng đọc (1.0 = bình thường, 1.4 = nhanh 40%)
     translate_style: str = "default"  # Phong cách dịch: default, dialogue, review, tutorial
     context: Optional[str] = None  # Bối cảnh video để AI hiểu nội dung (vd: phim Tây Du Ký, có Natra...)
     subtitle_style: Optional[Dict] = None  # Style ASS subtitle {font, fontsize, color, position}
@@ -691,7 +691,7 @@ def run_pipeline_phase2(job_id: str, use_ocr: bool, y_start: float, y_end: float
             burn_subtitles=burn_subtitles,
             srt_path=srt_path,
             srt_original_path=srt_original_path,
-            tts_speed=tts_speed
+            tts_speed=1.0
         )
         
         # Dọn dẹp file trung gian (Bọc try-except để tránh lỗi Lock file trên Windows làm hỏng tiến độ)

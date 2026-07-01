@@ -87,7 +87,7 @@ def mix_audio_and_video(
     burn_subtitles: bool = False,
     srt_path: str = None,
     srt_original_path: str = None,
-    tts_speed: float = 1.2
+    tts_speed: float = 1.0
 ) -> list:
     """
     Mixes the original video, original audio (reduced volume for background music),
@@ -172,7 +172,7 @@ def mix_audio_and_video(
         logger.error(f"ffmpeg error during mixing: {e.stderr}")
         raise e
 
-def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float, tts_speed: float = 1.2) -> list:
+def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float, tts_speed: float = 1.0) -> list:
     """
     Trộn tất cả các phân đoạn TTS vào một tệp âm thanh duy nhất bằng cách đặt chúng
     chính xác tại mốc thời gian bắt đầu (start) của câu thoại gốc thông qua bộ lọc 'adelay' và 'amix'.
@@ -272,7 +272,7 @@ def _build_atempo_filter(speed_factor: float) -> str:
         factors.append(temp)
     return ",".join([f"atempo={f:.4f}" for f in factors])
 
-def _compute_actual_timeline(segments: list, tts_speed: float = 1.2) -> list:
+def _compute_actual_timeline(segments: list, tts_speed: float = 1.0) -> list:
     """
     Tính timeline THÔNG MINH đồng bộ với hành động video và TRÁNH TRÙNG LẶP/ĐÈ PHÁT ÂM (nhại):
     

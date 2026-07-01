@@ -46,13 +46,17 @@ ALL_GOOGLE_VOICES = {
     "vi-VN-Wavenet-D":   {"gender": "male",   "label": "Wavenet D (Nam SG)"},
 }
 
-# Giọng mặc định phân vai (female / male)
-_voice_list_female = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "female"]
-_voice_list_male   = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "male"]
+# Giọng mặc định phân vai (female / male) - khóa giọng miền Bắc
+_voice_list_female = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "female" and "HN" in info["label"]]
+_voice_list_male   = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "male" and "HN" in info["label"]]
+if not _voice_list_female:
+    _voice_list_female = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "female"]
+if not _voice_list_male:
+    _voice_list_male = [v for v, info in ALL_GOOGLE_VOICES.items() if info["gender"] == "male"]
 
 GOOGLE_VOICES = {
     "female": _voice_list_female[0] if _voice_list_female else "vi-VN-Neural2-A",
-    "male":   _voice_list_male[0]   if _voice_list_male   else "vi-VN-Neural2-D",
+    "male":   _voice_list_male[0]   if _voice_list_male   else "vi-VN-Standard-B",
     "default": _voice_list_female[0] if _voice_list_female else "vi-VN-Neural2-A",
 }
 
@@ -200,11 +204,15 @@ class EdgeTTSProvider:
     """edge-tts: miễn phí, Microsoft Neural voices."""
     name = "edge"
 
-    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
         voice = voice_name if voice_name else get_edge_voice(speaker, voice_map)
-        logger.info(f"[edge-tts] '{text[:30]}...' -> {voice}")
+        if tts_speed >= 1.0:
+            rate_str = f"+{int((tts_speed - 1.0) * 100)}%"
+        else:
+            rate_str = f"-{int((1.0 - tts_speed) * 100)}%"
+        logger.info(f"[edge-tts] '{text[:30]}...' -> {voice} (rate={rate_str})")
         async def _run():
-            await edge_tts.Communicate(text, voice).save(output_path)
+            await edge_tts.Communicate(text, voice, rate=rate_str).save(output_path)
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(_run())
@@ -226,10 +234,10 @@ class GoogleTTSProvider:
             self._client = texttospeech.TextToSpeechClient()
         return self._client
 
-    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
         from google.cloud import texttospeech
         voice_name_actual = voice_name if voice_name else get_google_voice(speaker, voice_map)
-        logger.info(f"[Google TTS] '{text[:30]}...' -> {voice_name_actual}")
+        logger.info(f"[Google TTS] '{text[:30]}...' -> {voice_name_actual} (speed={tts_speed})")
 
         synthesis_input = texttospeech.SynthesisInput(text=text)
         voice = texttospeech.VoiceSelectionParams(
@@ -238,7 +246,7 @@ class GoogleTTSProvider:
         )
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=1.0,
+            speaking_rate=tts_speed,
         )
 
         response = self.client.synthesize_speech(
@@ -350,7 +358,7 @@ class GeminiTTSProvider:
             )
         return self._client
 
-    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+    def synthesize(self, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
         from google.genai import types
 
         voice_name_actual = pick_gemini_voice(speaker, voice_map, voice_name)
@@ -436,22 +444,26 @@ class GeminiTTSProvider:
 # Số segment TTS chạy song song (edge-tts: 10, Google TTS: 5, Gemini: 1 để tránh rate limit)
 TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 1}
 
-async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
     """edge-tts async wrapper."""
     voice = voice_name if voice_name else get_edge_voice(speaker, voice_map)
-    await edge_tts.Communicate(text, voice).save(output_path)
+    if tts_speed >= 1.0:
+        rate_str = f"+{int((tts_speed - 1.0) * 100)}%"
+    else:
+        rate_str = f"-{int((1.0 - tts_speed) * 100)}%"
+    await edge_tts.Communicate(text, voice, rate=rate_str).save(output_path)
 
-def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
     """Google TTS sync wrapper (dùng trong thread pool)."""
-    tts.synthesize(text, speaker, output_path, voice_map, voice_name)
+    tts.synthesize(text, speaker, output_path, voice_map, voice_name, tts_speed)
 
-def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None):
+def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
     """Gemini TTS sync wrapper với retry mạnh - KHÔNG đổi giọng, KHÔNG bỏ cuộc dễ."""
     import time as _time
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            tts.synthesize(text, speaker, output_path, voice_map, voice_name)
+            tts.synthesize(text, speaker, output_path, voice_map, voice_name, tts_speed)
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 return
             raise Exception("Output file empty")
@@ -500,14 +512,14 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
             try:
                 if provider == "gemini":
                     await loop.run_in_executor(
-                        None, _synthesize_gemini_sync, tts, text, speaker, file_path, voice_map, voice_name
+                        None, _synthesize_gemini_sync, tts, text, speaker, file_path, voice_map, voice_name, tts_speed
                     )
                 elif provider == "google":
                     await loop.run_in_executor(
-                        None, _synthesize_google_sync, tts, text, speaker, file_path, voice_map, voice_name
+                        None, _synthesize_google_sync, tts, text, speaker, file_path, voice_map, voice_name, tts_speed
                     )
                 else:
-                    await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name)
+                    await _synthesize_edge_async(text, speaker, file_path, voice_map, voice_name, tts_speed)
                 
                 if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                     success_segment = True
@@ -526,7 +538,9 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                     if success_trim and os.path.exists(trimmed_file_path):
                         os.replace(trimmed_file_path, file_path)
 
-                    # Do NOT run speed_up_tts here. We will apply the speed factor in a single pass in audio_processor.py.
+                    # Apply speed factor for Gemini (Google and Edge native speed handles it)
+                    if provider == "gemini" and abs(tts_speed - 1.0) > 0.01:
+                        await loop.run_in_executor(None, speed_up_tts, file_path, tts_speed)
                     actual_duration = await loop.run_in_executor(None, get_audio_duration, file_path)
                     
                     async with lock:

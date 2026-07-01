@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceFemale = (selectedTtsProvider === 'edge') ? selectedEdgeFemale : (selectedTtsProvider === 'gemini' ? selectedGeminiFemale : selectedGoogleFemale);
         const voiceMale = (selectedTtsProvider === 'edge') ? selectedEdgeMale : (selectedTtsProvider === 'gemini' ? selectedGeminiMale : selectedGoogleMale);
         const ttsSpeedEl = document.getElementById('ttsSpeed');
-        const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.2;
+        const ttsSpeed = ttsSpeedEl ? parseFloat(ttsSpeedEl.value) : 1.4;
         const context = getContextValue();
 
         // Reset UI States

@@ -371,7 +371,8 @@ class DubbingPipeline:
                 bg_volume=bg_volume,
                 burn_subtitles=burn_subtitles,
                 srt_path=srt_path,
-                srt_original_path=srt_original_path
+                srt_original_path=srt_original_path,
+                tts_speed=1.0
             )
 
             # Cleanup temp files

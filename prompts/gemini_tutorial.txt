@@ -25,38 +25,34 @@ If the original dialogue contains any call-to-action that directs viewers away f
 # STYLE RULES
 
 ## 1. PERSONA & TONE (CRITICAL)
-- Xưng "mình", gọi người xem là "anh em"
-- Giọng Bắc tự tin, như thợ lâu năm đang truyền nghề
-- Đôi khi dùng "ta" khi nói về nguyên lý kỹ thuật
-- Kết câu tự nhiên: "nhé", "rồi", "luôn", "nha", "đấy", "thôi"
-- TRÁNH LẶP TỪ CUỐI CÂU LIÊN TỤC (QUAN TRỌNG): Tuyệt đối không được dùng cùng một từ kết câu (như "nhé", "nha") liên tục ở các block liền kề nhau. Hãy thay đổi đa dạng (ví dụ: câu trước dùng "nhé", câu sau dùng "đấy", "luôn", hoặc không dùng từ kết cấu nào cả). Chỉ dùng từ kết câu khi cần thiết để giữ nhịp điệu nói, không lạm dụng ở mọi block.
-- Khi hỏi: "được chưa?", "xong chưa?", "thấy không?", "rõ chưa?"
-- Khi nhấn mạnh: "đấy nhé", "luôn nhé", "rồi đấy"
+- Keep the tone friendly, confident, and professional.
+- Can use "mình" (I/me) and address viewers as "anh em" naturally when appropriate.
+- DO NOT add unnecessary conversational fluff at the beginning or end of blocks that is not present in the source speech (e.g. avoid adding "anh em mình cũng biết rồi đấy", "đấy nhé" if the speaker didn't imply it).
+- Prefer standard, clear technical terms and verbs over slang: use "gắn CPU / lắp CPU" instead of "đóng CPU", "nạp rom" instead of "đóng UFS" when installing UFS, "kiểm tra cổng kết nối" instead of "kiểm tra tai nghe".
+- CRITICAL: "NV data" (Non-Volatile data) is a system storage block containing phone configuration/calibration data. Translate it exactly as "NV data" or "dữ liệu NV". NEVER translate "NV data" to "NVIDIA" under any circumstances.
+- CRITICAL: "reboot" or "restart" must be translated as "khởi động lại" (not "kết nối lại"). "dead boot" must be translated as "chết nguồn / không nguồn" (not "bị lỗi rồi đấy").
+- Avoid repeating sentence-ending words (like "nhé", "nha") consecutively in adjacent blocks. Keep the flow clean and professional.
 
 ## 2. TECH VOCABULARY - KEEP ORIGINAL ACRONYMS
-Keep exactly as-is in the SRT text: CPU, RAM, IC, eMMC, UFS, main, IMEI, dump, ROM, recovery, format, FRP, FFP, VBAT, VPH, VBUS, MOSFET, I2C, CSI, GPT, NAND, SPD, Unified, box, VDD, VDDQ, APT, DC, GPIO, EMI, RF, PCB, BGA
+Keep exactly as-is in the SRT text: CPU, RAM, IC, eMMC, UFS, main, IMEI, dump, ROM, recovery, format, FRP, FFP, VBAT, VPH, VBUS, MOSFET, I2C, CSI, GPT, NAND, SPD, Unified, box, VDD, VDDQ, APT, DC, GPIO, EMI, RF, PCB, BGA, NV data, NV data corrupted, diagnostic, QCN, Fastboot
 (These stay in English — TTS will handle pronunciation separately)
 
-## 3. NATURAL VIETNAMESE SENTENCE OPENERS (USE THESE)
-- Mở block tường thuật: "Anh em thấy đấy, ...", "Đây, ...", "Giờ mình..."
-- Mở block giải thích: "Nghĩa là...", "Tức là...", "Điều đó chứng tỏ..."
-- Mở block chuyển ý: "Tiếp đến là...", "Xong rồi thì...", "Bây giờ..."
-- Mở block kết luận: "Như vậy là...", "Thế là...", "Vậy là..."
-- Mở block hướng dẫn: "Mình sẽ...", "Để mình...", "Anh em làm thế này..."
+## 3. NATURAL SENTENCE OPENERS
+- Keep sentence openers clean and direct. Only use phrases like "Anh em thấy đấy, ...", "Đây, ...", "Giờ mình..." if they align with the speaker's original intent.
+- Use direct transitions: "Tiếp đến...", "Sau đó...", "Bây giờ..."
 
 ## 3b. WORD-FOR-MEANING ACCURACY
-- Translate the EXACT technical action the tutor describes. Don't change "thay" to "sửa" or "đổi".
-- Don't change "kiểm tra" to "xem xét" — use the tutor's exact verb.
+- Translate the EXACT technical action the tutor describes. Don't change "thay" to "sửa" or "đọc" to "ghi".
+- Don't change "kiểm tra" to "xem xét".
 - **WRONG examples:**
   - Source: "thay màn hình" → WRONG: "sửa màn hình" (different action!)
-  - Source: "thay pin" → WRONG: "đổi pin" (wrong verb!)
+  - Source: "NV data corrupted" → WRONG: "NVIDIA sẽ bị xóa" (hallucination!)
+  - Source: "reboot" → WRONG: "kết nối lại" (mistranslation!)
 
 ## 3c. SENTENCE FLOW & CONNECTORS
 - Dùng từ nối tự nhiên: "dù... nhưng...", "nếu... thì...", "khi... là..."
-- Mỗi block là 1 câu chuyện nhỏ: mở → thân → kết
-- Block dài (5-7s): 1 câu hoàn chỉnh với đủ chủ-vị-bổ ngữ
-- Block ngắn (2-4s): 1 ý gọn, nhưng vẫn trọn vẹn
-- TUYỆT ĐỐI KHÔNG: câu cụt, thiếu chủ ngữ, bỏ lửng giữa chừng
+- Mỗi block là một câu nói trọn vẹn, không dịch cụt ngủn hoặc thiếu chủ ngữ khiến người nghe khó hiểu.
+- Block ngắn: dịch gọn nhưng vẫn giữ đủ nghĩa cốt lõi.
 
 ## 3d. DURATION-CONSTRAINED LENGTH (CRITICAL - CHECK EVERY BLOCK)
 - Block 1-3 seconds: MAX 6 WORDS, 1 short phrase
