@@ -175,7 +175,8 @@ def mix_audio_and_video(
 def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: float, tts_speed: float = 1.0) -> list:
     """
     Trộn tất cả các phân đoạn TTS vào một tệp âm thanh duy nhất bằng cách đặt chúng
-    chính xác tại mốc thời gian bắt đầu (start) của câu thoại gốc thông qua bộ lọc 'adelay' và 'amix'.
+    chính xác tại mốc thời gian bắt đầu (start) của câu thoại gốc thông qua danh sách concat.
+    Sử dụng kỹ thuật concat demuxer của FFmpeg để tránh giới hạn độ dài câu lệnh trên Windows (WinError 206).
     """
     logger.info(f"Pre-mixing {len(tts_segments)} TTS segments at exact absolute offsets...")
     
@@ -188,54 +189,54 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
         _generate_silence(output_path, max(1.0, video_duration))
         return actual_timeline
 
-    # Bước 2: Tạo danh sách đầu vào và xây dựng chuỗi bộ lọc phức hợp (filter_complex)
-    cmd = ["ffmpeg", "-y"]
-    
-    # Tạo tệp tin âm lặng nền có độ dài bằng đúng video_duration để làm nền (tránh lavfi sync issues)
+    # Bước 2: Tạo tệp tin âm lặng nền có độ dài bằng đúng video_duration để làm mốc cắt
     silence_base_path = os.path.join(tempfile.gettempdir(), "_silence_base.mp3")
     _generate_silence(silence_base_path, video_duration)
+
+    # Bước 3: Tạo danh sách các dòng cho file concat.txt
+    concat_lines = []
+    last_end = 0.0
     
-    # Đầu vào 0: tệp âm lặng nền
-    cmd.extend(["-i", silence_base_path])
-    
-    # Thêm các file âm thanh TTS làm đầu vào tiếp theo (từ 1 đến N)
     for seg in valid_segments:
-        cmd.extend(["-i", seg["audio_path"]])
+        start = seg["actual_start"]
+        # Thêm khoảng lặng trước câu thoại (nếu có)
+        gap = start - last_end
+        if gap > 0.01:
+            escaped_silence = silence_base_path.replace("\\", "/").replace("'", "'\\''")
+            concat_lines.append(f"file '{escaped_silence}'")
+            concat_lines.append(f"inpoint 0.0")
+            concat_lines.append(f"outpoint {gap:.3f}")
+            
+        # Thêm câu thoại
+        escaped_audio = seg["audio_path"].replace("\\", "/").replace("'", "'\\''")
+        concat_lines.append(f"file '{escaped_audio}'")
+        last_end = seg["actual_end"]
         
-    # Xây dựng filter_complex
-    filter_parts = []
-    mix_labels = ["[0:a]"]
-    
-    for idx, seg in enumerate(valid_segments):
-        input_label = f"[{idx+1}:a]"
-        output_label = f"[delayed_{idx}]"
-        
-        delay_ms = int(seg["actual_start"] * 1000)
-        delay_ms = max(0, delay_ms)
-        
-        # Nếu delay_ms > 0 thì dùng adelay, ngược lại dùng anull để tránh lỗi trên một số phiên bản ffmpeg
-        if delay_ms > 0:
-            filter_parts.append(f"{input_label}adelay={delay_ms}|{delay_ms}{output_label}")
-        else:
-            filter_parts.append(f"{input_label}anull{output_label}")
-        mix_labels.append(output_label)
-        
-    # Trộn tất cả luồng đã được delay với nền âm lặng (Sử dụng normalize=0 để giữ nguyên âm lượng gốc)
-    filter_parts.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:dropout_transition=0:normalize=0[out]")
-    
-    # Ghi filter_complex ra tệp script tạm thời để tránh giới hạn độ dài dòng lệnh trên Windows
-    filter_script_path = os.path.join(tempfile.gettempdir(), "_tts_filter_script.txt")
-    with open(filter_script_path, "w", encoding="utf-8") as f:
-        f.write(";\n".join(filter_parts))
-        
-    cmd.extend(["-filter_complex_script", filter_script_path])
-    cmd.extend(["-map", "[out]"])
-    cmd.extend(["-c:a", "libmp3lame", "-q:a", "2", output_path])
+    # Thêm khoảng lặng ở cuối để lấp đầy video_duration (nếu cần)
+    if last_end < video_duration:
+        gap = video_duration - last_end
+        if gap > 0.01:
+            escaped_silence = silence_base_path.replace("\\", "/").replace("'", "'\\''")
+            concat_lines.append(f"file '{escaped_silence}'")
+            concat_lines.append(f"inpoint 0.0")
+            concat_lines.append(f"outpoint {gap:.3f}")
+
+    concat_script_path = os.path.join(tempfile.gettempdir(), "_tts_concat_script.txt")
+    with open(concat_script_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(concat_lines))
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", concat_script_path,
+        "-c:a", "libmp3lame", "-q:a", "2",
+        output_path
+    ]
     
     try:
-        logger.info(f"Running ffmpeg absolute offset mixing with filter script: {filter_script_path}")
+        logger.info(f"Running ffmpeg concat premix with script: {concat_script_path}")
         subprocess.run(cmd, capture_output=True, check=True, timeout=120)
-        logger.info("TTS pre-mix at exact absolute offsets completed successfully.")
+        logger.info("TTS pre-mix via concat completed successfully.")
     except subprocess.CalledProcessError as e:
         logger.error(f"TTS pre-mix failed: {e.stderr.decode() if e.stderr else e}")
         _generate_silence(output_path, max(1.0, video_duration))
@@ -246,10 +247,10 @@ def _premix_tts_segments(tts_segments: list, output_path: str, video_duration: f
                 os.remove(silence_base_path)
             except OSError:
                 pass
-        # Dọn dẹp tệp filter script tạm
-        if os.path.exists(filter_script_path):
+        # Dọn dẹp tệp concat script
+        if os.path.exists(concat_script_path):
             try:
-                os.remove(filter_script_path)
+                os.remove(concat_script_path)
             except OSError:
                 pass
                 

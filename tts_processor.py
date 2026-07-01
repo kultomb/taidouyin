@@ -175,22 +175,24 @@ def _apply_atempo(input_path: str, output_path: str, atempo: float, log_msg: str
 
 
 def trim_silence(input_path: str, output_path: str) -> bool:
-    """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file audio bằng FFmpeg silenceremove.
+    """Cắt khoảng lặng ở ĐẦU VÀ CUỐI file audio bằng FFmpeg silenceremove (không cắt ở giữa).
     Hỗ trợ cả MP3, WAV, PCM từ Gemini TTS.
-    stop_periods=-1: tự động lặp cho đến khi hết khoảng lặng ở cuối.
-    stop_threshold=-40dB: ngưỡng cao hơn để cắt đuôi lặng triệt để hơn.
-    stop_duration=0.1: cắt khi im lặng > 100ms."""
+    Sử dụng kỹ thuật areverse để xóa khoảng lặng ở cuối mà không ảnh hưởng đến phần giữa câu thoại.
+    Ngưỡng -50dB đảm bảo không cắt phạm vào âm gió/âm nhẹ."""
     # Luôn re-encode ra MP3 để đảm bảo định dạng đồng nhất
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-af", "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-40dB:stop_duration=0.1",
+        "-af", "silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse",
         "-c:a", "libmp3lame", "-q:a", "2",
         "-ar", "44100",  # chuẩn hóa sample rate
         output_path
     ]
     try:
         subprocess.run(cmd, capture_output=True, check=True, timeout=15)
-        return True
+        # Chỉ coi là trim thành công nếu file output tồn tại và có dung lượng lớn hơn 0
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            return True
+        return False
     except Exception as e:
         logger.warning(f"Failed to trim silence for {input_path}: {e}")
         return False
@@ -445,17 +447,47 @@ class GeminiTTSProvider:
 TTS_CONCURRENCY = {"edge": 10, "google": 5, "gemini": 1}
 
 async def _synthesize_edge_async(text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
-    """edge-tts async wrapper."""
+    """edge-tts async wrapper với cơ chế retry mạnh mẽ."""
     voice = voice_name if voice_name else get_edge_voice(speaker, voice_map)
     if tts_speed >= 1.0:
         rate_str = f"+{int((tts_speed - 1.0) * 100)}%"
     else:
         rate_str = f"-{int((1.0 - tts_speed) * 100)}%"
-    await edge_tts.Communicate(text, voice, rate=rate_str).save(output_path)
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            await edge_tts.Communicate(text, voice, rate=rate_str).save(output_path)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return
+            raise Exception("Output file empty or not created")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                delay = (attempt + 1) * 3  # 3s, 6s, 9s, 12s
+                logger.warning(f"[edge-tts] Retry {attempt+1}/{max_retries} after {delay}s for speaker='{speaker}': {e}")
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"[edge-tts] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
+                raise
 
 def _synthesize_google_sync(tts: GoogleTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
-    """Google TTS sync wrapper (dùng trong thread pool)."""
-    tts.synthesize(text, speaker, output_path, voice_map, voice_name, tts_speed)
+    """Google TTS sync wrapper với cơ chế retry mạnh mẽ."""
+    import time as _time
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            tts.synthesize(text, speaker, output_path, voice_map, voice_name, tts_speed)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return
+            raise Exception("Output file empty or not created")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                delay = (attempt + 1) * 3  # 3s, 6s, 9s, 12s
+                logger.warning(f"[Google TTS] Retry {attempt+1}/{max_retries} after {delay}s for speaker='{speaker}': {e}")
+                _time.sleep(delay)
+            else:
+                logger.error(f"[Google TTS] FAILED after {max_retries} retries for speaker='{speaker}': {e}")
+                raise
 
 def _synthesize_gemini_sync(tts: GeminiTTSProvider, text: str, speaker: str, output_path: str, voice_map: dict = None, voice_name: str = None, tts_speed: float = 1.0):
     """Gemini TTS sync wrapper với retry mạnh - KHÔNG đổi giọng, KHÔNG bỏ cuộc dễ."""
@@ -532,11 +564,16 @@ async def _generate_tts_concurrent(subtitles: list, output_dir: str, provider: s
                 try:
                     # Cắt bỏ khoảng lặng đầu/cuối của file âm thanh vừa tạo
                     trimmed_file_path = file_path + ".trimmed.mp3"
-                    success_trim = await loop.run_in_executor(
-                        None, trim_silence, file_path, trimmed_file_path
-                    )
-                    if success_trim and os.path.exists(trimmed_file_path):
-                        os.replace(trimmed_file_path, file_path)
+                    try:
+                        success_trim = await loop.run_in_executor(
+                            None, trim_silence, file_path, trimmed_file_path
+                        )
+                        if success_trim and os.path.exists(trimmed_file_path) and os.path.getsize(trimmed_file_path) > 0:
+                            os.replace(trimmed_file_path, file_path)
+                        else:
+                            logger.warning(f"Trim silence failed or produced empty file for segment {idx}, using original untrimmed TTS")
+                    except Exception as trim_e:
+                        logger.warning(f"Trim silence error for segment {idx}, using original untrimmed TTS: {trim_e}")
 
                     # Apply speed factor for Gemini (Google and Edge native speed handles it)
                     if provider == "gemini" and abs(tts_speed - 1.0) > 0.01:
