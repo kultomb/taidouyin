@@ -582,7 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (srtFileInput) srtFileInput.value = '';
         fileBadge.classList.add('hidden');
         if (srtSelectedBadge) srtSelectedBadge.classList.add('hidden');
-        if (srtUploadContainer) srtUploadContainer.classList.add('hidden');
+        if (srtUploadContainer) srtUploadContainer.classList.remove('hidden');
         
         videoUrlInput.required = true;
         videoUrlInput.removeAttribute('disabled');
