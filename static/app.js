@@ -501,6 +501,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNameEl = document.getElementById('selectedFileName');
     const fileRemoveBtn = document.getElementById('fileRemoveBtn');
     let importedFilePath = null;
+    let importedSrtPath = null;
+    let detectedSrtPath = null;
+    let originalFilename = null;
+
+    const srtSelectedBadge = document.getElementById('srtSelectedBadge');
+    const selectedSrtName = document.getElementById('selectedSrtName');
+    const srtRemoveBtn = document.getElementById('srtRemoveBtn');
+    const srtUploadContainer = document.getElementById('srtUploadContainer');
+    const btnSelectSrtManual = document.getElementById('btnSelectSrtManual');
+    const srtFileInput = document.getElementById('srtFileInput');
 
     btnImportFile.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -509,15 +519,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
     videoFileInput.addEventListener('change', async () => {
         if (videoFileInput.files.length > 0) {
-            await uploadFile(videoFileInput.files[0]);
+            const files = Array.from(videoFileInput.files);
+            // Tìm file video và file srt trong tập hợp các file được chọn
+            const videoFile = files.find(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv'].includes(ext);
+            });
+            const srtFile = files.find(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ext === 'srt';
+            });
+
+            if (videoFile) {
+                // Tải video lên trước
+                await uploadFile(videoFile);
+                
+                // Nếu có file srt đi kèm
+                if (srtFile) {
+                    await uploadSrtFile(srtFile);
+                }
+            } else if (srtFile) {
+                // Nếu chỉ chọn mỗi file phụ đề
+                await uploadSrtFile(srtFile);
+            }
         }
     });
+
+    if (btnSelectSrtManual) {
+        btnSelectSrtManual.addEventListener('click', (e) => {
+            e.stopPropagation();
+            srtFileInput.click();
+        });
+    }
+
+    if (srtFileInput) {
+        srtFileInput.addEventListener('change', async () => {
+            if (srtFileInput.files.length > 0) {
+                await uploadSrtFile(srtFileInput.files[0]);
+            }
+        });
+    }
+
+    if (srtRemoveBtn) {
+        srtRemoveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            importedSrtPath = null;
+            detectedSrtPath = null;
+            srtFileInput.value = '';
+            srtSelectedBadge.classList.add('hidden');
+            srtUploadContainer.classList.remove('hidden');
+            appendLogLine('[PHỤ ĐỀ] Đã bỏ qua file phụ đề cũ. Hệ thống sẽ quét OCR và dịch lại từ đầu.', 'info');
+        });
+    }
 
     fileRemoveBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         importedFilePath = null;
+        importedSrtPath = null;
+        detectedSrtPath = null;
+        originalFilename = null;
         videoFileInput.value = '';
+        if (srtFileInput) srtFileInput.value = '';
         fileBadge.classList.add('hidden');
+        if (srtSelectedBadge) srtSelectedBadge.classList.add('hidden');
+        if (srtUploadContainer) srtUploadContainer.classList.add('hidden');
+        
         videoUrlInput.required = true;
         videoUrlInput.removeAttribute('disabled');
         videoUrlInput.placeholder = 'Dán liên kết Douyin, Bilibili, YouTube hoặc chọn file video...';
@@ -528,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('File quá lớn! Tối đa 4GB.');
             return;
         }
+        originalFilename = file.name;
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         fileNameEl.textContent = file.name + ' (' + sizeMB + ' MB)';
         fileBadge.classList.remove('hidden');
@@ -542,10 +609,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
             importedFilePath = data.path;
             fileNameEl.textContent = file.name + ' (' + data.size_mb + ' MB OK)';
-            appendLogLine('[IMPORT] ' + file.name + ' (' + data.size_mb + ' MB)', 'success');
+            appendLogLine('[IMPORT VIDEO] ' + file.name + ' (' + data.size_mb + ' MB)', 'success');
+
+            // Xử lý phụ đề phát hiện tự động từ projects/
+            if (data.detected_srt) {
+                detectedSrtPath = data.detected_srt;
+                selectedSrtName.textContent = 'Phụ đề: ' + data.detected_srt.split(/[\\/]/).pop() + ' (Tự động phát hiện)';
+                srtSelectedBadge.classList.remove('hidden');
+                srtUploadContainer.classList.add('hidden');
+                appendLogLine('[SRT PHÁT HIỆN] Phát hiện phụ đề trùng tên trong dự án: ' + data.detected_srt + '. Nhấn Bỏ (X) nếu muốn dịch lại.', 'info');
+            } else {
+                detectedSrtPath = null;
+                srtSelectedBadge.classList.add('hidden');
+                srtUploadContainer.classList.remove('hidden');
+            }
         } catch (err) {
             fileNameEl.textContent = 'Lỗi: ' + err.message;
             appendLogLine('[IMPORT LỖI] ' + err.message, 'error');
+        }
+    }
+
+    async function uploadSrtFile(file) {
+        selectedSrtName.textContent = file.name + ' (Đang tải lên...)';
+        srtSelectedBadge.classList.remove('hidden');
+        srtUploadContainer.classList.add('hidden');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const resp = await fetch('/api/upload-srt', { method: 'POST', body: formData });
+            if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.detail || 'Upload SRT thất bại');
+            const data = await resp.json();
+            importedSrtPath = data.path;
+            selectedSrtName.textContent = 'Phụ đề: ' + file.name + ' (Đã nạp)';
+            appendLogLine('[IMPORT SRT] ' + file.name + ' thành công.', 'success');
+        } catch (err) {
+            selectedSrtName.textContent = 'Lỗi nạp SRT: ' + err.message;
+            appendLogLine('[IMPORT SRT LỖI] ' + err.message, 'error');
         }
     }
 
@@ -748,6 +848,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     translate_style: selectedTranslateStyle,
                     context: context || null,
                     resolution: document.getElementById('videoResolution') ? document.getElementById('videoResolution').value : '1080',
+                    imported_srt: importedSrtPath || null,
+                    use_detected_srt: (detectedSrtPath) ? true : false,
+                    original_filename: originalFilename || null,
                     subtitle_style: burnSubtitlesCheckbox.checked ? {
                         font: (document.getElementById('subFont') || {}).value || 'Montserrat',
                         fontsize: parseInt((document.getElementById('subFontSize') || {}).value) || 20,

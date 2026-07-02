@@ -533,3 +533,85 @@ def _sec_to_ass_time(seconds: float) -> str:
     s = int(seconds % 60)
     cs = int((seconds - int(seconds)) * 100)
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def parse_time_to_seconds(time_str: str) -> float:
+    """Chuyển đổi chuỗi thời gian SRT (HH:MM:SS,mmm hoặc HH:MM:SS.mmm) thành giây."""
+    time_str = time_str.replace(',', '.')
+    parts = time_str.strip().split(':')
+    if len(parts) == 3:
+        h = float(parts[0])
+        m = float(parts[1])
+        s = float(parts[2])
+        return h * 3600 + m * 60 + s
+    return 0.0
+
+
+def parse_srt(file_path: str) -> list:
+    """Đọc tệp SRT và phân tích thành danh sách phân đoạn phụ đề.
+    
+    Trả về: list of dict [{"start": float, "end": float, "text": str, "translation": str, "speaker": str}]
+    """
+    subtitles = []
+    if not os.path.exists(file_path):
+        logger.error(f"File SRT không tồn tại để parse: {file_path}")
+        return subtitles
+        
+    try:
+        try:
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            try:
+                with open(file_path, "r", encoding="utf-16") as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            
+        import re
+        # Chuẩn hóa ký tự xuống dòng
+        content = content.replace('\r\n', '\n')
+        # Tách các khối phụ đề dựa trên dòng trống
+        blocks = re.split(r'\n\s*\n', content.strip())
+        
+        for block in blocks:
+            lines = [l.strip() for l in block.split('\n') if l.strip()]
+            if len(lines) >= 2:
+                # Tìm dòng chứa mốc thời gian "-->"
+                timing_line_idx = -1
+                for idx, line in enumerate(lines):
+                    if "-->" in line:
+                        timing_line_idx = idx
+                        break
+                        
+                if timing_line_idx != -1 and timing_line_idx + 1 < len(lines):
+                    time_line = lines[timing_line_idx]
+                    time_parts = time_line.split("-->")
+                    if len(time_parts) == 2:
+                        start_s = parse_time_to_seconds(time_parts[0])
+                        end_s = parse_time_to_seconds(time_parts[1])
+                        # Phần text là toàn bộ các dòng sau dòng timing
+                        text = "\n".join(lines[timing_line_idx+1:])
+                        
+                        # Phát hiện Speaker tag nếu có dạng "Speaker A: text" hoặc "Người nói A: text"
+                        speaker = "Speaker A"
+                        speaker_match = re.match(r'^([a-zA-Z0-9\s_]+)\s*:\s*(.*)', text, re.IGNORECASE)
+                        if speaker_match:
+                            # Không khớp nếu trùng khớp với các mốc thời gian phụ
+                            potential_spk = speaker_match.group(1).strip()
+                            if len(potential_spk) < 30 and not any(kw in potential_spk.lower() for kw in ["-->", ":"]):
+                                speaker = potential_spk
+                                text = speaker_match.group(2)
+                            
+                        subtitles.append({
+                            "start": start_s,
+                            "end": end_s,
+                            "text": text,
+                            "translation": text,
+                            "speaker": speaker
+                        })
+    except Exception as e:
+        logger.error(f"Lỗi phân tích file SRT {file_path}: {e}")
+        
+    return subtitles

@@ -108,11 +108,58 @@ def _cleanup_expired_jobs():
         logger.info(f"Cleaned up {len(expired)} expired jobs")
 
 
+def find_matching_srt(base_name: str) -> Optional[str]:
+    """Tìm file srt trùng khớp trong thư mục projects/."""
+    if not base_name:
+        return None
+    projects_dir = "projects"
+    if not os.path.exists(projects_dir):
+        return None
+        
+    clean_base = "".join(c if c.isalnum() or c in "_-" else "_" for c in base_name)
+    candidates = [
+        os.path.join(projects_dir, f"{clean_base}_viet.srt"),
+        os.path.join(projects_dir, f"{clean_base}.srt")
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
 def run_pipeline_import(job_id: str, video_path: str):
     """Phase 1 cho video import (local file) — bỏ qua download."""
     job = jobs[job_id]
-    base_name = os.path.splitext(os.path.basename(video_path))[0]
+    
+    # Ưu tiên lấy tên gốc truyền từ frontend để giữ tên video nguyên bản
+    original_filename = job.get("original_filename")
+    if original_filename:
+        base_name = os.path.splitext(original_filename)[0]
+    else:
+        base_name = os.path.splitext(os.path.basename(video_path))[0]
+        
+    job["video_base_name"] = base_name
+    
+    # Kiểm tra xem có phụ đề SRT tương ứng trong projects/ không
+    detected_srt = find_matching_srt(base_name)
+    if detected_srt:
+        job["detected_srt"] = detected_srt
+        
     safe_name = "".join(c if c.isalnum() or c in "_-" else "_" for c in base_name)[:40]
+    
+    # Xóa các thư mục công việc cũ của cùng một video trong output/ để tránh nặng bộ nhớ
+    import glob
+    import shutil
+    if safe_name and len(safe_name) >= 3:
+        existing_folders = glob.glob(os.path.join("output", f"*_{safe_name}"))
+        for old_folder in existing_folders:
+            if os.path.exists(old_folder) and os.path.isdir(old_folder):
+                try:
+                    shutil.rmtree(old_folder, ignore_errors=True)
+                    logger.info(f"Đã dọn dẹp thư mục cũ để tiết kiệm dung lượng: {old_folder}")
+                except Exception as de:
+                    logger.warning(f"Không thể xóa thư mục cũ {old_folder}: {de}")
+                    
     job_folder_name = f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_name}"
     job_folder = f"output/{job_folder_name}"
     os.makedirs(job_folder, exist_ok=True)
@@ -127,11 +174,10 @@ def run_pipeline_import(job_id: str, video_path: str):
 
     try:
         job["step"] = 1
-        job["sub_step"] = "STEP 1.0: Copy video từ file import..."
-        log(f"Copy video từ: {video_path}")
-        import shutil
+        job["sub_step"] = "STEP 1.0: Di chuyển video từ file import..."
+        log(f"Di chuyển video từ: {video_path}")
         original_path = os.path.join(job_folder, "original.mp4")
-        shutil.copy2(video_path, original_path)
+        shutil.move(video_path, original_path)
         video_path = original_path
         job["original_video"] = video_path
         log(f"Import video thành công: {video_path}")
@@ -148,8 +194,8 @@ def run_pipeline_import(job_id: str, video_path: str):
             except Exception as fe:
                 log(f"Không thể tối ưu Fast Start: {fe}")
 
-        if job.get("process_mode", "ocr") == "auto":
-            log("Chế độ ASR. Bắt đầu Phase 2 ngay...")
+        if job.get("process_mode", "ocr") == "auto" or job.get("imported_srt") or job.get("use_detected_srt"):
+            log("Đã nạp phụ đề hoặc chạy chế độ ASR tự động. Bắt đầu Phase 2 ngay...")
             job["status"] = "running"
             dubbing_pipeline.run_phase2(job_id, use_ocr=False, y_start=0, y_end=0, x_start=0, x_end=0)
         else:
@@ -183,6 +229,9 @@ class TranslateRequest(BaseModel):
     context: Optional[str] = None  # Bối cảnh video để AI hiểu nội dung (vd: phim Tây Du Ký, có Natra...)
     subtitle_style: Optional[Dict] = None  # Style ASS subtitle {font, fontsize, color, position}
     resolution: Optional[str] = "1080"  # Độ phân giải tải video: best, 1080, 720
+    imported_srt: Optional[str] = None
+    use_detected_srt: bool = False
+    original_filename: Optional[str] = None
 
 class ResumeRequest(BaseModel):
     use_ocr: bool
@@ -754,11 +803,42 @@ async def upload_video(file: UploadFile = File(...)):
             f.write(contents)
         size_mb = len(contents) / (1024 * 1024)
         logger.info(f"Upload: {file.filename} ({size_mb:.1f} MB) -> {dest_path}")
-        return {"status": "success", "path": dest_path, "filename": file.filename, "size_mb": round(size_mb, 1)}
+        
+        # Tự động quét tìm phụ đề cùng tên trong projects/
+        base_name = os.path.splitext(file.filename)[0] if file.filename else ""
+        detected_srt = find_matching_srt(base_name)
+        
+        return {
+            "status": "success", 
+            "path": dest_path, 
+            "filename": file.filename, 
+            "size_mb": round(size_mb, 1),
+            "detected_srt": detected_srt
+        }
     except Exception as e:
         if os.path.exists(dest_path):
             os.remove(dest_path)
         raise HTTPException(status_code=500, detail=f"Lỗi upload: {str(e)}")
+
+
+@app.post("/api/upload-srt")
+async def upload_srt(file: UploadFile = File(...)):
+    """Nhận file phụ đề SRT upload, lưu vào output/imports/."""
+    import uuid as _uuid
+    ext = os.path.splitext(file.filename or "subtitles.srt")[1].lower()
+    if ext != ".srt":
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file định dạng .srt")
+    safe_name = f"{_uuid.uuid4().hex}{ext}"
+    dest_path = os.path.join(UPLOAD_DIR, safe_name)
+    try:
+        contents = await file.read()
+        with open(dest_path, "wb") as f:
+            f.write(contents)
+        return {"status": "success", "path": dest_path, "filename": file.filename}
+    except Exception as e:
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        raise HTTPException(status_code=500, detail=f"Lỗi upload SRT: {str(e)}")
 
 
 @app.post("/api/get-cookies")
@@ -974,6 +1054,9 @@ def start_translation(request: TranslateRequest):
         "context": request.context,
         "subtitle_style": request.subtitle_style,
         "resolution": request.resolution,
+        "imported_srt": request.imported_srt,
+        "use_detected_srt": request.use_detected_srt,
+        "original_filename": request.original_filename,
         "_created": time.time(),
     }
     

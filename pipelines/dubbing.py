@@ -72,16 +72,43 @@ class DubbingPipeline:
             job["step"] = 1
             job["sub_step"] = "STEP 1.0: Đang tải video..."
             log(f"Khởi động mô-đun tải video: {url}")
-            res_val = job.get("resolution", "1080")
             video_path = download_douyin_video(url, job_folder, resolution=res_val)
 
+            if not video_path or not os.path.exists(video_path):
+                raise ValueError("Không thể tải video từ liên kết này. Vui lòng kiểm tra lại liên kết, trạng thái mạng hoặc cập nhật Cookie của bạn.")
+
+            video_base_name = aweme_id
             if video_path and os.path.exists(video_path):
+                downloaded_base = os.path.splitext(os.path.basename(video_path))[0]
+                if downloaded_base not in ("video", "original", ""):
+                    video_base_name = downloaded_base
                 original_path = os.path.join(job_folder, "original.mp4")
                 if video_path != original_path:
                     os.rename(video_path, original_path)
                 video_path = original_path
             job["original_video"] = video_path
-            log(f"Tải video gốc thành công: {video_path}")
+            job["video_base_name"] = video_base_name
+            log(f"Tải video gốc thành công: {video_path} (Tên gốc: {video_base_name})")
+
+            # Quét tự động phát hiện srt trùng khớp trong projects/
+            from main import find_matching_srt
+            detected_srt = find_matching_srt(video_base_name)
+            if detected_srt:
+                job["detected_srt"] = detected_srt
+
+            # Xóa các thư mục công việc cũ của cùng một video trong output/ để tránh nặng bộ nhớ
+            import glob
+            import shutil
+            clean_base = "".join(c if c.isalnum() or c in "_-" else "_" for c in video_base_name)
+            if clean_base and len(clean_base) >= 3:
+                existing_folders = glob.glob(os.path.join("output", f"*_{clean_base}"))
+                for old_folder in existing_folders:
+                    if os.path.normpath(old_folder) != os.path.normpath(job_folder) and os.path.exists(old_folder) and os.path.isdir(old_folder):
+                        try:
+                            shutil.rmtree(old_folder, ignore_errors=True)
+                            log(f"Đã dọn dẹp thư mục cũ để tiết kiệm dung lượng: {old_folder}")
+                        except Exception as de:
+                            logger.warning(f"Không thể xóa thư mục cũ {old_folder}: {de}")
 
             # Fast Start optimization
             if video_path and os.path.exists(video_path):
@@ -100,8 +127,8 @@ class DubbingPipeline:
                     log(f"Không thể tối ưu hóa video Fast Start: {fe}. Tiếp tục dùng tệp gốc.")
 
             process_mode = job.get("process_mode", "ocr")
-            if process_mode == "auto":
-                log("Chế độ xử lý: Tự động (ASR). Bắt đầu Phase 2 ngay lập tức...")
+            if process_mode == "auto" or job.get("imported_srt") or job.get("use_detected_srt"):
+                log("Chế độ xử lý: Tự động (ASR/SRT). Bắt đầu Phase 2 ngay lập tức...")
                 job["status"] = "running"
                 self.run_phase2(
                     job_id=job_id, use_ocr=False,
@@ -136,126 +163,164 @@ class DubbingPipeline:
         log = self._make_logger(job, job_id)
 
         try:
-            subtitles = []
-
-            if use_ocr:
-                job["step"] = 2
-                job["sub_step"] = "STEP 2.0: Đang quét OCR offline (RapidOCR)..."
-                log(f"Khởi động RapidOCR offline – vùng quét Y=[{y_start:.2f}–{y_end:.2f}]...")
-                original_audio_path = os.path.join(job_folder, "audio.mp3")
-
-                asr_result = []
-                asr_err = []
-                audio_ready = False
+            # --- KIỂM TRA FILE PHỤ ĐỀ SRT IMPORT THỦ CÔNG HOẶC TỰ ĐỘNG PHÁT HIỆN ---
+            imported_srt = job.get("imported_srt")
+            use_detected_srt = job.get("use_detected_srt")
+            detected_srt = job.get("detected_srt")
+            
+            target_srt_path = None
+            if imported_srt and os.path.exists(imported_srt):
+                target_srt_path = os.path.join(job_folder, "subtitles.srt")
+                import shutil
                 try:
-                    log("Tách âm thanh gốc làm căn cứ cross-check...")
-                    extract_audio(video_path, original_audio_path)
-                    job["audio"] = original_audio_path
-                    audio_ready = True
-                except Exception as e:
-                    log(f"Cảnh báo tách âm thanh gốc thất bại: {e}.")
+                    # Nếu là file nằm trong output/imports thì ta di chuyển để dọn dẹp, ngược lại (ví dụ projects/) thì ta chỉ copy
+                    if "imports" in imported_srt:
+                        shutil.move(imported_srt, target_srt_path)
+                        log(f"Đã nạp và dọn dẹp file phụ đề SRT từ imports: {target_srt_path}")
+                    else:
+                        shutil.copy2(imported_srt, target_srt_path)
+                        log(f"Đã sao chép file phụ đề SRT từ dự án: {target_srt_path}")
+                except Exception as me:
+                    log(f"Lỗi xử lý file SRT: {me}. Cố sao chép...")
+                    shutil.copy2(imported_srt, target_srt_path)
+                    if "imports" in imported_srt:
+                        try:
+                            os.remove(imported_srt)
+                        except:
+                            pass
+            elif use_detected_srt and detected_srt and os.path.exists(detected_srt):
+                target_srt_path = os.path.join(job_folder, "subtitles.srt")
+                import shutil
+                shutil.copy2(detected_srt, target_srt_path)
+                log(f"Tự động nạp phụ đề cũ từ projects: {target_srt_path}")
+                
+            if target_srt_path:
+                from audio_processor import parse_srt
+                subtitles = parse_srt(target_srt_path)
 
-                def run_asr():
+            if subtitles:
+                log(f"Nạp phụ đề thành công ({len(subtitles)} phân đoạn). Bỏ qua bước OCR, ASR và Dịch thuật.")
+                job["step"] = 4
+                job["sub_step"] = "Đã nạp phụ đề import, bỏ qua OCR & Dịch thuật."
+            else:
+                if use_ocr:
+                    job["step"] = 2
+                    job["sub_step"] = "STEP 2.0: Đang quét OCR offline (RapidOCR)..."
+                    log(f"Khởi động RapidOCR offline – vùng quét Y=[{y_start:.2f}–{y_end:.2f}]...")
+                    original_audio_path = os.path.join(job_folder, "audio.mp3")
+
+                    asr_result = []
+                    asr_err = []
+                    audio_ready = False
                     try:
-                        if audio_ready and os.path.exists(original_audio_path):
-                            client_asr = get_vertex_client()
-                            res = transcribe_audio_gemini(client_asr, original_audio_path)
-                            asr_result.append(res)
+                        log("Tách âm thanh gốc làm căn cứ cross-check...")
+                        extract_audio(video_path, original_audio_path)
+                        job["audio"] = original_audio_path
+                        audio_ready = True
                     except Exception as e:
-                        asr_err.append(e)
+                        log(f"Cảnh báo tách âm thanh gốc thất bại: {e}.")
 
-                t_asr = threading.Thread(target=run_asr)
-                t_asr.start()
+                    def run_asr():
+                        try:
+                            if audio_ready and os.path.exists(original_audio_path):
+                                client_asr = get_vertex_client()
+                                res = transcribe_audio_gemini(client_asr, original_audio_path)
+                                asr_result.append(res)
+                        except Exception as e:
+                            asr_err.append(e)
 
-                try:
-                    ocr_segments = extract_subtitle_segments(
-                        video_path=video_path,
-                        y_start_ratio=y_start, y_end_ratio=y_end,
-                        x_start_ratio=x_start, x_end_ratio=x_end,
-                        log_func=log,
-                    )
-                except Exception as e:
-                    log(f"Lỗi RapidOCR: {e}. Tự động chuyển sang ASR fallback.")
-                    use_ocr = False
-                    ocr_segments = []
+                    t_asr = threading.Thread(target=run_asr)
+                    t_asr.start()
 
-                t_asr.join()
+                    try:
+                        ocr_segments = extract_subtitle_segments(
+                            video_path=video_path,
+                            y_start_ratio=y_start, y_end_ratio=y_end,
+                            x_start_ratio=x_start, x_end_ratio=x_end,
+                            log_func=log,
+                        )
+                    except Exception as e:
+                        log(f"Lỗi RapidOCR: {e}. Tự động chuyển sang ASR fallback.")
+                        use_ocr = False
+                        ocr_segments = []
 
-                if use_ocr and ocr_segments:
-                    log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch...")
-                    translate_provider = job.get("translate_provider", "gemini")
-                    subtitles = self._translate_ocr_subtitles(
-                        ocr_segments, log,
-                        provider=translate_provider,
-                        voice_name=job.get("voice_name"),
-                        translate_style=job.get("translate_style", "default"),
-                        context=job.get("context")
-                    )
+                    t_asr.join()
+
+                    if use_ocr and ocr_segments:
+                        log(f"RapidOCR trích xuất {len(ocr_segments)} đoạn phụ đề. Đang dịch batch...")
+                        translate_provider = job.get("translate_provider", "gemini")
+                        subtitles = self._translate_ocr_subtitles(
+                            ocr_segments, log,
+                            provider=translate_provider,
+                            voice_name=job.get("voice_name"),
+                            translate_style=job.get("translate_style", "default"),
+                            context=job.get("context")
+                        )
+
+                        if not subtitles:
+                            log("Dịch thất bại. Chuyển sang ASR fallback.")
+                            use_ocr = False
+                        else:
+                            if asr_result and asr_result[0].get("subtitles"):
+                                log("Đang cross-check Hybrid Snapping: OCR vs ASR...")
+                                asr_subs = asr_result[0].get("subtitles", [])
+                                subtitles = self._align_ocr_asr(subtitles, asr_subs, log)
+                            subtitles.sort(key=lambda x: x.get("start", 0.0))
+                    else:
+                        log("RapidOCR không tìm thấy phụ đề. Dùng ASR fallback.")
+                        use_ocr = False
+
+                # ── ASR fallback ──
+                if not use_ocr:
+                    job["step"] = 2
+                    job["sub_step"] = "STEP 2.0: Đang tách luồng âm thanh từ video..."
+                    log("Trích xuất âm thanh gốc bằng ffmpeg...")
+                    original_audio_path = os.path.join(job_folder, "audio.mp3")
+                    if not os.path.exists(original_audio_path):
+                        extract_audio(video_path, original_audio_path)
+                    job["audio"] = original_audio_path
+                    log(f"Trích xuất âm thanh thành công: {original_audio_path}")
 
                     if not subtitles:
-                        log("Dịch thất bại. Chuyển sang ASR fallback.")
-                        use_ocr = False
-                    else:
-                        if asr_result and asr_result[0].get("subtitles"):
-                            log("Đang cross-check Hybrid Snapping: OCR vs ASR...")
-                            asr_subs = asr_result[0].get("subtitles", [])
-                            subtitles = self._align_ocr_asr(subtitles, asr_subs, log)
+                        job["step"] = 3
+                        asr_mode = job.get("asr_mode", "audio")
+                        if asr_mode == "whisper":
+                            job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Local Whisper..."
+                            from translator import transcribe_audio_local_whisper
+                            whisper_result = transcribe_audio_local_whisper(original_audio_path)
+                            whisper_subs = whisper_result.get("subtitles", [])
+                            log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Whisper.")
+                            translate_provider = job.get("translate_provider", "gemini")
+                            subtitles = self._translate_ocr_subtitles(
+                                whisper_subs, log,
+                                provider=translate_provider,
+                                voice_name=job.get("voice_name"),
+                                translate_style=job.get("translate_style", "default"),
+                                context=job.get("context")
+                            )
+                        else:
+                            job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
+                            log("Gửi tệp âm thanh qua Google GenAI SDK để ASR...")
+                            asr_client = get_vertex_client()
+                            subtitles_data = transcribe_audio_gemini(asr_client, original_audio_path)
+                            whisper_subs = subtitles_data.get("subtitles", [])
+                            
+                            log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Gemini ASR. Bắt đầu dịch thuật...")
+                            translate_provider = job.get("translate_provider", "gemini")
+                            subtitles = self._translate_ocr_subtitles(
+                                whisper_subs, log,
+                                provider=translate_provider,
+                                voice_name=job.get("voice_name"),
+                                translate_style=job.get("translate_style", "default"),
+                                context=job.get("context")
+                            )
                         subtitles.sort(key=lambda x: x.get("start", 0.0))
-                else:
-                    log("RapidOCR không tìm thấy phụ đề. Dùng ASR fallback.")
-                    use_ocr = False
+                        log(f"Hoàn thành ASR. Tìm thấy {len(subtitles)} phân đoạn.")
 
-            # ── ASR fallback ──
-            if not use_ocr:
-                job["step"] = 2
-                job["sub_step"] = "STEP 2.0: Đang tách luồng âm thanh từ video..."
-                log("Trích xuất âm thanh gốc bằng ffmpeg...")
-                original_audio_path = os.path.join(job_folder, "audio.mp3")
-                if not os.path.exists(original_audio_path):
-                    extract_audio(video_path, original_audio_path)
-                job["audio"] = original_audio_path
-                log(f"Trích xuất âm thanh thành công: {original_audio_path}")
-
-                if not subtitles:
-                    job["step"] = 3
-                    asr_mode = job.get("asr_mode", "audio")
-                    if asr_mode == "whisper":
-                        job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Local Whisper..."
-                        from translator import transcribe_audio_local_whisper
-                        whisper_result = transcribe_audio_local_whisper(original_audio_path)
-                        whisper_subs = whisper_result.get("subtitles", [])
-                        log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Whisper.")
-                        translate_provider = job.get("translate_provider", "gemini")
-                        subtitles = self._translate_ocr_subtitles(
-                            whisper_subs, log,
-                            provider=translate_provider,
-                            voice_name=job.get("voice_name"),
-                            translate_style=job.get("translate_style", "default"),
-                            context=job.get("context")
-                        )
-                    else:
-                        job["sub_step"] = "STEP 3.0: Đang nhận dạng giọng nói bằng Gemini 2.5 Flash..."
-                        log("Gửi tệp âm thanh qua Google GenAI SDK để ASR...")
-                        asr_client = get_vertex_client()
-                        subtitles_data = transcribe_audio_gemini(asr_client, original_audio_path)
-                        whisper_subs = subtitles_data.get("subtitles", [])
-                        
-                        log(f"Đã nhận dạng {len(whisper_subs)} phân đoạn bằng Gemini ASR. Bắt đầu dịch thuật...")
-                        translate_provider = job.get("translate_provider", "gemini")
-                        subtitles = self._translate_ocr_subtitles(
-                            whisper_subs, log,
-                            provider=translate_provider,
-                            voice_name=job.get("voice_name"),
-                            translate_style=job.get("translate_style", "default"),
-                            context=job.get("context")
-                        )
-                    subtitles.sort(key=lambda x: x.get("start", 0.0))
-                    log(f"Hoàn thành ASR. Tìm thấy {len(subtitles)} phân đoạn.")
-
-            # ── Step 4: Dịch ──
-            job["step"] = 4
-            job["sub_step"] = "STEP 4.0: Đang dịch thuật..."
-            log("Biên dịch bản dịch tiếng Việt...")
+                # ── Step 4: Dịch ──
+                job["step"] = 4
+                job["sub_step"] = "STEP 4.0: Đang dịch thuật..."
+                log("Biên dịch bản dịch tiếng Việt...")
 
             # --- SUBTITLE REVIEW MODAL PAUSE STEP ---
             job["subtitles"] = subtitles
@@ -406,6 +471,31 @@ class DubbingPipeline:
             job["status"] = "completed"
             job["sub_step"] = "Hoàn thành!"
             log(f"Hoàn thành! Video lưu tại: {job_folder}/")
+
+            # --- SAO LƯU KẾT QUẢ VÀO THƯ MỤC PROJECTS/ ĐỂ LƯU TRỮ VĨNH VIỄN VÀ NHẬN DIỆN LẦN SAU ---
+            try:
+                video_base_name = job.get("video_base_name") or "video"
+                clean_base = "".join(c if c.isalnum() or c in "_-" else "_" for c in video_base_name)
+                projects_dir = "projects"
+                os.makedirs(projects_dir, exist_ok=True)
+                
+                # Sao chép video Việt hóa
+                dubbed_dest = os.path.join(projects_dir, f"{clean_base}_viet.mp4")
+                import shutil
+                shutil.copy2(output_video_path, dubbed_dest)
+                log(f"Đã sao lưu video Việt hóa vĩnh viễn: {dubbed_dest}")
+                
+                # Sao chép phụ đề Việt hóa (.srt)
+                actual_srt_source = srt_path
+                if srt_path.endswith(".ass"):
+                    actual_srt_source = srt_path.replace(".ass", ".srt")
+                
+                if os.path.exists(actual_srt_source):
+                    srt_dest = os.path.join(projects_dir, f"{clean_base}_viet.srt")
+                    shutil.copy2(actual_srt_source, srt_dest)
+                    log(f"Đã sao lưu phụ đề Việt hóa vĩnh viễn: {srt_dest}")
+            except Exception as backup_err:
+                log(f"Cảnh báo: Không thể sao lưu kết quả vào projects/: {backup_err}")
 
         except Exception as e:
             logger.error(f"Pipeline Phase 2 failure: {str(e)}", exc_info=True)
