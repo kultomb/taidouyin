@@ -1211,30 +1211,46 @@ def download_file(job_id: str, file_type: str):
     path = None
     media_type = "application/octet-stream"
     
+    # Lấy tên gốc của video để đặt tên file tải về cho đồng bộ
+    video_base_name = job.get("video_base_name") or "video"
+    clean_base = "".join(c if c.isalnum() or c in "_-" else "_" for c in video_base_name)
+    download_filename = None
+    
     if file_type == "original_video.mp4":
         path = job["original_video"]
         media_type = "video/mp4"
+        download_filename = f"{clean_base}_original.mp4"
     elif file_type == "translated_video.mp4":
         path = job["translated_video"]
         media_type = "video/mp4"
+        download_filename = f"{clean_base}_viet.mp4"
     elif file_type == "subtitles.srt":
         path = job["srt"]
         media_type = "text/plain"
+        if path and path.endswith(".ass"):
+            download_filename = f"{clean_base}_viet.ass"
+        else:
+            download_filename = f"{clean_base}_viet.srt"
     elif file_type == "subtitles_original.srt":
         path = job.get("srt_original")
         if not path or not os.path.exists(path):
             raise HTTPException(status_code=404, detail="File SRT gốc không tồn tại.")
         media_type = "text/plain"
+        download_filename = f"{clean_base}_original.srt"
     elif file_type == "original_audio.mp3":
         path = job.get("audio")
         if not path or not os.path.exists(path):
             raise HTTPException(status_code=404, detail="File audio đã được dọn dẹp sau khi xử lý.")
         media_type = "audio/mpeg"
+        download_filename = f"{clean_base}_audio.mp3"
         
     if not path or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp được yêu cầu.")
         
-    return FileResponse(path, media_type=media_type, filename=os.path.basename(path))
+    if not download_filename:
+        download_filename = os.path.basename(path)
+        
+    return FileResponse(path, media_type=media_type, filename=download_filename)
 
 # Serve Output files statically for video range streaming support
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
