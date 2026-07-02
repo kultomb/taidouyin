@@ -72,6 +72,7 @@ class DubbingPipeline:
             job["step"] = 1
             job["sub_step"] = "STEP 1.0: Đang tải video..."
             log(f"Khởi động mô-đun tải video: {url}")
+            res_val = job.get("resolution", "1080")
             video_path = download_douyin_video(url, job_folder, resolution=res_val)
 
             if not video_path or not os.path.exists(video_path):
