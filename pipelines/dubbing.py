@@ -164,6 +164,7 @@ class DubbingPipeline:
         log = self._make_logger(job, job_id)
 
         try:
+            subtitles = []
             # --- KIỂM TRA FILE PHỤ ĐỀ SRT IMPORT THỦ CÔNG HOẶC TỰ ĐỘNG PHÁT HIỆN ---
             imported_srt = job.get("imported_srt")
             use_detected_srt = job.get("use_detected_srt")
